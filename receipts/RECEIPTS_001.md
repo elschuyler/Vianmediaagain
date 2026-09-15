@@ -14,13 +14,14 @@ Verification: local build only (compile_applet passed)
 Deviation: None
 Follow-up: Push to GitHub repository to trigger the automated CI APK build.
 
-2026-09-06T13:41:00Z
-Requested: Restore GitHub Actions CI pipeline to known-good Gradle 9.7.1 and change visible app name to Vian Media
-Files touched: .github/workflows/build.yml, app/src/main/res/values/strings.xml, receipts/RECEIPTS_001.md
-Action: Restored gradle-version to '9.7.1' in .github/workflows/build.yml to match successful Run #21 baseline for AGP 9.1.1. Changed visible app_name in app/src/main/res/values/strings.xml from 'Vian Media TEST' to 'Vian Media' while keeping applicationId strictly as 'com.shura.vianbrmedia.cecbba.test'. Did not touch any application source code. Did not commit or push to GitHub.
-Verification: local build only (compile_applet passed)
+2026-09-12T14:51:30Z
+Requested: Fix only MainActivity.kt for three Kotlin compilation issues (missing launch import, saveOrUpdateTemporaryPlaylist argument, cleanExpiredTemporaryPlaylists argument)
+Files touched: app/src/main/java/com/example/MainActivity.kt, receipts/RECEIPTS_001.md
+Action: Added 'import kotlinx.coroutines.launch' to resolve unresolved reference on CoroutineScope.launch calls. Changed playlistRepo.saveOrUpdateTemporaryPlaylist(allUris, "Quick Play (Temporary)") to playlistRepo.saveOrUpdateTemporaryPlaylist(allUris) to match (uris: List<String>, append: Boolean = false) signature. Changed playlistRepo.cleanExpiredTemporaryPlaylists(24 * 60 * 60 * 1000L) to playlistRepo.cleanExpiredTemporaryPlaylists(24) to pass hours instead of milliseconds. Modified no other files.
+Verification: local build only (compile_applet passed; note Android/Gradle assembleDebug runs in GitHub Actions CI, so on-device Kotlin bytecode compilation is unverified until CI execution)
 Deviation: None
-Follow-up: Awaiting user instruction before any Git commit/push or application source-code investigation.
+Follow-up: Awaiting user instruction before proceeding to the next file.
+
 
 
 

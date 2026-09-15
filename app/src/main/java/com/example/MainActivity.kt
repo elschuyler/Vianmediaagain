@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import com.example.ui.navigation.AppNavigation
 import com.example.ui.screens.LoggerScreen
 import com.example.ui.theme.MyApplicationTheme
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -196,7 +197,7 @@ class MainActivity : ComponentActivity() {
                   }
                   val db = com.example.data.AppDatabase.getDatabase(applicationContext)
                   val playlistRepo = com.example.data.PlaylistRepository(db.playlistDao())
-                  playlistRepo.saveOrUpdateTemporaryPlaylist(allUris, "Quick Play (Temporary)")
+                  playlistRepo.saveOrUpdateTemporaryPlaylist(allUris)
               } catch (e: Exception) {
                   com.example.LogKeeper.logError("MainActivity", "Error auto-saving temporary playlist", e)
               }
@@ -354,7 +355,7 @@ class MainActivity : ComponentActivity() {
         try {
             val db = com.example.data.AppDatabase.getDatabase(applicationContext)
             val playlistRepo = com.example.data.PlaylistRepository(db.playlistDao())
-            playlistRepo.cleanExpiredTemporaryPlaylists(24 * 60 * 60 * 1000L)
+            playlistRepo.cleanExpiredTemporaryPlaylists(24)
         } catch (e: Exception) {
             LogKeeper.logError("MainActivity", "Error cleaning expired temporary playlists", e)
         }
