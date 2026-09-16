@@ -33,7 +33,7 @@ fun AppNavigation(initialUris: List<String> = emptyList(), forceAction: String? 
     val settingsManager = remember { SettingsManager.getInstance(context) }
     val navController = rememberNavController()
     
-    val startDest = if (settingsManager.hasSeenWelcome) "main" else "welcome"
+    val defaultStartDest = if (settingsManager.hasSeenWelcome) "main" else "welcome"
     
     val intentDest = remember(initialUris, forceAction) {
         if (initialUris.isNotEmpty()) {
@@ -75,18 +75,7 @@ fun AppNavigation(initialUris: List<String> = emptyList(), forceAction: String? 
         } else null
     }
 
-    androidx.compose.runtime.LaunchedEffect(intentDest) {
-        if (intentDest != null) {
-            try {
-                navController.navigate(intentDest) {
-                    popUpTo(startDest) { inclusive = false }
-                    launchSingleTop = true
-                }
-            } catch (e: Exception) {
-                com.example.LogKeeper.logError("Navigation", "Failed to navigate to intent destination: $intentDest", e)
-            }
-        }
-    }
+    val startDest = intentDest ?: defaultStartDest
     
 
 
@@ -240,8 +229,8 @@ fun AppNavigation(initialUris: List<String> = emptyList(), forceAction: String? 
                 onNavigateBack = { 
                     val popped = navController.popBackStack()
                     com.example.LogKeeper.log("popBackStack() returned $popped, current backstack size: ${navController.currentBackStack.value.size}", "Navigation")
-                    if (!popped) {
-                        com.example.LogKeeper.log("No backstack entry to pop — finishing Activity", "Navigation")
+                    if (!popped || (initialUris.isNotEmpty() && navController.currentDestination?.route == "main")) {
+                        com.example.LogKeeper.log("No backstack entry to pop or launched via intent — finishing Activity", "Navigation")
                         (context as? android.app.Activity)?.finish()
                     }
                 }
@@ -260,8 +249,8 @@ fun AppNavigation(initialUris: List<String> = emptyList(), forceAction: String? 
                 onNavigateBack = { 
                     val popped = navController.popBackStack()
                     com.example.LogKeeper.log("popBackStack() returned $popped, current backstack size: ${navController.currentBackStack.value.size}", "Navigation")
-                    if (!popped) {
-                        com.example.LogKeeper.log("No backstack entry to pop — finishing Activity", "Navigation")
+                    if (!popped || (initialUris.isNotEmpty() && navController.currentDestination?.route == "main")) {
+                        com.example.LogKeeper.log("No backstack entry to pop or launched via intent — finishing Activity", "Navigation")
                         (context as? android.app.Activity)?.finish()
                     }
                 }
@@ -280,8 +269,8 @@ fun AppNavigation(initialUris: List<String> = emptyList(), forceAction: String? 
                 onNavigateBack = { 
                     val popped = navController.popBackStack()
                     com.example.LogKeeper.log("popBackStack() returned $popped, current backstack size: ${navController.currentBackStack.value.size}", "Navigation")
-                    if (!popped) {
-                        com.example.LogKeeper.log("No backstack entry to pop — finishing Activity", "Navigation")
+                    if (!popped || (initialUris.isNotEmpty() && navController.currentDestination?.route == "main")) {
+                        com.example.LogKeeper.log("No backstack entry to pop or launched via intent — finishing Activity", "Navigation")
                         (context as? android.app.Activity)?.finish()
                     }
                 }

@@ -358,6 +358,22 @@
   - Decoupled and enhanced `LoggerScreen.kt`: loads full log on-demand via `LogKeeper.loadAllLogs()`, displays real-time disk storage meter with percentage bar (`X.XX MB / 2.00 MB`), adds search text filtering across tags and stacktraces, adds confirmation dialog to clear logs, and enables manual export to Downloads.
 * Verification: local build verified (compile_applet passed cleanly).
 * Deviation: None.
+* Timestamp: 2026-09-16T00:43:00Z
+* Summary: Set export defaults to 480p/mid-quality/no-ultrafast, and calibrated player double-tap for pause, single-tap for controls, and brightness slider dismissal.
+* Files touched:
+  - app/src/main/java/com/example/ui/screens/VideoEditorScreen.kt
+  - app/src/main/java/com/example/ui/components/FFmpegBatchDialog.kt
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_026.md
+* What was actually done:
+  - Updated `VideoEditorScreen.kt` export panel defaults: set `resolutionIndex` to 4 (480p), `quality` to 0.5f (slider midpoint), and `fastExport` to false (disabled / unticked by default).
+  - Updated `FFmpegBatchDialog.kt` defaults: set `resolutionIndex` to 4 (480p), `quality` to 0.5f, and `fastExport` to false for unified application consistency.
+  - Eliminated conflicting Compose `detectTapGestures` block in `PlayerScreen.kt` that was competing with `awaitEachGesture` and restarting on mediaController recomposition.
+  - Implemented high-reliability timestamp and position tracking inside `awaitEachGesture` (`timeDiff in 40L..400L && dist < 120f * density`):
+    - Double-tap: Exclusively toggles play/pause with visual flash feedback.
+    - Single-tap: Toggles player controls visibility after a responsive 260ms window.
+    - Brightness slider open priority: When `showBrightnessSlider` is true, tapping anywhere immediately dismisses the brightness slider without toggling player controls.
+* Verification: local build verified (compile_applet passed cleanly).
+* Deviation: None.
 * Known issues: None.
-
-

@@ -15,10 +15,10 @@ fun FFmpegBatchDialog(
     onStartProcessing: (List<String>, String, String) -> Unit
 ) {
     var format by remember { mutableStateOf("mp4") }
-    var resolutionIndex by remember { mutableIntStateOf(0) }
+    var resolutionIndex by remember { mutableIntStateOf(4) }
     var fpsIndex by remember { mutableIntStateOf(1) }
-    var quality by remember { mutableFloatStateOf(0.7f) }
-    var fastExport by remember { mutableStateOf(true) }
+    var quality by remember { mutableFloatStateOf(0.5f) }
+    var fastExport by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,

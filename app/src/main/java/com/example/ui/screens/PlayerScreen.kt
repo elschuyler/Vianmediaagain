@@ -120,6 +120,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -253,6 +254,10 @@ fun PlayerScreen(
     var seekOffsetSec by remember { androidx.compose.runtime.mutableIntStateOf(0) }
     var showPlayPauseFlash by remember { mutableStateOf(false) }
     var flashIsPlaying by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+    var lastTapTime by remember { mutableLongStateOf(0L) }
+    var lastTapPosition by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+    var pendingSingleTapJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     
     LaunchedEffect(showPlayPauseFlash) {
         if (showPlayPauseFlash) {
@@ -1011,47 +1016,14 @@ fun PlayerScreen(
         }
     }
 
+    val density = androidx.compose.ui.platform.LocalDensity.current.density
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
         .fillMaxSize()
         .background(Color.Black)
-        .pointerInput(mediaController, isLocked) {
-            detectTapGestures(
-                onDoubleTap = {
-                    if (isLocked) return@detectTapGestures
-                    mediaController?.let { controller ->
-                        if (controller.playbackState == androidx.media3.common.Player.STATE_ENDED) {
-                            controller.seekTo(0)
-                            controller.prepare()
-                            controller.play()
-                            wasPlayingBeforePause = true
-                            showControls = false
-                        } else if (controller.playbackState == androidx.media3.common.Player.STATE_IDLE) {
-                            controller.prepare()
-                            controller.play()
-                            wasPlayingBeforePause = true
-                            showControls = false
-                        } else if (controller.isPlaying) {
-                            controller.pause()
-                            wasPlayingBeforePause = false
-                            showControls = true
-                        } else {
-                            controller.play()
-                            wasPlayingBeforePause = true
-                            showControls = false
-                        }
-                        flashIsPlaying = controller.isPlaying
-                        showPlayPauseFlash = true
-                    }
-                },
-                onTap = {
-                    showControls = !showControls
-                }
-            )
-        }
-        .pointerInput(isLocked) {
-            if (isLocked) return@pointerInput
+        .pointerInput(isLocked, isInPipMode, showBrightnessSlider) {
+            if (isLocked || isInPipMode) return@pointerInput
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false)
                 var currentGesture = GestureType.NONE
@@ -1193,6 +1165,62 @@ fun PlayerScreen(
                     if (wasPlayingBeforeSeek) {
                         mediaController?.play()
                     }
+                } else if (currentGesture == GestureType.NONE && kotlin.math.abs(dragDistanceX) <= 20f && kotlin.math.abs(dragDistanceY) <= 20f) {
+                    // Tap handling
+                    if (showBrightnessSlider) {
+                        pendingSingleTapJob?.cancel()
+                        showBrightnessSlider = false
+                        lastTapTime = 0L
+                    } else {
+                        val now = System.currentTimeMillis()
+                        val tapPos = down.position
+                        val timeDiff = now - lastTapTime
+                        val dist = (tapPos - lastTapPosition).getDistance()
+                        
+                        if (timeDiff in 40L..400L && dist < 120f * density) {
+                            // Double tap: Only pause (play/pause toggle)
+                            pendingSingleTapJob?.cancel()
+                            lastTapTime = 0L
+                            
+                            mediaController?.let { controller ->
+                                if (controller.playbackState == androidx.media3.common.Player.STATE_ENDED) {
+                                    controller.seekTo(0)
+                                    controller.prepare()
+                                    controller.play()
+                                    wasPlayingBeforePause = true
+                                    showControls = false
+                                } else if (controller.playbackState == androidx.media3.common.Player.STATE_IDLE) {
+                                    controller.prepare()
+                                    controller.play()
+                                    wasPlayingBeforePause = true
+                                    showControls = false
+                                } else if (controller.isPlaying) {
+                                    controller.pause()
+                                    wasPlayingBeforePause = false
+                                    showControls = true
+                                } else {
+                                    controller.play()
+                                    wasPlayingBeforePause = true
+                                    showControls = false
+                                }
+                                flashIsPlaying = controller.isPlaying
+                                showPlayPauseFlash = true
+                            }
+                        } else {
+                            // First tap: record and schedule single tap action
+                            lastTapTime = now
+                            lastTapPosition = tapPos
+                            pendingSingleTapJob?.cancel()
+                            pendingSingleTapJob = coroutineScope.launch {
+                                kotlinx.coroutines.delay(260L)
+                                if (showBrightnessSlider) {
+                                    showBrightnessSlider = false
+                                } else {
+                                    showControls = !showControls
+                                }
+                            }
+                        }
+                    }
                 }
                 
                 activeGesture = GestureType.NONE
@@ -1200,7 +1228,6 @@ fun PlayerScreen(
             }
         }
     ) {
-        val density = androidx.compose.ui.platform.LocalDensity.current.density
         AndroidView(
             factory = { ctx ->
                 PlayerView(ctx).apply {
@@ -1487,11 +1514,56 @@ fun PlayerScreen(
                                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
                             )
-                            IconButton(onClick = { 
-                                com.example.LogKeeper.log("Speed button clicked", "PlayerScreen")
-                                showSpeedDialog = true
-                            }) {
-                                Icon(Icons.Filled.Speed, contentDescription = "Speed", tint = if (playbackSpeed != 1f) Color(0xFF2196F3) else Color.White)
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                                    .pointerInput(playbackSpeed) {
+                                        detectTapGestures(
+                                            onLongPress = {
+                                                com.example.LogKeeper.log("Speed button long pressed - opening dialog", "PlayerScreen")
+                                                showSpeedDialog = true
+                                            },
+                                            onTap = {
+                                                val speedCycle = listOf(1.0f, 1.2f, 2.0f, 0.5f, 0.25f)
+                                                val currentIndex = speedCycle.indexOfFirst { kotlin.math.abs(it - playbackSpeed) < 0.05f }
+                                                val nextSpeed = if (currentIndex != -1) {
+                                                    speedCycle[(currentIndex + 1) % speedCycle.size]
+                                                } else {
+                                                    1.0f
+                                                }
+                                                playbackSpeed = nextSpeed
+                                                mediaController?.setPlaybackSpeed(nextSpeed)
+                                                settingsManager.savePlaybackSpeed(decodedUriString, nextSpeed)
+                                                com.example.LogKeeper.log("Speed toggled to ${nextSpeed}x", "PlayerScreen")
+                                                controlsInteractionTrigger = System.currentTimeMillis()
+                                            }
+                                        )
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (playbackSpeed == 1.0f) {
+                                    Icon(Icons.Filled.Speed, contentDescription = "Speed: 1x (Long press for controls)", tint = Color.White)
+                                } else {
+                                    val speedDisplay = if (playbackSpeed == 0.25f) "0.25"
+                                        else if (playbackSpeed == 0.5f) "0.5"
+                                        else if (playbackSpeed == 1.2f) "1.2"
+                                        else if (playbackSpeed == 2.0f) "2"
+                                        else String.format("%.1f", playbackSpeed)
+                                    Box(
+                                        modifier = Modifier
+                                            .background(Color(0xFF2196F3).copy(alpha = 0.25f), RoundedCornerShape(6.dp))
+                                            .border(1.dp, Color(0xFF2196F3), RoundedCornerShape(6.dp))
+                                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = "${speedDisplay}x",
+                                            color = Color(0xFF2196F3),
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
                             }
                             IconButton(onClick = { 
                                 com.example.LogKeeper.log("Audio tracks button clicked", "PlayerScreen")

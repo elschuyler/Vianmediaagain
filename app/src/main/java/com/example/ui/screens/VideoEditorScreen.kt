@@ -2,10 +2,13 @@ package com.example.ui.screens
 
 import android.net.Uri
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -94,6 +97,7 @@ fun VideoEditorScreen(
     var showExportPanel by remember { mutableStateOf(false) }
     var durationMs by remember { mutableLongStateOf(1L) }
     var joinDurationMs by remember { mutableLongStateOf(0L) }
+    var isPlaying by remember { mutableStateOf(false) }
     
     val context = LocalContext.current
     val joinVideoPickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -411,6 +415,9 @@ fun VideoEditorScreen(
         DisposableEffect(exoPlayer) {
             LogKeeper.log("ExoPlayer initialized for video editor", "VideoEditor")
             val listener = object : Player.Listener {
+                override fun onIsPlayingChanged(playing: Boolean) {
+                    isPlaying = playing
+                }
                 override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                     LogKeeper.logError("VideoEditor", "Player error: ${error.message}", error)
                     playerError = "Playback error. The format might not be fully supported by the player.\nWould you like to repair/convert it with FFmpeg?"
@@ -588,6 +595,18 @@ fun VideoEditorScreen(
                     .aspectRatio(effectiveRatio)
                     .background(Color.DarkGray)
                     .clip(androidx.compose.ui.graphics.RectangleShape)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {
+                        if (currentTool != VideoEditorTool.CROP) {
+                            if (exoPlayer?.isPlaying == true) {
+                                exoPlayer?.pause()
+                            } else {
+                                exoPlayer?.play()
+                            }
+                        }
+                    }
 
                 Box(modifier = visualModifier, contentAlignment = Alignment.Center) {
                     if (exoPlayer != null) {
@@ -626,7 +645,7 @@ fun VideoEditorScreen(
                                     
                                     translationX = -offsetX
                                     translationY = -offsetY
-                                },
+                                    },
                             contentAlignment = Alignment.Center
                         ) {
                             AndroidView(
@@ -634,7 +653,7 @@ fun VideoEditorScreen(
                                 val view = android.view.LayoutInflater.from(ctx).inflate(com.example.R.layout.player_view_texture, null) as PlayerView
                                 view.apply {
                                     player = exoPlayer
-                                    useController = true
+                                    useController = false
                                     resizeMode = if (editState.aspectRatio != "Original") androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL else androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
                                 }
                             },
@@ -642,10 +661,28 @@ fun VideoEditorScreen(
                                 if (view.player != exoPlayer) {
                                     view.player = exoPlayer
                                 }
+                                view.useController = false
                                 view.resizeMode = if (editState.aspectRatio != "Original") androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL else androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
                             },
                             modifier = Modifier.fillMaxSize()
                         )
+                        }
+
+                        if (!isPlaying && currentTool != VideoEditorTool.CROP) {
+                            Box(
+                                modifier = Modifier
+                                    .size(60.dp)
+                                    .background(Color.Black.copy(alpha = 0.55f), CircleShape)
+                                    .border(1.5.dp, Color.White.copy(alpha = 0.85f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.PlayArrow,
+                                    contentDescription = "Play",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(36.dp)
+                                )
+                            }
                         }
                     } else {
                         Box(modifier = Modifier.fillMaxSize().background(Color.Black))
@@ -1041,9 +1078,35 @@ fun VideoEditorScreen(
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(formatMsScaled(virtualPositionMs, editState.speed), style = MaterialTheme.typography.labelSmall)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        IconButton(
+                            onClick = {
+                                if (isPlaying) {
+                                    exoPlayer?.pause()
+                                } else {
+                                    exoPlayer?.play()
+                                }
+                            },
+                            modifier = Modifier
+                                .size(38.dp)
+                                .background(Color(0xFF2196F3).copy(alpha = 0.2f), CircleShape)
+                                .border(1.dp, Color(0xFF2196F3), CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                                contentDescription = if (isPlaying) "Pause" else "Play",
+                                tint = Color(0xFF2196F3),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Text(formatMsScaled(virtualPositionMs, editState.speed), style = MaterialTheme.typography.labelSmall)
+                    }
                     Text("Total: ${formatMsScaled(virtualDurationMs, editState.speed)}", style = MaterialTheme.typography.labelSmall)
                 }
             }
@@ -1402,10 +1465,10 @@ fun VideoEditorScreen(
         // Export Panel Overlay
         var format by remember { mutableStateOf("mp4") }
         var exportOrientation by remember { mutableStateOf("Auto") }
-        var resolutionIndex by remember { mutableIntStateOf(0) } // 0 -> Original, 1 -> 144p, 2 -> 240p, 3 -> 360p, 4 -> 480p, 5 -> 720p, 6 -> 1080p
+        var resolutionIndex by remember { mutableIntStateOf(4) } // 0 -> Original, 1 -> 144p, 2 -> 240p, 3 -> 360p, 4 -> 480p, 5 -> 720p, 6 -> 1080p
         var fpsIndex by remember { mutableIntStateOf(1) } // 0 -> 24fps, 1 -> 30fps, 2 -> 60fps
-        var quality by remember { mutableFloatStateOf(0.7f) }
-        var fastExport by remember { mutableStateOf(true) }
+        var quality by remember { mutableFloatStateOf(0.5f) }
+        var fastExport by remember { mutableStateOf(false) }
 
         // Calculate estimated size
         val baseKbps = when (resolutionIndex) {
