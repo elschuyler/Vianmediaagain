@@ -553,7 +553,7 @@ fun PlayerScreen(
                         val db = com.example.data.AppDatabase.getDatabase(context)
                         val playlistRepo = com.example.data.PlaylistRepository(db.playlistDao())
                         val uris = playlistItems.map { it.mediaId }
-                        playlistRepo.saveOrUpdateTemporaryPlaylist(uris, "Temp Current")
+                        playlistRepo.saveOrUpdateTemporaryPlaylist(uris)
                     } catch(e: Exception) {
                         e.printStackTrace()
                     }
