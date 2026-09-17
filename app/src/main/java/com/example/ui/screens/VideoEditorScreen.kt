@@ -180,6 +180,7 @@ fun VideoEditorScreen(
     var timeInputText by remember { mutableStateOf("") }
     var showExportPanel by remember { mutableStateOf(false) }
     var durationMs by remember { mutableLongStateOf(1L) }
+    var currentPositionMs by remember { mutableLongStateOf(0L) }
     var joinDurationMs by remember { mutableLongStateOf(0L) }
     var isPlaying by remember { mutableStateOf(false) }
     
@@ -976,7 +977,6 @@ fun VideoEditorScreen(
                     .fillMaxWidth()
                     .padding(vertical = 16.dp, horizontal = 16.dp)
             ) {
-                var currentPositionMs by remember { mutableLongStateOf(0L) }
                 var currentIndex by remember { mutableIntStateOf(0) }
                 var isDragging by remember { mutableStateOf(false) }
 
