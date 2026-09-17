@@ -377,3 +377,109 @@
 * Verification: local build verified (compile_applet passed cleanly).
 * Deviation: None.
 * Known issues: None.
+
+* Timestamp: 2026-09-16T09:45:00Z
+* Summary: Added in-window playlist overlay, fold minimize button to floating video player, and notification player Close button first by default.
+* Files touched:
+  - app/src/main/java/com/example/ui/components/FloatingVideoPlayerOverlay.kt
+  - app/src/main/java/com/example/service/PlaybackService.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_026.md
+* What was actually done:
+  - Added a visible "Switch to Playlist" button (`Icons.AutoMirrored.Filled.QueueMusic`) to the floating video player controls row right after repeat mode and in the topbar header.
+  - Implemented an in-window Playlist overlay in `FloatingVideoPlayerOverlay.kt` showing total queue size, current playing track highlight with play indicator, title list, tap-to-seek playback, and a header action button to switch to audio mini player mode.
+  - Converted minimize action in `FloatingVideoPlayerOverlay.kt` to fold into a compact, draggable floating button (`Icons.Filled.VideoLibrary`) with play/pause quick action, mimicking `MiniPlayerOverlay` behavior instead of hiding/closing the overlay.
+  - Updated `PlaybackService.kt` `showOverlay` to manage `isMinimized` state and resize `WindowManager.LayoutParams` between `WRAP_CONTENT` when minimized and proportional aspect ratio when restored.
+  - Implemented custom `DefaultMediaNotificationProvider` in `PlaybackService.kt` to position the `ACTION_CLOSE` button first by default in the notification media controls bar, and updated `updateCustomLayout()` to prepend `closeAction` to the MediaSession custom commands.
+* Verification: local build verified (lint_applet and compile_applet passed cleanly).
+* Deviation: None.
+* Known issues: None.
+
+* Timestamp: 2026-09-16T10:40:00Z
+* Summary: Reordered notification bar player controls to place Mini Player and Close after playback buttons by default, matched brightness slider look and size to volume slider, and reset pinch/pan zoom on video player aspect ratio toggle.
+* Files touched:
+  - app/src/main/java/com/example/service/PlaybackService.kt
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_026.md
+* What was actually done:
+  - In `PlaybackService.kt`, modified `getMediaButtons` in `DefaultMediaNotificationProvider` to place standard playback controls first, followed explicitly by Mini Player (`ACTION_OVERLAY`) and Close (`ACTION_CLOSE`) buttons by default.
+  - In `PlaybackService.kt`, aligned `updateCustomLayout()` to order the `MediaSession` custom actions list as loop, shuffle, PiP, Mini Player, and Close.
+  - In `PlayerScreen.kt`, updated the brightness slider container and track to match the volume slider's dimensions (56dp width, 170dp height, 28dp rounded corners), added percentage text (`${(currentBrightness * 100).roundToInt()}%`) at the top, vertical fill bar (4dp width), and `LightMode` icon at the bottom.
+  - In `PlayerScreen.kt`, updated the aspect ratio toggle button (`resizeMode`) `onClick` handler to reset `scale = 1.0f`, `offsetX = 0f`, and `offsetY = 0f` whenever switching between stretch/fit modes so any manual 2-finger pinch/pull zoom and pan resets cleanly to the base set of that stretch.
+* Verification: local build verified (lint_applet and compile_applet passed cleanly).
+* Deviation: None.
+* Known issues: None.
+
+* Timestamp: 2026-09-17T07:35:00Z
+* Summary: Added Settings toggle (ON by default) to ignore folders containing .nomedia and all of their subfolders from media scans.
+* Files touched:
+  - app/src/main/java/com/example/data/SettingsManager.kt
+  - app/src/main/java/com/example/data/MediaRepository.kt
+  - app/src/main/java/com/example/ui/screens/SettingsScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_026.md
+* What was actually done:
+  - In `SettingsManager.kt`, introduced `ignoreNoMediaSubfolders` StateFlow and `setIgnoreNoMediaSubfolders(Boolean)` persisted via SharedPreferences under key `ignore_nomedia_subfolders` with default `true` (ON by default).
+  - In `SettingsScreen.kt`, integrated the toggle switch with detailed description into both `StorageSettingsPage` and `MediaConfigPage` with instant reactive trigger and `loadMedia()` trigger on change.
+  - In `MediaRepository.kt`, enhanced `getMediaFolders()` with an upward-traversing parent hierarchy directory checker and memoized cache `noMediaDirCache` that inspects whether any ancestor directory of a file path contains a `.nomedia` file, filtering out files from both the `.nomedia` folder and any of its subdirectories when the toggle is enabled.
+  - In `MediaRepository.kt`, updated `scanDirectoryForFolders` to detect `.nomedia` child documents and immediately prune the directory and its subdirectories from being indexed.
+* Verification: local build verified (lint_applet and compile_applet passed cleanly).
+* Deviation: None.
+* Known issues: None.
+
+* Timestamp: 2026-09-17T07:55:00Z
+* Summary: Added speed toggle pill beside loop toggle in floating player with main player speed sync, and set floating window to fit video aspect ratio by default.
+* Files touched:
+  - app/src/main/java/com/example/ui/components/FloatingVideoPlayerOverlay.kt
+  - app/src/main/java/com/example/service/PlaybackService.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_026.md
+* What was actually done:
+  - In `FloatingVideoPlayerOverlay.kt`, implemented Option A compact speed toggle pill/badge placed directly adjacent to the loop toggle in the controls row.
+  - Configured the speed pill to cycle single-tap through the exact speed set used in the main player (`1.0x` -> `1.2x` -> `2.0x` -> `0.5x` -> `0.25x`), applying `player.setPlaybackSpeed()` and persisting via `settingsManager.savePlaybackSpeed()`.
+  - Added reactive playback parameters listening via `onPlaybackParametersChanged` and `onPlaybackStateChanged` so that speeds set in the main player display instantly in the floating player badge.
+  - In `PlaybackService.kt`, configured `showOverlay()` and `onSwitchToVideo()` to calculate initial window height directly from video aspect ratio by default instead of using arbitrary fallback dimensions.
+  - Added display boundary clamping in `updateWindowForAspectRatio()` so that dynamic aspect-ratio window resizing cleanly remains fully on-screen without clipping controls.
+* Verification: local build verified (lint_applet and compile_applet passed cleanly).
+* Deviation: None.
+* Known issues: None.
+
+* Timestamp: 2026-09-17T08:05:00Z
+* Summary: Fixed Video Editor custom crop coordinate clamping and full video expansion, and set Custom as default tool mode.
+* Files touched:
+  - app/src/main/java/com/example/ui/screens/VideoEditorScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_026.md
+* What was actually done:
+  - In `VideoEditorScreen.kt`, replaced the unbound `Modifier.fillMaxWidth().aspectRatio(...)` preview layout with explicit `boxWidthDp` and `boxHeightDp` calculated to fit inside `BoxWithConstraints` without clipping or aspect ratio distortions.
+  - Placed the crop overlay Canvas and gesture pointer detector directly inside the video preview box bounds, eliminating artificial letterbox margins and aligning normalized coordinates `(0f..1f)` directly with the visible video frame.
+  - Enabled custom crop corner drag handles to expand from `0.0` to `1.0` in both dimensions, allowing the user to select the entire video frame for landscape, square, portrait, or ultrawide videos without getting clamped in a portrait box.
+  - Enhanced video dimension extraction using `MediaMetadataRetriever` on URI load to extract rotation degrees and swap width/height synchronously when rotated 90 or 270 degrees.
+  - Updated `onVideoSizeChanged` in the ExoPlayer listener to preserve rotation-corrected dimensions.
+  - Configured Custom crop as the default mode when opening the Crop tool from the main toolbar (`cropRect = "Custom"`, `cropLeft = 0f, cropTop = 0f, cropRight = 1f, cropBottom = 1f`).
+  - Reordered the preset chips in the Crop tool panel to position "Custom" first in the row.
+* Verification: local build verified (lint_applet and compile_applet passed cleanly).
+* Deviation: None.
+* Known issues: None.
+
+* Timestamp: 2026-09-17T08:25:00Z
+* Summary: Implemented dual-mode speed tool in Video Editor with Standard mode and interactive Speed Curve (Wave) mode, real-time playback sampling, and FFmpeg speed ramping export.
+* Files touched:
+  - app/src/main/java/com/example/ui/screens/VideoEditorScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_026.md
+* What was actually done:
+  - In `VideoEditorScreen.kt`, implemented two-mode speed tool architecture with top filter chips switcher (`Standard` vs `Speed Curve (Wave)`).
+  - Preserved standard 0.25x to 16x slider and quick preset chips when in "Standard" mode.
+  - Implemented custom interactive Compose Canvas in "Curve" mode displaying a speed curve wave (0.2x to 5.0x range), guide lines (5.0x Fast, 1.0x Normal, 0.2x Slow), live playhead vertical indicator with speed circle, and draggable keyframe nodes.
+  - Added piecewise linear interpolation with cubic smoothing (`getSpeedAtTime`) for smooth transitions between nodes.
+  - Added dynamic node manipulation (tap to seek/select, drag to adjust speed and time, "Add Point", "Delete Point", "Reset").
+  - Added speed curve presets: "Montage", "Hero", "Bullet", "Flash In", "Flash Out", "Reset", and "Custom".
+  - Connected real-time playback speed sampling to ExoPlayer in the coroutine loop when in Curve mode.
+  - Implemented FFmpeg export piecewise segment filtergraph (`trim`, `atrim`, `setpts`, `atempo`, `concat`) to produce accurate speed-ramped video and audio exports.
+* Verification: local build verified (lint_applet and compile_applet passed cleanly).
+* Deviation: None.
+* Known issues: None.
+
+

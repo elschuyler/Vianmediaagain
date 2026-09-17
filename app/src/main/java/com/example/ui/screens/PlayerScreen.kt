@@ -1766,19 +1766,28 @@ fun PlayerScreen(
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier
-                                .background(Color.Black.copy(alpha = 0.5f), androidx.compose.foundation.shape.RoundedCornerShape(24.dp))
-                                .padding(horizontal = 12.dp, vertical = 24.dp)
+                                .height(170.dp)
+                                .width(56.dp)
+                                .background(Color.Black.copy(alpha = 0.5f), androidx.compose.foundation.shape.RoundedCornerShape(28.dp))
+                                .padding(vertical = 12.dp)
                         ) {
+                            Text(
+                                text = "${(currentBrightness.coerceIn(0f, 1f) * 100).roundToInt()}%",
+                                color = Color.White,
+                                fontSize = 16.sp,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
                             Box(
                                 modifier = Modifier
-                                    .height(140.dp)
-                                    .width(32.dp)
+                                    .weight(1f)
+                                    .width(56.dp)
                                     .pointerInput(Unit) {
                                         var lastAppliedBrightness = -1f
                                         detectVerticalDragGestures(
                                             onVerticalDrag = { change, dragAmount ->
                                                 change.consume()
-                                                val dragRatio = -dragAmount / 140.dp.toPx()
+                                                val dragRatio = -dragAmount / 100.dp.toPx()
                                                 val newVal = (currentBrightness + dragRatio).coerceIn(0f, 1f)
                                                 brightnessInteractionTime = System.currentTimeMillis()
                                                 currentBrightness = newVal
@@ -1799,7 +1808,7 @@ fun PlayerScreen(
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .height(140.dp)
+                                        .fillMaxHeight()
                                         .width(4.dp)
                                         .background(Color.DarkGray.copy(alpha = 0.5f), androidx.compose.foundation.shape.RoundedCornerShape(2.dp)),
                                     contentAlignment = Alignment.BottomCenter
@@ -1812,8 +1821,8 @@ fun PlayerScreen(
                                     )
                                 }
                             }
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Icon(Icons.Filled.LightMode, contentDescription = null, tint = Color.White)
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Icon(Icons.Filled.LightMode, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
                         }
                     }
 
@@ -1978,6 +1987,9 @@ fun PlayerScreen(
                                     Icon(modifier = Modifier.size(20.dp), imageVector = Icons.Filled.Headphones, contentDescription = "Background play", tint = if (backgroundPlayEnabled) Color(0xFF2196F3) else Color.White)
                                 }
                                 IconButton(modifier = Modifier.size(36.dp), onClick = {
+                                    scale = 1.0f
+                                    offsetX = 0f
+                                    offsetY = 0f
                                     resizeMode = when (resizeMode) {
                                         androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL
                                         androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM

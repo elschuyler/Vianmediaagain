@@ -295,7 +295,45 @@ private fun StorageSettingsPage(onNavigateBack: () -> Unit) {
                 Text("Add Excluded Folder")
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+            HorizontalDivider()
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(".nomedia Folder Scan Exclusion", style = MaterialTheme.typography.labelLarge)
+            Spacer(modifier = Modifier.height(4.dp))
+            val ignoreNoMedia by settingsManager.ignoreNoMediaSubfolders.collectAsState()
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        val newVal = !ignoreNoMedia
+                        settingsManager.setIgnoreNoMediaSubfolders(newVal)
+                        viewModel.loadMedia()
+                    }
+                    .padding(vertical = 8.dp)
+            ) {
+                Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
+                    Text(
+                        "Ignore .nomedia & Subfolders",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        "When a .nomedia file is found in a folder, exclude that folder and all of its subfolders from media library scans",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = ignoreNoMedia,
+                    onCheckedChange = {
+                        settingsManager.setIgnoreNoMediaSubfolders(it)
+                        viewModel.loadMedia()
+                    }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
             HorizontalDivider()
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -449,6 +487,40 @@ private fun MediaConfigPage(onNavigateBack: () -> Unit) {
                 }) {
                     Text("Add")
                 }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+            HorizontalDivider()
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(".nomedia Folder Scan Exclusion", style = MaterialTheme.typography.labelLarge)
+            Spacer(modifier = Modifier.height(4.dp))
+            val ignoreNoMedia by settingsManager.ignoreNoMediaSubfolders.collectAsState()
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        val newVal = !ignoreNoMedia
+                        settingsManager.setIgnoreNoMediaSubfolders(newVal)
+                    }
+                    .padding(vertical = 8.dp)
+            ) {
+                Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
+                    Text(
+                        "Ignore .nomedia & Subfolders",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        "Exclude folders containing .nomedia and all of their subdirectories from media library scans",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = ignoreNoMedia,
+                    onCheckedChange = { settingsManager.setIgnoreNoMediaSubfolders(it) }
+                )
             }
         }
     }

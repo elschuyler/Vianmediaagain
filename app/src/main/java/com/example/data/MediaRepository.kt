@@ -102,6 +102,31 @@ class MediaRepository(private val context: Context) {
                 val currentTime = System.currentTimeMillis()
                 val fifteenDaysMs = 15L * 24 * 60 * 60 * 1000
 
+                val ignoreNoMedia = settings.ignoreNoMediaSubfolders.value
+                val noMediaDirCache = if (ignoreNoMedia) mutableMapOf<String, Boolean>() else null
+
+                fun isUnderNoMediaFolder(path: String): Boolean {
+                    if (noMediaDirCache == null || path.isEmpty()) return false
+                    var parentFile: java.io.File? = java.io.File(path).parentFile
+                    while (parentFile != null && parentFile.path != "/" && parentFile.parent != null) {
+                        val parentPath = parentFile.absolutePath
+                        val cached = noMediaDirCache[parentPath]
+                        if (cached != null) {
+                            if (cached) return true
+                        } else {
+                            val hasNoMedia = try {
+                                java.io.File(parentFile, ".nomedia").exists()
+                            } catch (e: Exception) {
+                                false
+                            }
+                            noMediaDirCache[parentPath] = hasNoMedia
+                            if (hasNoMedia) return true
+                        }
+                        parentFile = parentFile.parentFile
+                    }
+                    return false
+                }
+
                 while (cursor.moveToNext()) {
                     val bucketId = if (bucketIdCol != -1) cursor.getString(bucketIdCol) ?: "" else ""
                     if (bucketId.isEmpty() || excludedFolders.contains(bucketId)) continue
@@ -110,6 +135,10 @@ class MediaRepository(private val context: Context) {
                     val isDefaultOutput = dataPath.lowercase().contains("/download/compressed")
                     val isCustomOutput = !customOutputSegment.isNullOrEmpty() && dataPath.lowercase().contains(customOutputSegment!!.lowercase())
                     if (isDefaultOutput || isCustomOutput) {
+                        continue
+                    }
+
+                    if (ignoreNoMedia && dataPath.isNotEmpty() && isUnderNoMediaFolder(dataPath)) {
                         continue
                     }
 
@@ -217,6 +246,7 @@ class MediaRepository(private val context: Context) {
         val subtitleFiles = mutableSetOf<String>()
         val subDirs = mutableListOf<Pair<String, String>>()
         var latestDate = 0L
+        var hasNoMedia = false
 
         try {
             context.contentResolver.query(childrenUri, projection, null, null, null)?.use { cursor ->
@@ -232,6 +262,10 @@ class MediaRepository(private val context: Context) {
                     val mimeType = if (mimeCol != -1) cursor.getString(mimeCol) ?: "" else ""
                     val size = if (sizeCol != -1) cursor.getLong(sizeCol) else 0L
                     val date = if (dateCol != -1) cursor.getLong(dateCol) else 0L
+
+                    if (name.equals(".nomedia", ignoreCase = true)) {
+                        hasNoMedia = true
+                    }
 
                     if (date > latestDate) latestDate = date
 
@@ -255,6 +289,11 @@ class MediaRepository(private val context: Context) {
             }
         } catch (e: Exception) {
             LogKeeper.logError("MediaRepository", "Error scanning dir: ${documentId}, ${e.message}", e)
+        }
+
+        val settingsManager = SettingsManager.getInstance(context)
+        if (hasNoMedia && settingsManager.ignoreNoMediaSubfolders.value) {
+            return
         }
 
         if (mediaItems.isNotEmpty()) {

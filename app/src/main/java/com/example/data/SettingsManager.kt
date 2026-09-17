@@ -30,6 +30,9 @@ class SettingsManager private constructor(context: Context) {
     private val _fontPreference = MutableStateFlow("Default")
     val fontPreference: StateFlow<String> = _fontPreference.asStateFlow()
 
+    private val _ignoreNoMediaSubfolders = MutableStateFlow(true)
+    val ignoreNoMediaSubfolders: StateFlow<Boolean> = _ignoreNoMediaSubfolders.asStateFlow()
+
     init {
         val excludedStrSet = prefs.getStringSet("excluded_folders", emptySet())
         if (!excludedStrSet.isNullOrEmpty()) {
@@ -40,6 +43,7 @@ class SettingsManager private constructor(context: Context) {
         
         _showLoggerFab.value = prefs.getBoolean("show_logger_fab", true)
         _keepScreenAwake.value = prefs.getBoolean("keep_screen_awake", true)
+        _ignoreNoMediaSubfolders.value = prefs.getBoolean("ignore_nomedia_subfolders", true)
 
         _themePreference.value = prefs.getString("theme_preference", "Light") ?: "Light"
         _fontPreference.value = prefs.getString("font_preference", "Default") ?: "Default"
@@ -77,6 +81,11 @@ class SettingsManager private constructor(context: Context) {
     fun setExtensions(exts: List<String>) {
         _extensions.value = exts
         prefs.edit().putStringSet("extensions", exts.toSet()).apply()
+    }
+
+    fun setIgnoreNoMediaSubfolders(ignore: Boolean) {
+        _ignoreNoMediaSubfolders.value = ignore
+        prefs.edit().putBoolean("ignore_nomedia_subfolders", ignore).apply()
     }
 
     fun setOutputFolderUri(uriStr: String?) {
@@ -270,6 +279,10 @@ class SettingsManager private constructor(context: Context) {
     var hasSeenWelcome: Boolean
         get() = prefs.getBoolean("has_seen_welcome", false)
         set(value) = prefs.edit().putBoolean("has_seen_welcome", value).apply()
+
+    var ignoreNoMediaSubfoldersEnabled: Boolean
+        get() = prefs.getBoolean("ignore_nomedia_subfolders", true)
+        set(value) = setIgnoreNoMediaSubfolders(value)
 
     var audioBoosterEnabled: Boolean
         get() = prefs.getBoolean("audio_booster_enabled", true)

@@ -29,8 +29,11 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.viewinterop.AndroidView
@@ -53,6 +56,78 @@ import kotlinx.coroutines.withContext
 
 import com.example.LogKeeper
 
+data class SpeedPoint(
+    val timeFraction: Float = 0f,
+    val speed: Float = 1.0f
+)
+
+fun getSpeedAtTime(points: List<SpeedPoint>, fraction: Float): Float {
+    if (points.isEmpty()) return 1.0f
+    val clamped = fraction.coerceIn(0f, 1f)
+    val sorted = points.sortedBy { it.timeFraction }
+    if (clamped <= sorted.first().timeFraction) return sorted.first().speed
+    if (clamped >= sorted.last().timeFraction) return sorted.last().speed
+
+    for (i in 0 until sorted.size - 1) {
+        val p1 = sorted[i]
+        val p2 = sorted[i + 1]
+        if (clamped in p1.timeFraction..p2.timeFraction) {
+            val range = p2.timeFraction - p1.timeFraction
+            if (range <= 0.0001f) return p1.speed
+            val t = (clamped - p1.timeFraction) / range
+            val tSmooth = t * t * (3f - 2f * t)
+            return (p1.speed + tSmooth * (p2.speed - p1.speed)).coerceIn(0.2f, 5.0f)
+        }
+    }
+    return 1.0f
+}
+
+fun buildAtempoFilter(speed: Float): String {
+    val s = speed.coerceIn(0.2f, 16.0f)
+    var current = s
+    val filters = mutableListOf<String>()
+    while (current > 2.0f) {
+        filters.add("atempo=2.0")
+        current /= 2.0f
+    }
+    while (current < 0.5f) {
+        filters.add("atempo=0.5")
+        current /= 0.5f
+    }
+    filters.add(String.format(java.util.Locale.US, "atempo=%.4f", current))
+    return filters.joinToString(",")
+}
+
+fun speedToY(speed: Float, top: Float, bottom: Float): Float {
+    val mid = (top + bottom) / 2f
+    val clamped = speed.coerceIn(0.2f, 5.0f)
+    return if (clamped >= 1.0f) {
+        mid - ((clamped - 1.0f) / 4.0f) * (mid - top)
+    } else {
+        mid + ((1.0f - clamped) / 0.8f) * (bottom - mid)
+    }
+}
+
+fun yToSpeed(y: Float, top: Float, bottom: Float): Float {
+    val mid = (top + bottom) / 2f
+    val clampedY = y.coerceIn(top, bottom)
+    return if (clampedY <= mid) {
+        1.0f + ((mid - clampedY) / (mid - top)) * 4.0f
+    } else {
+        1.0f - ((clampedY - mid) / (bottom - mid)) * 0.8f
+    }
+}
+
+fun timeToX(tFrac: Float, left: Float, right: Float): Float {
+    return left + tFrac.coerceIn(0f, 1f) * (right - left)
+}
+
+fun xToTime(x: Float, left: Float, right: Float): Float {
+    val w = right - left
+    if (w <= 0f) return 0f
+    return ((x - left) / w).coerceIn(0f, 1f)
+}
+
 data class VideoEditState(
     val trimStartMs: Long = 0L,
     val trimEndMs: Long = 0L,
@@ -65,6 +140,15 @@ data class VideoEditState(
     val cutStartMs: Long = 0L,
     val cutEndMs: Long = 0L,
     val speed: Float = 1.0f,
+    val speedMode: String = "Standard", // "Standard" or "Curve"
+    val speedCurvePreset: String = "Custom",
+    val speedCurvePoints: List<SpeedPoint> = listOf(
+        SpeedPoint(0.0f, 1.0f),
+        SpeedPoint(0.25f, 1.0f),
+        SpeedPoint(0.5f, 1.0f),
+        SpeedPoint(0.75f, 1.0f),
+        SpeedPoint(1.0f, 1.0f)
+    ),
     val volume: Float = 1.0f,
     val cropRect: String = "",
     val cropLeft: Float = 0f,
@@ -348,6 +432,7 @@ fun VideoEditorScreen(
     // ExoPlayer for Live Preview
     var videoWidth by remember { mutableIntStateOf(1) }
     var videoHeight by remember { mutableIntStateOf(1) }
+    var videoHasAudio by remember { mutableStateOf(true) }
     var currentVideoUri by remember { mutableStateOf<String?>(null) }
     
     if (currentVideoUri != effectiveUri.toString()) {
@@ -371,6 +456,23 @@ fun VideoEditorScreen(
                     }
                 }
             }
+            val rotStr = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)
+            val rotation = rotStr?.toIntOrNull() ?: 0
+            val wStr = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
+            val hStr = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
+            val rawW = wStr?.toIntOrNull() ?: 0
+            val rawH = hStr?.toIntOrNull() ?: 0
+            if (rawW > 0 && rawH > 0) {
+                if (rotation == 90 || rotation == 270) {
+                    videoWidth = rawH
+                    videoHeight = rawW
+                } else {
+                    videoWidth = rawW
+                    videoHeight = rawH
+                }
+            }
+            val audioStr = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO)
+            videoHasAudio = (audioStr != "no")
             retriever.release()
         } catch (e: Exception) {}
     }
@@ -397,12 +499,13 @@ fun VideoEditorScreen(
             playWhenReady = true
             addListener(object : androidx.media3.common.Player.Listener {
                 override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
-                    if (videoSize.width > 0 && videoSize.height > 0 && videoWidth <= 1) {
+                    if (videoSize.width > 0 && videoSize.height > 0) {
                         @Suppress("DEPRECATION")
-                        if (videoSize.unappliedRotationDegrees == 90 || videoSize.unappliedRotationDegrees == 270) {
+                        val rot = videoSize.unappliedRotationDegrees
+                        if (rot == 90 || rot == 270) {
                             videoWidth = videoSize.height
                             videoHeight = videoSize.width
-                        } else {
+                        } else if (videoWidth <= 1 || videoHeight <= 1) {
                             videoWidth = videoSize.width
                             videoHeight = videoSize.height
                         }
@@ -441,9 +544,11 @@ fun VideoEditorScreen(
     val cropLeftKey = if (currentTool == VideoEditorTool.CROP) 0f else editState.cropLeft
     val cropRightKey = if (currentTool == VideoEditorTool.CROP) 0f else editState.cropRight
     // Live preview updates based on edit state
-    LaunchedEffect(editState.speed) {
-        LogKeeper.log("Video playback speed adjusted to: ${editState.speed}x", "VideoEditor")
-        exoPlayer?.setPlaybackSpeed(editState.speed)
+    LaunchedEffect(editState.speed, editState.speedMode) {
+        if (editState.speedMode == "Standard") {
+            LogKeeper.log("Video playback speed adjusted to: ${editState.speed}x", "VideoEditor")
+            exoPlayer?.setPlaybackSpeed(editState.speed)
+        }
     }
     LaunchedEffect(editState.volume) {
         LogKeeper.log("Video playback volume adjusted to: ${editState.volume * 100}%", "VideoEditor")
@@ -590,9 +695,24 @@ fun VideoEditorScreen(
                 visualCropWidth = visualCropWidth.coerceAtLeast(0.01f)
                 visualCropHeight = visualCropHeight.coerceAtLeast(0.01f)
 
+                val containerWidthPx = constraints.maxWidth.toFloat()
+                val containerHeightPx = constraints.maxHeight.toFloat()
+                val containerRatio = if (containerHeightPx > 0f) containerWidthPx / containerHeightPx else 1f
+
+                val (boxWidthDp, boxHeightDp) = with(androidx.compose.ui.platform.LocalDensity.current) {
+                    if (effectiveRatio > containerRatio) {
+                        val w = containerWidthPx
+                        val h = containerWidthPx / effectiveRatio
+                        w.toDp() to h.toDp()
+                    } else {
+                        val h = containerHeightPx
+                        val w = containerHeightPx * effectiveRatio
+                        w.toDp() to h.toDp()
+                    }
+                }
+
                 val visualModifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(effectiveRatio)
+                    .size(boxWidthDp, boxHeightDp)
                     .background(Color.DarkGray)
                     .clip(androidx.compose.ui.graphics.RectangleShape)
                     .clickable(
@@ -687,171 +807,146 @@ fun VideoEditorScreen(
                     } else {
                         Box(modifier = Modifier.fillMaxSize().background(Color.Black))
                     }
-                }
-                
-                val showCropOverlay = (currentTool == VideoEditorTool.CROP && editState.cropRect != "None")
-                
-                if (showCropOverlay) {
-                    var resizeCorner by remember { mutableIntStateOf(0) }
-                    
-                    val isCustom = currentTool == VideoEditorTool.CROP && editState.cropRect == "Custom"
-                    
-                    val effectiveVideoWidth = if (editState.rotateConfig == 90 || editState.rotateConfig == 270) videoHeight else videoWidth
-                    val effectiveVideoHeight = if (editState.rotateConfig == 90 || editState.rotateConfig == 270) videoWidth else videoHeight
-                    
-                    var displayCropLeft = editState.cropLeft
-                    var displayCropTop = editState.cropTop
-                    var displayCropRight = editState.cropRight
-                    var displayCropBottom = editState.cropBottom
-                    
-                    if (!isCustom && effectiveVideoHeight > 0) {
-                        val videoAspect = effectiveVideoWidth.toFloat() / effectiveVideoHeight.toFloat()
-                        val targetRatio = when (editState.cropRect) {
-                            "16:9" -> 16f / 9f
-                            "9:16" -> 9f / 16f
-                            "1:1" -> 1f
-                            "4:3" -> 4f / 3f
-                            "21:9" -> 21f / 9f
-                            else -> videoAspect
-                        }
-                        
-                        if (videoAspect > targetRatio) {
-                            val cropWidth = targetRatio / videoAspect
-                            displayCropLeft = (1f - cropWidth) / 2f
-                            displayCropRight = 1f - displayCropLeft
-                            displayCropTop = 0f
-                            displayCropBottom = 1f
-                        } else {
-                            val cropHeight = videoAspect / targetRatio
-                            displayCropTop = (1f - cropHeight) / 2f
-                            displayCropBottom = 1f - displayCropTop
-                            displayCropLeft = 0f
-                            displayCropRight = 1f
-                        }
-                    }
 
-                    val pointerInputModifier = if (isCustom) {
-                        Modifier.pointerInput(Unit) {
-                            detectDragGestures(
-                                onDragStart = { offset ->
-                                    if (effectiveVideoWidth == 0 || effectiveVideoHeight == 0) return@detectDragGestures
-                                    val canvasAspect = size.width.toFloat() / size.height.toFloat()
-                                    val videoAspect = effectiveVideoWidth.toFloat() / effectiveVideoHeight.toFloat()
-                                    var drawWidth = size.width.toFloat()
-                                    var drawHeight = size.height.toFloat()
-                                    if (videoAspect > canvasAspect) {
-                                        drawHeight = size.width / videoAspect
-                                    } else {
-                                        drawWidth = size.height * videoAspect
-                                    }
-                                    val left = (size.width - drawWidth) / 2f
-                                    val top = (size.height - drawHeight) / 2f
-                                    
-                                    val cL = left + editState.cropLeft * drawWidth
-                                    val cT = top + editState.cropTop * drawHeight
-                                    val cR = left + editState.cropRight * drawWidth
-                                    val cB = top + editState.cropBottom * drawHeight
-                                    
-                                    val touchRadius = 60f
-                                    if (abs(offset.x - cL) < touchRadius && abs(offset.y - cT) < touchRadius) resizeCorner = 1
-                                    else if (abs(offset.x - cR) < touchRadius && abs(offset.y - cT) < touchRadius) resizeCorner = 2
-                                    else if (abs(offset.x - cL) < touchRadius && abs(offset.y - cB) < touchRadius) resizeCorner = 3
-                                    else if (abs(offset.x - cR) < touchRadius && abs(offset.y - cB) < touchRadius) resizeCorner = 4
-                                    else if (offset.x > cL && offset.x < cR && offset.y > cT && offset.y < cB) resizeCorner = 5
-                                },
-                                onDrag = { change, dragAmount ->
-                                    change.consume()
-                                    if (effectiveVideoWidth == 0 || effectiveVideoHeight == 0) return@detectDragGestures
-                                    val canvasAspect = size.width.toFloat() / size.height.toFloat()
-                                    val videoAspect = effectiveVideoWidth.toFloat() / effectiveVideoHeight.toFloat()
-                                    var drawWidth = size.width.toFloat()
-                                    var drawHeight = size.height.toFloat()
-                                    if (videoAspect > canvasAspect) {
-                                        drawHeight = size.width / videoAspect
-                                    } else {
-                                        drawWidth = size.height * videoAspect
-                                    }
-                                    val dx = dragAmount.x / drawWidth
-                                    val dy = dragAmount.y / drawHeight
-                                    
-                                    var nL = editState.cropLeft
-                                    var nT = editState.cropTop
-                                    var nR = editState.cropRight
-                                    var nB = editState.cropBottom
-                                    
-                                    when (resizeCorner) {
-                                        5 -> {
-                                            nL = (nL + dx).coerceIn(0f, 1f - (nR - editState.cropLeft))
-                                            nR = nL + (editState.cropRight - editState.cropLeft)
-                                            nT = (nT + dy).coerceIn(0f, 1f - (nB - editState.cropTop))
-                                            nB = nT + (editState.cropBottom - editState.cropTop)
-                                        }
-                                        1 -> {
-                                            nL = (nL + dx).coerceIn(0f, nR - 0.05f)
-                                            nT = (nT + dy).coerceIn(0f, nB - 0.05f)
-                                        }
-                                        2 -> {
-                                            nR = (nR + dx).coerceIn(nL + 0.05f, 1f)
-                                            nT = (nT + dy).coerceIn(0f, nB - 0.05f)
-                                        }
-                                        3 -> {
-                                            nL = (nL + dx).coerceIn(0f, nR - 0.05f)
-                                            nB = (nB + dy).coerceIn(nT + 0.05f, 1f)
-                                        }
-                                        4 -> {
-                                            nR = (nR + dx).coerceIn(nL + 0.05f, 1f)
-                                            nB = (nB + dy).coerceIn(nT + 0.05f, 1f)
-                                        }
-                                    }
-                                    editState = editState.copy(cropLeft = nL, cropTop = nT, cropRight = nR, cropBottom = nB)
-                                },
-                                onDragEnd = { resizeCorner = 0 },
-                                onDragCancel = { resizeCorner = 0 }
-                            )
+                    val showCropOverlay = (currentTool == VideoEditorTool.CROP && editState.cropRect != "None")
+                    
+                    if (showCropOverlay) {
+                        var resizeCorner by remember { mutableIntStateOf(0) }
+                        
+                        val isCustom = currentTool == VideoEditorTool.CROP && editState.cropRect == "Custom"
+                        
+                        var displayCropLeft = editState.cropLeft
+                        var displayCropTop = editState.cropTop
+                        var displayCropRight = editState.cropRight
+                        var displayCropBottom = editState.cropBottom
+                        
+                        if (!isCustom) {
+                            val videoAspect = effectiveRatio
+                            val targetRatio = when (editState.cropRect) {
+                                "16:9", "Fill 16:9" -> 16f / 9f
+                                "9:16" -> 9f / 16f
+                                "1:1" -> 1f
+                                "4:3" -> 4f / 3f
+                                "21:9" -> 21f / 9f
+                                else -> videoAspect
+                            }
+                            
+                            if (videoAspect > targetRatio) {
+                                val cropWidth = targetRatio / videoAspect
+                                displayCropLeft = (1f - cropWidth) / 2f
+                                displayCropRight = 1f - displayCropLeft
+                                displayCropTop = 0f
+                                displayCropBottom = 1f
+                            } else {
+                                val cropHeight = videoAspect / targetRatio
+                                displayCropTop = (1f - cropHeight) / 2f
+                                displayCropBottom = 1f - displayCropTop
+                                displayCropLeft = 0f
+                                displayCropRight = 1f
+                            }
                         }
-                    } else {
-                        Modifier
-                    }
 
-                    Canvas(modifier = Modifier.fillMaxSize().then(pointerInputModifier)) {
-                        if (effectiveVideoWidth == 0 || effectiveVideoHeight == 0) return@Canvas
-                        val canvasAspect = size.width / size.height
-                        val videoAspect = effectiveVideoWidth.toFloat() / effectiveVideoHeight.toFloat()
-                        var drawWidth = size.width
-                        var drawHeight = size.height
-                        if (videoAspect > canvasAspect) {
-                            drawHeight = size.width / videoAspect
+                        val pointerInputModifier = if (isCustom) {
+                            Modifier.pointerInput(isCustom) {
+                                detectDragGestures(
+                                    onDragStart = { offset ->
+                                        val drawWidth = size.width.toFloat()
+                                        val drawHeight = size.height.toFloat()
+                                        if (drawWidth <= 0f || drawHeight <= 0f) return@detectDragGestures
+                                        
+                                        val cL = editState.cropLeft * drawWidth
+                                        val cT = editState.cropTop * drawHeight
+                                        val cR = editState.cropRight * drawWidth
+                                        val cB = editState.cropBottom * drawHeight
+                                        
+                                        val touchRadius = 60f
+                                        if (abs(offset.x - cL) < touchRadius && abs(offset.y - cT) < touchRadius) resizeCorner = 1
+                                        else if (abs(offset.x - cR) < touchRadius && abs(offset.y - cT) < touchRadius) resizeCorner = 2
+                                        else if (abs(offset.x - cL) < touchRadius && abs(offset.y - cB) < touchRadius) resizeCorner = 3
+                                        else if (abs(offset.x - cR) < touchRadius && abs(offset.y - cB) < touchRadius) resizeCorner = 4
+                                        else if (offset.x > cL && offset.x < cR && offset.y > cT && offset.y < cB) resizeCorner = 5
+                                    },
+                                    onDrag = { change, dragAmount ->
+                                        change.consume()
+                                        val drawWidth = size.width.toFloat()
+                                        val drawHeight = size.height.toFloat()
+                                        if (drawWidth <= 0f || drawHeight <= 0f) return@detectDragGestures
+                                        
+                                        val dx = dragAmount.x / drawWidth
+                                        val dy = dragAmount.y / drawHeight
+                                        
+                                        var nL = editState.cropLeft
+                                        var nT = editState.cropTop
+                                        var nR = editState.cropRight
+                                        var nB = editState.cropBottom
+                                        
+                                        when (resizeCorner) {
+                                            5 -> {
+                                                val boxW = nR - nL
+                                                val boxH = nB - nT
+                                                nL = (nL + dx).coerceIn(0f, 1f - boxW)
+                                                nR = nL + boxW
+                                                nT = (nT + dy).coerceIn(0f, 1f - boxH)
+                                                nB = nT + boxH
+                                            }
+                                            1 -> {
+                                                nL = (nL + dx).coerceIn(0f, nR - 0.05f)
+                                                nT = (nT + dy).coerceIn(0f, nB - 0.05f)
+                                            }
+                                            2 -> {
+                                                nR = (nR + dx).coerceIn(nL + 0.05f, 1f)
+                                                nT = (nT + dy).coerceIn(0f, nB - 0.05f)
+                                            }
+                                            3 -> {
+                                                nL = (nL + dx).coerceIn(0f, nR - 0.05f)
+                                                nB = (nB + dy).coerceIn(nT + 0.05f, 1f)
+                                            }
+                                            4 -> {
+                                                nR = (nR + dx).coerceIn(nL + 0.05f, 1f)
+                                                nB = (nB + dy).coerceIn(nT + 0.05f, 1f)
+                                            }
+                                        }
+                                        editState = editState.copy(cropLeft = nL, cropTop = nT, cropRight = nR, cropBottom = nB)
+                                    },
+                                    onDragEnd = { resizeCorner = 0 },
+                                    onDragCancel = { resizeCorner = 0 }
+                                )
+                            }
                         } else {
-                            drawWidth = size.height * videoAspect
+                            Modifier
                         }
-                        val left = (size.width - drawWidth) / 2f
-                        val top = (size.height - drawHeight) / 2f
-                        
-                        val cL = left + displayCropLeft * drawWidth
-                        val cT = top + displayCropTop * drawHeight
-                        val cR = left + displayCropRight * drawWidth
-                        val cB = top + displayCropBottom * drawHeight
-                        
-                        drawRect(color = Color.Black.copy(alpha = 0.5f), topLeft = Offset(left, top), size = Size(drawWidth, cT - top))
-                        drawRect(color = Color.Black.copy(alpha = 0.5f), topLeft = Offset(left, cB), size = Size(drawWidth, top + drawHeight - cB))
-                        drawRect(color = Color.Black.copy(alpha = 0.5f), topLeft = Offset(left, cT), size = Size(cL - left, cB - cT))
-                        drawRect(color = Color.Black.copy(alpha = 0.5f), topLeft = Offset(cR, cT), size = Size(left + drawWidth - cR, cB - cT))
-                        
-                        drawRect(color = Color.White, topLeft = Offset(cL, cT), size = Size(cR - cL, cB - cT), style = Stroke(width = 5f))
-                        
-                        if (isCustom) {
-                            val cornerLen = 40f
-                            drawLine(Color.Green, Offset(cL, cT), Offset(cL + cornerLen, cT), 12f)
-                            drawLine(Color.Green, Offset(cL, cT), Offset(cL, cT + cornerLen), 12f)
+
+                        Canvas(modifier = Modifier.fillMaxSize().then(pointerInputModifier)) {
+                            val drawWidth = size.width
+                            val drawHeight = size.height
+                            if (drawWidth <= 0f || drawHeight <= 0f) return@Canvas
                             
-                            drawLine(Color.Green, Offset(cR, cT), Offset(cR - cornerLen, cT), 12f)
-                            drawLine(Color.Green, Offset(cR, cT), Offset(cR, cT + cornerLen), 12f)
+                            val cL = displayCropLeft * drawWidth
+                            val cT = displayCropTop * drawHeight
+                            val cR = displayCropRight * drawWidth
+                            val cB = displayCropBottom * drawHeight
                             
-                            drawLine(Color.Green, Offset(cL, cB), Offset(cL + cornerLen, cB), 12f)
-                            drawLine(Color.Green, Offset(cL, cB), Offset(cL, cB - cornerLen), 12f)
+                            drawRect(color = Color.Black.copy(alpha = 0.5f), topLeft = Offset(0f, 0f), size = Size(drawWidth, cT))
+                            drawRect(color = Color.Black.copy(alpha = 0.5f), topLeft = Offset(0f, cB), size = Size(drawWidth, drawHeight - cB))
+                            drawRect(color = Color.Black.copy(alpha = 0.5f), topLeft = Offset(0f, cT), size = Size(cL, cB - cT))
+                            drawRect(color = Color.Black.copy(alpha = 0.5f), topLeft = Offset(cR, cT), size = Size(drawWidth - cR, cB - cT))
                             
-                            drawLine(Color.Green, Offset(cR, cB), Offset(cR - cornerLen, cB), 12f)
-                            drawLine(Color.Green, Offset(cR, cB), Offset(cR, cB - cornerLen), 12f)
+                            drawRect(color = Color.White, topLeft = Offset(cL, cT), size = Size(cR - cL, cB - cT), style = Stroke(width = 5f))
+                            
+                            if (isCustom) {
+                                val cornerLen = 40f
+                                drawLine(Color.Green, Offset(cL, cT), Offset(cL + cornerLen, cT), 12f)
+                                drawLine(Color.Green, Offset(cL, cT), Offset(cL, cT + cornerLen), 12f)
+                                
+                                drawLine(Color.Green, Offset(cR, cT), Offset(cR - cornerLen, cT), 12f)
+                                drawLine(Color.Green, Offset(cR, cT), Offset(cR, cT + cornerLen), 12f)
+                                
+                                drawLine(Color.Green, Offset(cL, cB), Offset(cL + cornerLen, cB), 12f)
+                                drawLine(Color.Green, Offset(cL, cB), Offset(cL, cB - cornerLen), 12f)
+                                
+                                drawLine(Color.Green, Offset(cR, cB), Offset(cR - cornerLen, cB), 12f)
+                                drawLine(Color.Green, Offset(cR, cB), Offset(cR, cB - cornerLen), 12f)
+                            }
                         }
                     }
                 }
@@ -942,6 +1037,13 @@ fun VideoEditorScreen(
                                         currentPositionMs = nextPos
                                     }
                                 }
+                            }
+                        }
+                        if (currentEditState.speedMode == "Curve" && durationMs > 0L && exoPlayer?.isPlaying == true) {
+                            val tFrac = (currentPositionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
+                            val targetSpeed = getSpeedAtTime(currentEditState.speedCurvePoints, tFrac).coerceIn(0.2f, 5.0f)
+                            if (Math.abs((exoPlayer?.playbackParameters?.speed ?: 1f) - targetSpeed) > 0.05f) {
+                                exoPlayer?.setPlaybackSpeed(targetSpeed)
                             }
                         }
                         kotlinx.coroutines.delay(if (exoPlayer?.isPlaying == true) 50L else 250L)
@@ -1129,7 +1231,19 @@ fun VideoEditorScreen(
                     ) {
                         ToolIcon(Icons.Filled.ContentCut, "Trim") { backupEditState = editState.copy(); currentTool = VideoEditorTool.TRIM }
                         ToolIcon(Icons.Filled.Speed, "Speed") { backupEditState = editState.copy(); currentTool = VideoEditorTool.SPEED }
-                        ToolIcon(Icons.Filled.Crop, "Crop") { backupEditState = editState.copy(); currentTool = VideoEditorTool.CROP }
+                        ToolIcon(Icons.Filled.Crop, "Crop") {
+                            backupEditState = editState.copy()
+                            if (editState.cropRect.isEmpty() || editState.cropRect == "None") {
+                                editState = editState.copy(
+                                    cropRect = "Custom",
+                                    cropLeft = 0f,
+                                    cropTop = 0f,
+                                    cropRight = 1f,
+                                    cropBottom = 1f
+                                )
+                            }
+                            currentTool = VideoEditorTool.CROP
+                        }
                         ToolIcon(Icons.Filled.VolumeUp, "Audio") { backupEditState = editState.copy(); currentTool = VideoEditorTool.AUDIO }
                         ToolIcon(Icons.Filled.AspectRatio, "Aspect Ratio") { backupEditState = editState.copy(); currentTool = VideoEditorTool.ASPECT_RATIO }
                         ToolIcon(Icons.Filled.RotateRight, "Rotate") { backupEditState = editState.copy(); currentTool = VideoEditorTool.ROTATE }
@@ -1248,39 +1362,475 @@ fun VideoEditorScreen(
                                 }
                             }
                             VideoEditorTool.SPEED -> {
+                                var selectedPointIndex by remember { mutableIntStateOf(-1) }
+                                val primaryColor = MaterialTheme.colorScheme.primary
+
                                 Column(modifier = Modifier.fillMaxWidth()) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text("Speed", style = MaterialTheme.typography.titleSmall)
-                                        Text(
-                                            text = String.format("%.2fx", editState.speed),
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Slider(
-                                        value = editState.speed,
-                                        onValueChange = { editState = editState.copy(speed = it) },
-                                        valueRange = 0.25f..16f,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
+                                    // Mode Switcher (Standard vs. Curve)
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .horizontalScroll(rememberScrollState()),
+                                            .padding(bottom = 8.dp),
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
-                                        listOf(0.25f, 0.5f, 1f, 2f, 4f, 8f, 12f, 16f).forEach { preset ->
-                                            FilterChip(
-                                                selected = Math.abs(editState.speed - preset) < 0.05f,
-                                                onClick = { editState = editState.copy(speed = preset) },
-                                                label = { Text(if (preset == 1f) "1x (Normal)" else "${preset}x") }
+                                        FilterChip(
+                                            selected = editState.speedMode == "Standard",
+                                            onClick = {
+                                                editState = editState.copy(speedMode = "Standard")
+                                            },
+                                            label = { Text("Standard") },
+                                            leadingIcon = {
+                                                Icon(
+                                                    Icons.Filled.Speed,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        )
+                                        FilterChip(
+                                            selected = editState.speedMode == "Curve",
+                                            onClick = {
+                                                editState = editState.copy(speedMode = "Curve")
+                                            },
+                                            label = { Text("Speed Curve (Wave)") },
+                                            leadingIcon = {
+                                                Icon(
+                                                    Icons.Filled.GraphicEq,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        )
+                                    }
+
+                                    if (editState.speedMode == "Standard") {
+                                        // Standard Mode UI
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text("Playback Speed", style = MaterialTheme.typography.titleSmall)
+                                            Text(
+                                                text = String.format(java.util.Locale.US, "%.2fx", editState.speed),
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.primary
                                             )
+                                        }
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Slider(
+                                            value = editState.speed,
+                                            onValueChange = { editState = editState.copy(speed = it) },
+                                            valueRange = 0.25f..16f,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .horizontalScroll(rememberScrollState()),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            listOf(0.25f, 0.5f, 1f, 2f, 4f, 8f, 12f, 16f).forEach { preset ->
+                                                FilterChip(
+                                                    selected = Math.abs(editState.speed - preset) < 0.05f,
+                                                    onClick = { editState = editState.copy(speed = preset) },
+                                                    label = { Text(if (preset == 1f) "1x (Normal)" else "${preset}x") }
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        // Speed Curve (Wave) Mode UI
+                                        val curPlayFrac = if (durationMs > 0) (currentPositionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f) else 0f
+                                        val curPlaySpeed = getSpeedAtTime(editState.speedCurvePoints, curPlayFrac)
+                                        val selectedPoint = editState.speedCurvePoints.getOrNull(selectedPointIndex)
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(
+                                                    text = "Speed: ${String.format(java.util.Locale.US, "%.2fx", curPlaySpeed)}",
+                                                    style = MaterialTheme.typography.titleSmall,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                                Spacer(modifier = Modifier.width(12.dp))
+                                                Text(
+                                                    text = "At: ${formatMs(currentPositionMs)}",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                            if (selectedPoint != null) {
+                                                Text(
+                                                    text = "Node: ${String.format(java.util.Locale.US, "%.2fx", selectedPoint.speed)}",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.tertiary
+                                                )
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(6.dp))
+
+                                        // Action buttons: Add Point, Delete Point, Reset
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            FilledTonalButton(
+                                                onClick = {
+                                                    val points = editState.speedCurvePoints.toMutableList()
+                                                    val alreadyNear = points.any { Math.abs(it.timeFraction - curPlayFrac) < 0.03f }
+                                                    if (!alreadyNear && curPlayFrac > 0.02f && curPlayFrac < 0.98f) {
+                                                        points.add(SpeedPoint(curPlayFrac, curPlaySpeed))
+                                                        val sorted = points.sortedBy { it.timeFraction }
+                                                        editState = editState.copy(speedCurvePoints = sorted, speedCurvePreset = "Custom")
+                                                        selectedPointIndex = sorted.indexOfFirst { Math.abs(it.timeFraction - curPlayFrac) < 0.001f }
+                                                    }
+                                                },
+                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                                modifier = Modifier.height(34.dp)
+                                            ) {
+                                                Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(14.dp))
+                                                Spacer(Modifier.width(4.dp))
+                                                Text("Add Point", style = MaterialTheme.typography.labelMedium)
+                                            }
+
+                                            OutlinedButton(
+                                                onClick = {
+                                                    if (selectedPointIndex > 0 && selectedPointIndex < editState.speedCurvePoints.size - 1) {
+                                                        val points = editState.speedCurvePoints.toMutableList()
+                                                        points.removeAt(selectedPointIndex)
+                                                        editState = editState.copy(speedCurvePoints = points, speedCurvePreset = "Custom")
+                                                        selectedPointIndex = -1
+                                                    }
+                                                },
+                                                enabled = selectedPointIndex > 0 && selectedPointIndex < editState.speedCurvePoints.size - 1,
+                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                                modifier = Modifier.height(34.dp)
+                                            ) {
+                                                Icon(Icons.Filled.Remove, contentDescription = null, modifier = Modifier.size(14.dp))
+                                                Spacer(Modifier.width(4.dp))
+                                                Text("Delete Point", style = MaterialTheme.typography.labelMedium)
+                                            }
+
+                                            OutlinedButton(
+                                                onClick = {
+                                                    editState = editState.copy(
+                                                        speedCurvePoints = listOf(
+                                                            SpeedPoint(0.0f, 1.0f),
+                                                            SpeedPoint(0.25f, 1.0f),
+                                                            SpeedPoint(0.5f, 1.0f),
+                                                            SpeedPoint(0.75f, 1.0f),
+                                                            SpeedPoint(1.0f, 1.0f)
+                                                        ),
+                                                        speedCurvePreset = "Reset"
+                                                    )
+                                                    selectedPointIndex = -1
+                                                },
+                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                                modifier = Modifier.height(34.dp)
+                                            ) {
+                                                Text("Reset", style = MaterialTheme.typography.labelMedium)
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(6.dp))
+
+                                        // Interactive Wave Canvas
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(130.dp)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                                        ) {
+                                            Canvas(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .pointerInput(editState.speedCurvePoints, durationMs) {
+                                                        detectTapGestures(
+                                                            onTap = { offset ->
+                                                                val padX = 24.dp.toPx()
+                                                                val padY = 16.dp.toPx()
+                                                                val graphW = size.width - 2 * padX
+                                                                val graphH = size.height - 2 * padY
+                                                                val hitThresholdSq = 32.dp.toPx() * 32.dp.toPx()
+                                                                val hitIndex = editState.speedCurvePoints.indexOfFirst { pt ->
+                                                                    val px = timeToX(pt.timeFraction, padX, padX + graphW)
+                                                                    val py = speedToY(pt.speed, padY, padY + graphH)
+                                                                    val distSq = (offset.x - px) * (offset.x - px) + (offset.y - py) * (offset.y - py)
+                                                                    distSq <= hitThresholdSq
+                                                                }
+                                                                if (hitIndex != -1) {
+                                                                    selectedPointIndex = hitIndex
+                                                                    val targetMs = (editState.speedCurvePoints[hitIndex].timeFraction * durationMs).toLong()
+                                                                    exoPlayer?.seekTo(targetMs)
+                                                                } else {
+                                                                    val tFrac = xToTime(offset.x, padX, padX + graphW)
+                                                                    val targetMs = (tFrac * durationMs).toLong()
+                                                                    exoPlayer?.seekTo(targetMs)
+                                                                }
+                                                            }
+                                                        )
+                                                    }
+                                                    .pointerInput(editState.speedCurvePoints, durationMs) {
+                                                        detectDragGestures(
+                                                            onDragStart = { offset ->
+                                                                val padX = 24.dp.toPx()
+                                                                val padY = 16.dp.toPx()
+                                                                val graphW = size.width - 2 * padX
+                                                                val graphH = size.height - 2 * padY
+                                                                val hitThresholdSq = 36.dp.toPx() * 36.dp.toPx()
+                                                                val hitIndex = editState.speedCurvePoints.indexOfFirst { pt ->
+                                                                    val px = timeToX(pt.timeFraction, padX, padX + graphW)
+                                                                    val py = speedToY(pt.speed, padY, padY + graphH)
+                                                                    val distSq = (offset.x - px) * (offset.x - px) + (offset.y - py) * (offset.y - py)
+                                                                    distSq <= hitThresholdSq
+                                                                }
+                                                                if (hitIndex != -1) {
+                                                                    selectedPointIndex = hitIndex
+                                                                }
+                                                            },
+                                                            onDrag = { change, _ ->
+                                                                if (selectedPointIndex in editState.speedCurvePoints.indices) {
+                                                                    change.consume()
+                                                                    val padX = 24.dp.toPx()
+                                                                    val padY = 16.dp.toPx()
+                                                                    val graphW = size.width - 2 * padX
+                                                                    val graphH = size.height - 2 * padY
+                                                                    val currentPoints = editState.speedCurvePoints.toMutableList()
+                                                                    val newSpeed = yToSpeed(change.position.y, padY, padY + graphH).coerceIn(0.2f, 5.0f)
+                                                                    val newT = when (selectedPointIndex) {
+                                                                        0 -> 0.0f
+                                                                        currentPoints.size - 1 -> 1.0f
+                                                                        else -> {
+                                                                            val minT = currentPoints[selectedPointIndex - 1].timeFraction + 0.02f
+                                                                            val maxT = currentPoints[selectedPointIndex + 1].timeFraction - 0.02f
+                                                                            xToTime(change.position.x, padX, padX + graphW).coerceIn(minT, maxT)
+                                                                        }
+                                                                    }
+                                                                    currentPoints[selectedPointIndex] = SpeedPoint(newT, newSpeed)
+                                                                    editState = editState.copy(speedCurvePoints = currentPoints, speedCurvePreset = "Custom")
+                                                                    val targetMs = (newT * durationMs).toLong()
+                                                                    exoPlayer?.seekTo(targetMs)
+                                                                }
+                                                            },
+                                                            onDragEnd = {},
+                                                            onDragCancel = {}
+                                                        )
+                                                    }
+                                            ) {
+                                                val padX = 24.dp.toPx()
+                                                val padY = 16.dp.toPx()
+                                                val graphW = size.width - 2 * padX
+                                                val graphH = size.height - 2 * padY
+                                                val midY = (padY + padY + graphH) / 2f
+                                                val topY = padY
+                                                val bottomY = padY + graphH
+
+                                                // Background reference guide lines
+                                                drawLine(
+                                                    color = Color.White.copy(alpha = 0.15f),
+                                                    start = Offset(padX, topY),
+                                                    end = Offset(padX + graphW, topY),
+                                                    strokeWidth = 1.dp.toPx()
+                                                )
+                                                drawLine(
+                                                    color = Color.White.copy(alpha = 0.35f),
+                                                    start = Offset(padX, midY),
+                                                    end = Offset(padX + graphW, midY),
+                                                    strokeWidth = 1.5.dp.toPx()
+                                                )
+                                                drawLine(
+                                                    color = Color.White.copy(alpha = 0.15f),
+                                                    start = Offset(padX, bottomY),
+                                                    end = Offset(padX + graphW, bottomY),
+                                                    strokeWidth = 1.dp.toPx()
+                                                )
+
+                                                // Speed wave path & filled gradient area
+                                                val path = Path()
+                                                val fillPath = Path()
+                                                fillPath.moveTo(padX, bottomY)
+
+                                                val sampleSteps = 80
+                                                for (s in 0..sampleSteps) {
+                                                    val tFrac = s.toFloat() / sampleSteps.toFloat()
+                                                    val spd = getSpeedAtTime(editState.speedCurvePoints, tFrac)
+                                                    val x = timeToX(tFrac, padX, padX + graphW)
+                                                    val y = speedToY(spd, padY, padY + graphH)
+                                                    if (s == 0) {
+                                                        path.moveTo(x, y)
+                                                        fillPath.lineTo(x, y)
+                                                    } else {
+                                                        path.lineTo(x, y)
+                                                        fillPath.lineTo(x, y)
+                                                    }
+                                                }
+                                                fillPath.lineTo(padX + graphW, bottomY)
+                                                fillPath.close()
+
+                                                drawPath(
+                                                    path = fillPath,
+                                                    brush = Brush.verticalGradient(
+                                                        colors = listOf(
+                                                            primaryColor.copy(alpha = 0.35f),
+                                                            primaryColor.copy(alpha = 0.05f)
+                                                        ),
+                                                        startY = topY,
+                                                        endY = bottomY
+                                                    )
+                                                )
+                                                drawPath(
+                                                    path = path,
+                                                    color = primaryColor,
+                                                    style = Stroke(width = 3.dp.toPx())
+                                                )
+
+                                                // Live Playhead vertical line
+                                                if (durationMs > 0) {
+                                                    val playheadFrac = (currentPositionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
+                                                    val playheadX = timeToX(playheadFrac, padX, padX + graphW)
+                                                    drawLine(
+                                                        color = Color.White,
+                                                        start = Offset(playheadX, topY),
+                                                        end = Offset(playheadX, bottomY),
+                                                        strokeWidth = 2.dp.toPx()
+                                                    )
+                                                    val curSpd = getSpeedAtTime(editState.speedCurvePoints, playheadFrac)
+                                                    val playheadY = speedToY(curSpd, padY, padY + graphH)
+                                                    drawCircle(
+                                                        color = Color.White,
+                                                        radius = 4.dp.toPx(),
+                                                        center = Offset(playheadX, playheadY)
+                                                    )
+                                                }
+
+                                                // Interactive control nodes
+                                                editState.speedCurvePoints.forEachIndexed { index, pt ->
+                                                    val x = timeToX(pt.timeFraction, padX, padX + graphW)
+                                                    val y = speedToY(pt.speed, padY, padY + graphH)
+                                                    val isSelected = index == selectedPointIndex
+                                                    if (isSelected) {
+                                                        drawCircle(
+                                                            color = primaryColor.copy(alpha = 0.35f),
+                                                            radius = 14.dp.toPx(),
+                                                            center = Offset(x, y)
+                                                        )
+                                                    }
+                                                    drawCircle(
+                                                        color = if (isSelected) primaryColor else Color.White,
+                                                        radius = 7.dp.toPx(),
+                                                        center = Offset(x, y)
+                                                    )
+                                                    drawCircle(
+                                                        color = if (isSelected) Color.White else primaryColor,
+                                                        radius = 3.5.dp.toPx(),
+                                                        center = Offset(x, y)
+                                                    )
+                                                }
+                                            }
+
+                                            // Reference text badges (5.0x Fast, 1.0x Normal, 0.2x Slow)
+                                            Text(
+                                                text = "5.0x Fast",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                                modifier = Modifier
+                                                    .align(Alignment.TopStart)
+                                                    .padding(start = 6.dp, top = 2.dp)
+                                            )
+                                            Text(
+                                                text = "1.0x Normal",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                                modifier = Modifier
+                                                    .align(Alignment.CenterStart)
+                                                    .padding(start = 6.dp)
+                                            )
+                                            Text(
+                                                text = "0.2x Slow",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                                modifier = Modifier
+                                                    .align(Alignment.BottomStart)
+                                                    .padding(start = 6.dp, bottom = 2.dp)
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                        // Preset Curve Pills
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .horizontalScroll(rememberScrollState()),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            val presets = listOf(
+                                                "Custom" to editState.speedCurvePoints,
+                                                "Montage" to listOf(
+                                                    SpeedPoint(0.0f, 0.6f),
+                                                    SpeedPoint(0.25f, 2.5f),
+                                                    SpeedPoint(0.5f, 3.2f),
+                                                    SpeedPoint(0.75f, 2.5f),
+                                                    SpeedPoint(1.0f, 0.6f)
+                                                ),
+                                                "Hero" to listOf(
+                                                    SpeedPoint(0.0f, 3.5f),
+                                                    SpeedPoint(0.28f, 2.0f),
+                                                    SpeedPoint(0.5f, 0.3f),
+                                                    SpeedPoint(0.72f, 2.0f),
+                                                    SpeedPoint(1.0f, 3.5f)
+                                                ),
+                                                "Bullet" to listOf(
+                                                    SpeedPoint(0.0f, 1.0f),
+                                                    SpeedPoint(0.35f, 1.0f),
+                                                    SpeedPoint(0.5f, 0.2f),
+                                                    SpeedPoint(0.65f, 1.0f),
+                                                    SpeedPoint(1.0f, 1.0f)
+                                                ),
+                                                "Flash In" to listOf(
+                                                    SpeedPoint(0.0f, 4.0f),
+                                                    SpeedPoint(0.2f, 2.0f),
+                                                    SpeedPoint(0.45f, 1.0f),
+                                                    SpeedPoint(1.0f, 1.0f)
+                                                ),
+                                                "Flash Out" to listOf(
+                                                    SpeedPoint(0.0f, 1.0f),
+                                                    SpeedPoint(0.55f, 1.0f),
+                                                    SpeedPoint(0.8f, 2.0f),
+                                                    SpeedPoint(1.0f, 4.0f)
+                                                ),
+                                                "Reset" to listOf(
+                                                    SpeedPoint(0.0f, 1.0f),
+                                                    SpeedPoint(0.25f, 1.0f),
+                                                    SpeedPoint(0.5f, 1.0f),
+                                                    SpeedPoint(0.75f, 1.0f),
+                                                    SpeedPoint(1.0f, 1.0f)
+                                                )
+                                            )
+
+                                            presets.forEach { (name, pts) ->
+                                                FilterChip(
+                                                    selected = editState.speedCurvePreset == name,
+                                                    onClick = {
+                                                        if (name != "Custom") {
+                                                            editState = editState.copy(
+                                                                speedCurvePreset = name,
+                                                                speedCurvePoints = pts
+                                                            )
+                                                            selectedPointIndex = -1
+                                                        }
+                                                    },
+                                                    label = { Text(name) }
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -1396,10 +1946,26 @@ fun VideoEditorScreen(
                                             .horizontalScroll(rememberScrollState()),
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
-                                        listOf("None", "16:9", "Fill 16:9", "9:16", "1:1", "4:3", "21:9", "Custom").forEach { crop ->
+                                        listOf("Custom", "None", "16:9", "Fill 16:9", "9:16", "1:1", "4:3", "21:9").forEach { crop ->
                                             FilterChip(
                                                 selected = editState.cropRect == crop,
-                                                onClick = { editState = editState.copy(cropRect = crop) },
+                                                onClick = { 
+                                                    if (crop == "Custom") {
+                                                        if (editState.cropRight <= editState.cropLeft || editState.cropBottom <= editState.cropTop) {
+                                                            editState = editState.copy(
+                                                                cropRect = "Custom",
+                                                                cropLeft = 0f,
+                                                                cropTop = 0f,
+                                                                cropRight = 1f,
+                                                                cropBottom = 1f
+                                                            )
+                                                        } else {
+                                                            editState = editState.copy(cropRect = "Custom")
+                                                        }
+                                                    } else {
+                                                        editState = editState.copy(cropRect = crop)
+                                                    }
+                                                },
                                                 label = { Text(crop) }
                                             )
                                         }
@@ -1723,9 +2289,14 @@ fun VideoEditorScreen(
                             trimArgs = "-ss ${start / 1000f} -to ${end / 1000f}"
                         }
 
-                        if (editState.speed != 1.0f) {
-                            filterList.add("setpts=PTS/${editState.speed}")
-                            audioFilterList.add("atempo=${editState.speed}")
+                        val isSpeedCurveActive = editState.speedMode == "Curve" && editState.speedCurvePoints.any { Math.abs(it.speed - 1.0f) > 0.05f }
+                        if (!isSpeedCurveActive) {
+                            if (editState.speedMode == "Standard" && editState.speed != 1.0f) {
+                                filterList.add("setpts=PTS/${editState.speed}")
+                                if (videoHasAudio) {
+                                    audioFilterList.add(buildAtempoFilter(editState.speed))
+                                }
+                            }
                         }
                         if (editState.volume != 1.0f) {
                             audioFilterList.add("volume=${editState.volume}")
@@ -1822,7 +2393,77 @@ fun VideoEditorScreen(
                         val presetArg = if (fastExport) "ultrafast" else "medium"
 
                         var cmd = ""
-                        if (joinPath != null && format == "mp4") {
+                        if (isSpeedCurveActive && joinPath == null) {
+                            val activeDurationSec = if (!editState.isDoubleTrim && !editState.isCutMode) {
+                                val start = editState.trimStartMs.coerceIn(0L, durationMs)
+                                val end = editState.trimEndMs.coerceIn(start, durationMs).takeIf { it > 0 } ?: durationMs
+                                (end - start).coerceAtLeast(100L) / 1000f
+                            } else {
+                                (if (durationMs > 0L) durationMs else 1000L) / 1000f
+                            }
+
+                            val numSegments = 10
+                            val sb = StringBuilder()
+                            val hasAudio = videoHasAudio && format != "gif"
+
+                            for (k in 0 until numSegments) {
+                                val fStart = k.toFloat() / numSegments.toFloat()
+                                val fEnd = (k + 1).toFloat() / numSegments.toFloat()
+                                val sStart = fStart * activeDurationSec
+                                val sEnd = fEnd * activeDurationSec
+                                val fMid = (fStart + fEnd) / 2.0f
+                                val spd = getSpeedAtTime(editState.speedCurvePoints, fMid).coerceIn(0.2f, 5.0f)
+
+                                sb.append(String.format(java.util.Locale.US, "[0:v]trim=start=%.3f:end=%.3f,setpts=PTS-STARTPTS,setpts=PTS/%.3f[v_seg%d];", sStart, sEnd, spd, k))
+                                if (hasAudio) {
+                                    sb.append(String.format(java.util.Locale.US, "[0:a]atrim=start=%.3f:end=%.3f,asetpts=PTS-STARTPTS,%s[a_seg%d];", sStart, sEnd, buildAtempoFilter(spd), k))
+                                }
+                            }
+
+                            if (hasAudio) {
+                                val concatInputs = (0 until numSegments).joinToString("") { "[v_seg$it][a_seg$it]" }
+                                sb.append("${concatInputs}concat=n=$numSegments:v=1:a=1[v_ramped][a_ramped];")
+                            } else {
+                                val concatInputs = (0 until numSegments).joinToString("") { "[v_seg$it]" }
+                                sb.append("${concatInputs}concat=n=$numSegments:v=1:a=0[v_ramped];")
+                            }
+
+                            val vFilters = if (format == "gif") gifFilters else filterList
+                            if (vFilters.isNotEmpty()) {
+                                sb.append("[v_ramped]${vFilters.joinToString(",")}[v_out];")
+                            } else {
+                                sb.append("[v_ramped]null[v_out];")
+                            }
+
+                            if (hasAudio) {
+                                if (audioFilterList.isNotEmpty()) {
+                                    sb.append("[a_ramped]${audioFilterList.joinToString(",")}[a_out]")
+                                } else {
+                                    sb.append("[a_ramped]anull[a_out]")
+                                }
+                            }
+
+                            val curveFilterComplex = sb.toString().trimEnd(';')
+
+                            cmd = when (format) {
+                                "mp4" -> {
+                                    if (hasAudio) {
+                                        "-y $trimArgs -i %INPUT% -filter_complex \"$curveFilterComplex\" -map \"[v_out]\" -map \"[a_out]\" -r $fps -vcodec libx264 -crf $crf -preset $presetArg -metadata:s:v:0 rotate=0 %OUTPUT%"
+                                    } else {
+                                        "-y $trimArgs -i %INPUT% -filter_complex \"$curveFilterComplex\" -map \"[v_out]\" -r $fps -vcodec libx264 -crf $crf -preset $presetArg -metadata:s:v:0 rotate=0 %OUTPUT%"
+                                    }
+                                }
+                                "mp3" -> {
+                                    if (hasAudio) {
+                                        "-y $trimArgs -i %INPUT% -filter_complex \"$curveFilterComplex\" -vn -map \"[a_out]\" -acodec libmp3lame -q:a 2 %OUTPUT%"
+                                    } else {
+                                        "-y $trimArgs -i %INPUT% -vn -acodec libmp3lame -q:a 2 %OUTPUT%"
+                                    }
+                                }
+                                "gif" -> "-y $trimArgs -i %INPUT% -filter_complex \"$curveFilterComplex\" -map \"[v_out]\" -loop 0 %OUTPUT%"
+                                else -> "-y -i %INPUT% %OUTPUT%"
+                            }
+                        } else if (joinPath != null && format == "mp4") {
                             // Complex filter for joining
                             val v0 = if (filterList.isNotEmpty()) "[0:v]${filterList.joinToString(",")}[v0];" else "[0:v]copy[v0];"
                             val a0 = if (audioFilterList.isNotEmpty()) "[0:a]${audioFilterList.joinToString(",")}[a0];" else "[0:a]anull[a0];"

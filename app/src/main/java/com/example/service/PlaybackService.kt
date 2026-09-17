@@ -64,8 +64,40 @@ lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
 windowManager = getSystemService(android.content.Context.WINDOW_SERVICE) as WindowManager
 
 try {
-val defaultProvider = androidx.media3.session.DefaultMediaNotificationProvider(this).apply {
-// Media3 DefaultMediaNotificationProvider automatically adds custom layout commands
+val defaultProvider = object : androidx.media3.session.DefaultMediaNotificationProvider(this) {
+    override fun getMediaButtons(
+        session: androidx.media3.session.MediaSession,
+        playerCommands: androidx.media3.common.Player.Commands,
+        customLayout: com.google.common.collect.ImmutableList<androidx.media3.session.CommandButton>,
+        showWhenCompact: Boolean
+    ): com.google.common.collect.ImmutableList<androidx.media3.session.CommandButton> {
+        val defaultButtons = super.getMediaButtons(session, playerCommands, customLayout, showWhenCompact)
+        val miniPlayerButton = customLayout.firstOrNull { it.sessionCommand?.customAction == "ACTION_OVERLAY" }
+            ?: androidx.media3.session.CommandButton.Builder()
+                .setDisplayName("Mini Player")
+                .setSessionCommand(androidx.media3.session.SessionCommand("ACTION_OVERLAY", android.os.Bundle.EMPTY))
+                .setIconResId(com.example.R.drawable.ic_widget_miniplayer)
+                .build()
+        val closeButton = customLayout.firstOrNull { it.sessionCommand?.customAction == "ACTION_CLOSE" }
+            ?: androidx.media3.session.CommandButton.Builder()
+                .setDisplayName("Close")
+                .setSessionCommand(androidx.media3.session.SessionCommand("ACTION_CLOSE", android.os.Bundle.EMPTY))
+                .setIconResId(com.example.R.drawable.ic_widget_close)
+                .build()
+        val list = mutableListOf<androidx.media3.session.CommandButton>()
+        // 1. Playback buttons first
+        for (btn in defaultButtons) {
+            val action = btn.sessionCommand?.customAction
+            if (action != "ACTION_CLOSE" && action != "ACTION_OVERLAY") {
+                list.add(btn)
+            }
+        }
+        // 2. Mini player button after playback buttons
+        list.add(miniPlayerButton)
+        // 3. Close button
+        list.add(closeButton)
+        return com.google.common.collect.ImmutableList.copyOf(list)
+    }
 }
 setMediaNotificationProvider(defaultProvider)
 } catch (e: Exception) {
@@ -402,6 +434,13 @@ val updateWindowForAspectRatio: (Float) -> Unit = { aspect ->
                 targetWidth = (((targetHeight - topBarHeightPx) * aspect).toInt()).coerceIn(minWidth, maxWidth)
             }
 
+            if (lp.y + targetHeight > metrics.heightPixels) {
+                lp.y = (metrics.heightPixels - targetHeight - (16 * metrics.density).toInt()).coerceAtLeast(0)
+            }
+            if (lp.x + targetWidth > metrics.widthPixels) {
+                lp.x = (metrics.widthPixels - targetWidth - (16 * metrics.density).toInt()).coerceAtLeast(0)
+            }
+
             if (lp.width != targetWidth || lp.height != targetHeight) {
                 lp.width = targetWidth
                 lp.height = targetHeight
@@ -427,7 +466,41 @@ player?.clearMediaItems()
 hideOverlay()
 stopSelf()
 },
-onMinimize = { hideOverlay() },
+onMinimize = {
+    isMinimized = true
+    val lp = layoutParams
+    if (lp != null) {
+        lp.width = WindowManager.LayoutParams.WRAP_CONTENT
+        lp.height = WindowManager.LayoutParams.WRAP_CONTENT
+        windowManager.updateViewLayout(cv, lp)
+    }
+},
+isMinimizedExternal = isMinimized,
+onMinimizeChange = { minimized ->
+    isMinimized = minimized
+    val lp = layoutParams
+    if (lp != null) {
+        if (minimized) {
+            lp.width = WindowManager.LayoutParams.WRAP_CONTENT
+            lp.height = WindowManager.LayoutParams.WRAP_CONTENT
+        } else {
+            val metrics = resources.displayMetrics
+            val topBarHeightPx = (32 * metrics.density).toInt()
+            val minWidth = (200 * metrics.density).toInt()
+            val maxWidth = (metrics.widthPixels * 0.95f).toInt()
+            val maxHeight = (metrics.heightPixels * 0.7f).toInt()
+            val aspect = videoAspectRatio.coerceIn(0.4f, 2.5f)
+            val w = prefs.getInt("width", (300 * metrics.density).toInt()).coerceIn(minWidth, maxWidth)
+            var h = ((w / aspect).toInt() + topBarHeightPx)
+            if (h > maxHeight) {
+                h = maxHeight
+            }
+            lp.width = w
+            lp.height = h
+        }
+        windowManager.updateViewLayout(cv, lp)
+    }
+},
 onDrag = { dx, dy ->
 val lp = layoutParams
 if (lp != null) {
@@ -529,9 +602,12 @@ onSwitchToVideo = {
     isVideoMode = true
     val player = com.example.service.PlayerManager.exoPlayer
     val vs = player?.videoSize
-    if (vs != null && vs.width > 0 && vs.height > 0) {
-        updateWindowForAspectRatio(vs.width.toFloat() / vs.height.toFloat())
+    val aspect = if (vs != null && vs.width > 0 && vs.height > 0) {
+        vs.width.toFloat() / vs.height.toFloat()
+    } else {
+        16f / 9f
     }
+    updateWindowForAspectRatio(aspect)
 }
 )
 }
@@ -555,7 +631,7 @@ val topBarHeightPx = (32 * metrics.density).toInt()
 val defaultWidth = (300 * metrics.density).toInt()
 val widthPx = prefs.getInt("width", defaultWidth)
 val initialHeight = ((widthPx) / initialAspect).toInt() + topBarHeightPx
-val heightPx = if (startInVideoMode && (vs != null && vs.width > 0)) initialHeight else prefs.getInt("height", (200 * metrics.density).toInt())
+val heightPx = if (startInVideoMode) initialHeight else prefs.getInt("height", (200 * metrics.density).toInt())
 layoutParams = WindowManager.LayoutParams(
 widthPx,
 heightPx,
@@ -610,7 +686,19 @@ composeView = null
             .setIconResId(com.example.R.drawable.ic_pip)
             .build()
 
-        mediaSession?.setCustomLayout(listOf(loopAction, shuffleAction, pipAction))
+        val miniPlayerAction = androidx.media3.session.CommandButton.Builder()
+            .setDisplayName("Mini Player")
+            .setSessionCommand(androidx.media3.session.SessionCommand("ACTION_OVERLAY", android.os.Bundle.EMPTY))
+            .setIconResId(com.example.R.drawable.ic_widget_miniplayer)
+            .build()
+
+        val closeAction = androidx.media3.session.CommandButton.Builder()
+            .setDisplayName("Close")
+            .setSessionCommand(androidx.media3.session.SessionCommand("ACTION_CLOSE", android.os.Bundle.EMPTY))
+            .setIconResId(com.example.R.drawable.ic_widget_close)
+            .build()
+
+        mediaSession?.setCustomLayout(listOf(loopAction, shuffleAction, pipAction, miniPlayerAction, closeAction))
     }
 
     override fun onStartCommand(intent: android.content.Intent?, flags: Int, startId: Int): Int {
