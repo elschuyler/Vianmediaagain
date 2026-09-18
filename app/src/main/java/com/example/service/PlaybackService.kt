@@ -128,7 +128,7 @@ override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?,
         Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT -> "REPEAT"
         else -> "UNKNOWN($reason)"
     }
-    com.example.LogKeeper.log("PlaybackService: onMediaItemTransition to '${mediaItem?.mediaMetadata?.title}' (reason: $reasonStr)", "PlaybackService")
+    com.example.LogKeeper.log("PlaybackService: onMediaItemTransition (reason: $reasonStr)", "PlaybackService")
     decoderServiceRetryCount = 0
     updateWidgetUI()
 }
@@ -362,7 +362,7 @@ mediaItems: List<MediaItem>
 com.example.LogKeeper.log("onAddMediaItems called with ${mediaItems.size} items", "PlaybackService")
 val updatedMediaItems = mediaItems.map { mediaItem ->
 val uriToUse = mediaItem.localConfiguration?.uri?.toString() ?: mediaItem.mediaId
-com.example.LogKeeper.log("Transforming mediaItem to use URI: $uriToUse", "PlaybackService")
+com.example.LogKeeper.log("Transforming mediaItem (item count: ${mediaItems.size})", "PlaybackService")
 mediaItem.buildUpon()
 .setUri(uriToUse)
 .build()

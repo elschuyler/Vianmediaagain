@@ -76,7 +76,7 @@ fun FloatingVideoPlayerOverlay(
     var currentSpeed by remember { mutableFloatStateOf(player?.playbackParameters?.speed ?: 1.0f) }
     val playlist = remember { mutableStateListOf<MediaItem>() }
     var currentIndex by remember { mutableIntStateOf(player?.currentMediaItemIndex ?: 0) }
-    var showPlaylistOverlay by remember { mutableStateOf(false) }
+
 
     val refreshPlaylist: () -> Unit = {
         playlist.clear()
@@ -181,16 +181,13 @@ fun FloatingVideoPlayerOverlay(
                     modifier = Modifier.weight(1f)
                 )
                 IconButton(
-                    onClick = {
-                        refreshPlaylist()
-                        showPlaylistOverlay = !showPlaylistOverlay
-                    },
+                    onClick = onSwitchToMiniPlayer,
                     modifier = Modifier.size(28.dp)
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.QueueMusic,
-                        contentDescription = "Playlist",
-                        tint = if (showPlaylistOverlay) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        contentDescription = "Playlist (Mini Player)",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -328,21 +325,7 @@ fun FloatingVideoPlayerOverlay(
                                             )
                                         }
 
-                                        IconButton(
-                                            onClick = {
-                                                refreshPlaylist()
-                                                showPlaylistOverlay = !showPlaylistOverlay
-                                            },
-                                            modifier = Modifier.size(32.dp)
-                                        ) {
-                                            val playlistTint = if (showPlaylistOverlay) MaterialTheme.colorScheme.primary else Color.White
-                                            Icon(
-                                                imageVector = Icons.AutoMirrored.Filled.QueueMusic,
-                                                contentDescription = "Playlist",
-                                                tint = playlistTint,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        }
+
 
                                         IconButton(
                                             onClick = {
@@ -443,143 +426,7 @@ fun FloatingVideoPlayerOverlay(
                         }
                     }
 
-                    // In-Window Playlist Overlay
-                    androidx.compose.animation.AnimatedVisibility(
-                        visible = showPlaylistOverlay,
-                        enter = androidx.compose.animation.fadeIn(),
-                        exit = androidx.compose.animation.fadeOut(),
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color.Black.copy(alpha = 0.90f))
-                                .clickable(
-                                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                                    indication = null
-                                ) { /* intercept clicks */ }
-                        ) {
-                            Column(modifier = Modifier.fillMaxSize()) {
-                                // Playlist Header
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f))
-                                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.QueueMusic,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "Playlist (${playlist.size})",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 1,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    IconButton(
-                                        onClick = onSwitchToMiniPlayer,
-                                        modifier = Modifier.size(24.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Filled.Headphones,
-                                            contentDescription = "Switch to Audio Mini Player",
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    IconButton(
-                                        onClick = { showPlaylistOverlay = false },
-                                        modifier = Modifier.size(24.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Filled.Close,
-                                            contentDescription = "Close Playlist",
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                    }
-                                }
 
-                                // Playlist Items List
-                                if (playlist.isEmpty()) {
-                                    Box(
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = "No items in playlist",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = Color.White.copy(alpha = 0.6f)
-                                        )
-                                    }
-                                } else {
-                                    androidx.compose.foundation.lazy.LazyColumn(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .weight(1f)
-                                    ) {
-                                        items(playlist.size) { index ->
-                                            val item = playlist[index]
-                                            val isCurrent = index == currentIndex
-                                            val itemTitle = item.mediaMetadata.title?.toString() ?: "Track ${index + 1}"
-
-                                            Row(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .background(
-                                                        if (isCurrent) MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
-                                                        else Color.Transparent
-                                                    )
-                                                    .clickable {
-                                                        player.seekToDefaultPosition(index)
-                                                        player.play()
-                                                        showPlaylistOverlay = false
-                                                    }
-                                                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                if (isCurrent) {
-                                                    Icon(
-                                                        imageVector = Icons.Filled.PlayArrow,
-                                                        contentDescription = "Playing",
-                                                        tint = MaterialTheme.colorScheme.primary,
-                                                        modifier = Modifier.size(16.dp)
-                                                    )
-                                                    Spacer(modifier = Modifier.width(6.dp))
-                                                } else {
-                                                    Text(
-                                                        text = "${index + 1}",
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = Color.White.copy(alpha = 0.5f),
-                                                        modifier = Modifier.width(20.dp)
-                                                    )
-                                                }
-                                                Text(
-                                                    text = itemTitle,
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = if (isCurrent) MaterialTheme.colorScheme.primary else Color.White,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                    modifier = Modifier.weight(1f)
-                                                )
-                                            }
-                                            HorizontalDivider(
-                                                color = Color.White.copy(alpha = 0.08f),
-                                                thickness = 0.5.dp
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
                 }
             }
         }

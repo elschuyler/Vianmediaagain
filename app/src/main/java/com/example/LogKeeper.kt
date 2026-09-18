@@ -62,6 +62,10 @@ object LogKeeper {
         LogCatcher.logError(tag, message, throwable)
     }
 
+    fun sanitize(message: String?): String {
+        return LogCatcher.sanitize(message)
+    }
+
     fun dumpCurrentLogs(context: Context, onComplete: ((Boolean, String) -> Unit)? = null) {
         LogCatcher.dumpCurrentLogs(context, onComplete)
     }

@@ -205,6 +205,8 @@ object PlayerManager {
                 }
             }
         }
+        val initialSettings = com.example.data.SettingsManager.getInstance(context.applicationContext)
+        applyAudioEffects(initialSettings)
     }
 
     

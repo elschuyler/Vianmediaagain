@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import com.example.LogEntry
 import com.example.LogKeeper
 import kotlinx.coroutines.launch
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,9 +37,9 @@ fun LoggerScreen(onClose: () -> Unit) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val clipboardManager = LocalClipboardManager.current
-    val isEnabled by LogKeeper.isEnabled.collectAsState()
-    val logSizeBytes by LogKeeper.logSizeBytes.collectAsState()
-    val recentLogs by LogKeeper.logs.collectAsState()
+    val isEnabled by LogKeeper.isEnabled.collectAsStateWithLifecycle()
+    val logSizeBytes by LogKeeper.logSizeBytes.collectAsStateWithLifecycle()
+    val recentLogs by LogKeeper.logs.collectAsStateWithLifecycle()
 
     var allLogs by remember { mutableStateOf<List<LogEntry>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }

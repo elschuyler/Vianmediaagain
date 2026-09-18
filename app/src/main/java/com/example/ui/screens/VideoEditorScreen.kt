@@ -256,7 +256,7 @@ fun VideoEditorScreen(
     LaunchedEffect(uriString) {
         val extRaw = uriString.substringAfterLast('.', "").substringBefore('?').lowercase()
         val isM4s = extRaw == "m4s" || (mimeType == "video/mp4" && uriString.endsWith(".m4s", true))
-        LogKeeper.log("Starting pre-conversion for mimeType: $mimeType uri: $uriString ext: $extRaw", "VideoEditor")
+        LogKeeper.log("Starting pre-conversion for mimeType: $mimeType ext: $extRaw", "VideoEditor")
         
         if (mimeType == "image/gif" || mimeType == "image/webp" || isM4s) {
             isConverting = true
@@ -353,7 +353,7 @@ fun VideoEditorScreen(
                             val session = com.arthenica.ffmpegkit.FFmpegKit.execute(cmd)
                             if (com.arthenica.ffmpegkit.ReturnCode.isSuccess(session.returnCode) && outputFile.exists()) {
                                 convertedUri = outputFile.toURI().toString()
-                                LogKeeper.log("Pre-conversion complete. convertedUri: $convertedUri", "VideoEditor")
+                                LogKeeper.log("Pre-conversion complete", "VideoEditor")
                             } else {
                                 LogKeeper.logError("VideoEditor", "FFmpeg PNG→MP4 failed: ${session.returnCode}\nLogs: ${session.allLogsAsString}", Exception())
                             }
@@ -366,7 +366,7 @@ fun VideoEditorScreen(
                         val session = com.arthenica.ffmpegkit.FFmpegKit.execute(cmd)
                         if (com.arthenica.ffmpegkit.ReturnCode.isSuccess(session.returnCode) && outputFile.exists()) {
                             convertedUri = outputFile.toURI().toString()
-                            LogKeeper.log("Pre-conversion complete. convertedUri: $convertedUri", "VideoEditor")
+                            LogKeeper.log("Pre-conversion complete", "VideoEditor")
                         } else {
                             LogKeeper.logError("VideoEditor", "FFmpeg GIF/WEBP→MP4 failed: ${session.returnCode}\nLogs: ${session.allLogsAsString}", Exception())
                         }
@@ -377,7 +377,7 @@ fun VideoEditorScreen(
                         val session = com.arthenica.ffmpegkit.FFmpegKit.execute(cmd)
                         if (com.arthenica.ffmpegkit.ReturnCode.isSuccess(session.returnCode) && outputFile.exists()) {
                             convertedUri = outputFile.toURI().toString()
-                            LogKeeper.log("Pre-conversion complete (m4s). convertedUri: $convertedUri", "VideoEditor")
+                            LogKeeper.log("Pre-conversion complete (m4s)", "VideoEditor")
                         } else {
                             LogKeeper.logError("VideoEditor", "FFmpeg m4s→MP4 failed: ${session.returnCode}\nLogs: ${session.allLogsAsString}", Exception())
                         }
@@ -416,7 +416,7 @@ fun VideoEditorScreen(
                     val session = com.arthenica.ffmpegkit.FFmpegKit.execute(cmd)
                     if (com.arthenica.ffmpegkit.ReturnCode.isSuccess(session.returnCode) && outputFile.exists()) {
                         convertedUri = outputFile.toURI().toString()
-                        LogKeeper.log("Repair complete. convertedUri: $convertedUri", "VideoEditor")
+                        LogKeeper.log("Repair complete", "VideoEditor")
                     } else {
                         LogKeeper.logError("VideoEditor", "FFmpeg repair failed: ${session.returnCode}\nLogs: ${session.allLogsAsString}", Exception())
                     }
@@ -2500,7 +2500,7 @@ fun VideoEditorScreen(
                         }
                         
                         LogKeeper.log("Starting Render job for video file. Output Format: $format, Resolution: $res, FPS: $fps, Preset: $presetArg, Quality level: $quality (CRF $crf)", "VideoEditor")
-                        LogKeeper.log("Constructed FFmpeg Command: $cmd", "VideoEditor")
+                        LogKeeper.log("Constructed FFmpeg Command: ${LogKeeper.sanitize(cmd)}", "VideoEditor")
                         
                         // Resource Exclusivity: Pause editor preview player while FFmpeg is encoding
                         try {

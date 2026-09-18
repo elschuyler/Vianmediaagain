@@ -73,7 +73,24 @@ object LogCatcher {
             defaultHandler?.uncaughtException(thread, throwable)
         }
 
-        log("LogCatcher initialized. Active storage: ${logFile.absolutePath}", "System")
+        log("LogCatcher initialized. Storage ready.", "System")
+    }
+
+    private val URL_REGEX = Regex("""(?i)\b(?:https?|ftp|rtsp|smb|file)://[^\s"'<>]+""")
+    private val CONTENT_URI_REGEX = Regex("""(?i)\bcontent://[^\s"'<>]+""")
+    private val STORAGE_PATH_REGEX = Regex("""(?i)(?:/storage/emulated/\d+|/data/user/\d+|/data/data/[a-zA-Z0-9_.]+|/sdcard)/[^\s"'<>]+""")
+    private val UNIX_PATH_REGEX = Regex("""(?i)/(?:[\w.\-]+/)+[\w.\-]+\.(?:mp4|mkv|mov|avi|webm|flv|wmv|3gp|ts|m4s|mp3|m4a|aac|wav|flac|ogg|opus|wma|jpg|jpeg|png|webp|gif|bmp|svg|srt|vtt|ass|sub|txt|json|pdf|log)\b""")
+    private val FILE_NAME_REGEX = Regex("""(?i)\b[\w\-.]+\.(?:mp4|mkv|mov|avi|webm|flv|wmv|3gp|ts|m4s|mp3|m4a|aac|wav|flac|ogg|opus|wma|jpg|jpeg|png|webp|gif|bmp|svg|srt|vtt|ass|sub|txt|json|pdf|log)\b""")
+
+    fun sanitize(message: String?): String {
+        if (message.isNullOrEmpty()) return ""
+        var result = message
+        result = URL_REGEX.replace(result, "[REDACTED_URL]")
+        result = CONTENT_URI_REGEX.replace(result, "[REDACTED_URI]")
+        result = STORAGE_PATH_REGEX.replace(result, "[REDACTED_PATH]")
+        result = UNIX_PATH_REGEX.replace(result, "[REDACTED_PATH]")
+        result = FILE_NAME_REGEX.replace(result, "[REDACTED_FILE]")
+        return result
     }
 
     fun toggleLogger() {
@@ -87,22 +104,25 @@ object LogCatcher {
 
     fun log(message: String, tag: String = "App") {
         if (!_isEnabled.value) return
-        val entry = LogEntry(System.currentTimeMillis(), false, tag, message)
+        val sanitizedMessage = sanitize(message)
+        val entry = LogEntry(System.currentTimeMillis(), false, tag, sanitizedMessage)
         Log.d(TAG, entry.formattedString)
         processEntry(entry)
     }
 
     fun logWarn(tag: String, message: String) {
         if (!_isEnabled.value) return
-        val entry = LogEntry(System.currentTimeMillis(), false, "WARN/$tag", message)
+        val sanitizedMessage = sanitize(message)
+        val entry = LogEntry(System.currentTimeMillis(), false, "WARN/$tag", sanitizedMessage)
         Log.w(TAG, entry.formattedString)
         processEntry(entry)
     }
 
     fun logError(tag: String, message: String, throwable: Throwable? = null) {
         if (!_isEnabled.value) return
-        val stackTrace = throwable?.let { Log.getStackTraceString(it) }
-        val entry = LogEntry(System.currentTimeMillis(), true, tag, message, stackTrace)
+        val sanitizedMessage = sanitize(message)
+        val stackTrace = throwable?.let { sanitize(Log.getStackTraceString(it)) }
+        val entry = LogEntry(System.currentTimeMillis(), true, tag, sanitizedMessage, stackTrace)
         Log.e(TAG, entry.formattedString)
         processEntry(entry)
     }
@@ -316,13 +336,15 @@ object LogCatcher {
             val dateStr = SimpleDateFormat("yyyy-MM-dd_HHmmss", Locale.US).format(Date())
             val fileName = "Vianbrplay_crash_$dateStr.txt"
             val recent = _recentLogs.value.joinToString("\n") { it.formattedString }
+            val sanitizedMsg = sanitize(throwable.message ?: "No message")
+            val sanitizedStack = sanitize(Log.getStackTraceString(throwable))
             val crashData = """
                 ==============================
                 Vianbrplay Crash Dump - $dateStr
-                Message: ${throwable.message}
+                Message: $sanitizedMsg
                 ==============================
                 Stacktrace:
-                ${Log.getStackTraceString(throwable)}
+                $sanitizedStack
                 ==============================
                 Recent Logs (${_recentLogs.value.size} entries):
                 $recent

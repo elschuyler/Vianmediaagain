@@ -587,7 +587,7 @@ fun PlayerScreen(
 
     DisposableEffect(uriString) {
         val settingsManager = com.example.data.SettingsManager.getInstance(context)
-        com.example.LogKeeper.log("Starting player for $decodedUri", "PlayerScreen")
+        com.example.LogKeeper.log("Starting player session", "PlayerScreen")
         
         // Ensure player is initialized
         com.example.service.PlayerManager.initialize(context, false)
@@ -699,7 +699,7 @@ fun PlayerScreen(
                 }
                 val uri = mediaItem?.localConfiguration?.uri ?: mediaItem?.mediaId?.let { Uri.parse(it) }
                 val title = mediaItem?.mediaMetadata?.title?.toString()
-                com.example.LogKeeper.log("PlayerScreen: onMediaItemTransition to '$title' / $uri (reason: $reasonStr)", "PlayerScreen")
+                com.example.LogKeeper.log("PlayerScreen: onMediaItemTransition (reason: $reasonStr)", "PlayerScreen")
                 if (uri != null) {
                     currentMediaUri = uri
                     currentMediaTitle = title ?: getDisplayNameFromUri(context, uri)
@@ -954,7 +954,7 @@ fun PlayerScreen(
                             controller.play()
                         }
                     } else if (controller.playbackState == androidx.media3.common.Player.STATE_IDLE || controller.mediaItemCount == 0 || controller.currentMediaItem == null) {
-                        com.example.LogKeeper.log("PlayerScreen ON_RESUME: Controller is in STATE_IDLE or empty, re-preparing media item for $decodedUriString", "PlayerScreen")
+                        com.example.LogKeeper.log("PlayerScreen ON_RESUME: Controller is in STATE_IDLE or empty, re-preparing media item", "PlayerScreen")
                         val mediaMetadataBuilder = androidx.media3.common.MediaMetadata.Builder()
                         val fileName = currentMediaTitle.ifEmpty { decodedUri.lastPathSegment ?: "Media" }
                         mediaMetadataBuilder.setTitle(fileName)

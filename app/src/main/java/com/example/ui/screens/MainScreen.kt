@@ -181,6 +181,24 @@ fun MainScreen(
         selectedFolderId = null
     }
 
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_STOP -> {
+                    viewModel.suspendOperations()
+                }
+                Lifecycle.Event.ON_START -> {
+                    viewModel.resumeOperations()
+                }
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -811,7 +829,7 @@ fun MainScreen(
                                         imageLoader.memoryCache?.remove(coil.memory.MemoryCache.Key(uri.toString()))
                                         com.example.data.SettingsManager.getInstance(context).removePlaybackState(uri.toString())
                                     } catch (e: Exception) {
-                                        com.example.LogKeeper.logError("MainScreen", "Error deleting file ${media.name}", e)
+                                        com.example.LogKeeper.logError("MainScreen", "Error deleting file", e)
                                     }
                                 }
                             }
@@ -841,7 +859,7 @@ fun MainScreen(
                                             }
                                         }
                                     } catch (e: Exception) {
-                                        com.example.LogKeeper.logError("MainScreen", "Error deleting file ${media.name}", e)
+                                        com.example.LogKeeper.logError("MainScreen", "Error deleting file", e)
                                     }
                                 }
                             }
@@ -920,7 +938,7 @@ fun MainScreen(
                                     }
                                 }
                             } catch (e: Exception) {
-                                com.example.LogKeeper.logError("MainScreen", "Error renaming file ${selectedItem.name}", e)
+                                com.example.LogKeeper.logError("MainScreen", "Error renaming file", e)
                             }
                         }
                         selectedFolderId?.let { viewModel.scanFolder(it) } ?: viewModel.loadMedia()

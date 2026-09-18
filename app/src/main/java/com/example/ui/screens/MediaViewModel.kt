@@ -20,12 +20,34 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
+    private var loadJob: kotlinx.coroutines.Job? = null
+    private var scanJob: kotlinx.coroutines.Job? = null
+    private var isSuspended = false
+
     init {
         loadMedia()
     }
 
+    fun suspendOperations() {
+        isSuspended = true
+        loadJob?.cancel()
+        scanJob?.cancel()
+        _isLoading.value = false
+    }
+
+    fun resumeOperations() {
+        if (isSuspended) {
+            isSuspended = false
+            if (_mediaFolders.value.isEmpty()) {
+                loadMedia()
+            }
+        }
+    }
+
     fun loadMedia() {
-        viewModelScope.launch(Dispatchers.IO) {
+        if (isSuspended) return
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch(Dispatchers.IO) {
             _isLoading.value = true
             val folders = repository.getMediaFolders()
             _mediaFolders.value = folders
@@ -57,7 +79,9 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun scanFolder(folderId: String) {
-        viewModelScope.launch(Dispatchers.IO) {
+        if (isSuspended) return
+        scanJob?.cancel()
+        scanJob = viewModelScope.launch(Dispatchers.IO) {
             val updatedFolder = repository.getMediaFolder(folderId)
             val currentFolders = _mediaFolders.value.toMutableList()
             val index = currentFolders.indexOfFirst { it.id == folderId }

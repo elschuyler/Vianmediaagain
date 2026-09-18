@@ -302,7 +302,7 @@ class SettingsManager private constructor(context: Context) {
 
     
     var centerChannelEnabled: Boolean
-        get() = prefs.getBoolean("center_channel_enabled", false)
+        get() = prefs.getBoolean("center_channel_enabled", true)
         set(value) {
             prefs.edit().putBoolean("center_channel_enabled", value).apply()
             com.example.service.PlayerManager.applyAudioEffects(this)
@@ -316,7 +316,7 @@ class SettingsManager private constructor(context: Context) {
         }
 
     var nightModeEnabled: Boolean
-        get() = prefs.getBoolean("night_mode_enabled", false)
+        get() = prefs.getBoolean("night_mode_enabled", true)
         set(value) {
             prefs.edit().putBoolean("night_mode_enabled", value).apply()
             com.example.service.PlayerManager.applyAudioEffects(this)
