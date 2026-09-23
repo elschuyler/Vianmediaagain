@@ -116,7 +116,7 @@ class MainActivity : ComponentActivity() {
       }
   }
 
-  private fun handlePopupOrMiniIntent(intent: android.content.Intent?): Boolean {
+  private fun handleFloatingOrMiniIntent(intent: android.content.Intent?): Boolean {
       if (intent == null) return false
       val className = intent.component?.className ?: ""
       val isMini = className.contains("MiniMediaActivity")
@@ -152,7 +152,7 @@ class MainActivity : ComponentActivity() {
       val uris = uriSet.toList()
       if (uris.isEmpty()) return false
 
-      com.example.LogKeeper.log("handlePopupOrMiniIntent: isMini=$isMini, isPip=$isPip, urisCount=${uris.size}", "MainActivity")
+      com.example.LogKeeper.log("handleFloatingOrMiniIntent: isMini=$isMini, isPip=$isPip, urisCount=${uris.size}", "MainActivity")
 
       if (isMini) {
           val mediaItems = uris.map { uriStr ->
@@ -288,7 +288,7 @@ class MainActivity : ComponentActivity() {
               startActivity(permIntent)
               android.widget.Toast.makeText(
                   this,
-                  "Please enable 'Display over other apps' to use Popup Play",
+                  "Please enable 'Display over other apps' to use Floating Player",
                   android.widget.Toast.LENGTH_LONG
               ).show()
               finish()
@@ -302,7 +302,7 @@ class MainActivity : ComponentActivity() {
       super.onNewIntent(intent)
       setIntent(intent)
       persistUriPermissions(intent)
-      if (handlePopupOrMiniIntent(intent)) {
+      if (handleFloatingOrMiniIntent(intent)) {
           return
       }
       _currentIntent.value = intent
@@ -313,7 +313,7 @@ class MainActivity : ComponentActivity() {
     LogKeeper.init(this)
     try {
         persistUriPermissions(intent)
-        if (handlePopupOrMiniIntent(intent)) {
+        if (handleFloatingOrMiniIntent(intent)) {
             return
         }
     } catch (e: Exception) {

@@ -90,7 +90,7 @@ private fun MainSettingsMenu(onNavigate: (String) -> Unit, onNavigateBack: () ->
                 SettingsListItem(
                     icon = Icons.Filled.PlayCircle,
                     title = "Player Settings",
-                    subtitle = "Gestures, PiP, resize behavior, background play",
+                    subtitle = "Gestures, Floating Player, resize behavior, background play",
                     onClick = { onNavigate("player") }
                 )
             }
@@ -553,7 +553,7 @@ private fun NotificationsPage(onNavigateBack: () -> Unit) {
         ) {
             Text("Select custom actions to show in the notification (Playback and Close are permanent):", style = MaterialTheme.typography.bodyMedium)
             Spacer(modifier = Modifier.height(16.dp))
-            val availableActions = listOf("Loop", "Playlist", "PiP")
+            val availableActions = listOf("Loop", "Playlist", "Floating Player")
             availableActions.forEach { action ->
                 Row(
                     verticalAlignment = Alignment.CenterVertically,

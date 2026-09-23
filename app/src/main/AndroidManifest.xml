@@ -123,12 +123,12 @@
         <activity-alias
             android:name=".PipMediaActivity"
             android:targetActivity=".MainActivity"
-            android:label="Popup Play"
+            android:label="@string/floating_player"
             android:icon="@mipmap/ic_pip_launcher"
             android:roundIcon="@mipmap/ic_pip_launcher_round"
             android:exported="true">
             <intent-filter
-                android:label="Popup Play"
+                android:label="@string/floating_player"
                 android:icon="@mipmap/ic_pip_launcher"
                 android:roundIcon="@mipmap/ic_pip_launcher_round">
                 <action android:name="android.intent.action.VIEW" />
@@ -141,7 +141,7 @@
                 <data android:scheme="content" />
             </intent-filter>
             <intent-filter
-                android:label="Popup Play"
+                android:label="@string/floating_player"
                 android:icon="@mipmap/ic_pip_launcher"
                 android:roundIcon="@mipmap/ic_pip_launcher_round">
                 <action android:name="android.intent.action.SEND" />

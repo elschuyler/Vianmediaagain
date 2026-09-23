@@ -276,7 +276,12 @@ fun PlayerScreen(
     var currentMediaTitle by remember { mutableStateOf(getDisplayNameFromUri(context, decodedUri)) }
     var currentMediaUri by remember { mutableStateOf(decodedUri) }
 
-    var isPlaying by remember { mutableStateOf(false) }
+    val playerSnapshot by com.example.service.PlayerManager.playbackState.collectAsState()
+    var isPlaying by remember { mutableStateOf(playerSnapshot.isPlaying) }
+
+    LaunchedEffect(playerSnapshot.isPlaying) {
+        isPlaying = playerSnapshot.isPlaying
+    }
     
     var abRepeatStart by remember { mutableStateOf<Long?>(null) }
     var abRepeatEnd by remember { mutableStateOf<Long?>(null) }
@@ -321,6 +326,9 @@ fun PlayerScreen(
                 val stopIntent = android.content.Intent(context, com.example.service.PlaybackService::class.java)
                 context.stopService(stopIntent)
             } catch (e: Exception) {}
+        } else {
+            try { playerViewRef.value?.player = null } catch (e: Exception) {}
+            com.example.service.PlayerManager.detachVideoSurface()
         }
         onNavigateBack()
     }
@@ -445,9 +453,7 @@ fun PlayerScreen(
     }
 
     LaunchedEffect(showControls, controlsInteractionTrigger) {
-        if (!showControls) {
-            showBrightnessSlider = false
-        } else {
+        if (showControls) {
             kotlinx.coroutines.delay(4000)
             showControls = false
         }
@@ -906,6 +912,7 @@ fun PlayerScreen(
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             com.example.LogKeeper.log("LifecycleEventObserver received: $event", "PlayerScreen")
             if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {
+                com.example.service.PlayerManager.flushProgressToStorage()
                 currentController?.let { controller ->
                     val currentPos = controller.currentPosition
                     val dur = controller.duration
@@ -979,6 +986,14 @@ fun PlayerScreen(
                         }
                     }
                 }
+            } else if (event == androidx.lifecycle.Lifecycle.Event.ON_STOP) {
+                val activity = context.findActivity()
+                val isPip = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) activity?.isInPictureInPictureMode == true else false
+                if (!isPip && (backgroundPlayEnabledRef.value || forceBackgroundPlay.get())) {
+                    com.example.LogKeeper.log("PlayerScreen ON_STOP: Detaching video surface for background audio playback", "PlayerScreen")
+                    try { playerViewRef.value?.player = null } catch (e: Exception) {}
+                    com.example.service.PlayerManager.detachVideoSurface()
+                }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -995,6 +1010,7 @@ fun PlayerScreen(
                         .build()
                 )
             }
+            com.example.service.PlayerManager.flushProgressToStorage()
             currentController?.let { controller ->
                 val currentPos = controller.currentPosition
                 val dur = controller.duration
@@ -1082,7 +1098,7 @@ fun PlayerScreen(
                                         wasPlayingBeforeSeek = mediaController?.isPlaying == true
                                         mediaController?.pause()
                                     } else {
-                                        currentGesture = if (showBrightnessSlider) GestureType.BRIGHTNESS else GestureType.VOLUME
+                                        currentGesture = if (down.position.x < size.width / 2) GestureType.BRIGHTNESS else GestureType.VOLUME
                                     }
                                     activeGesture = currentGesture
                                 }
@@ -1114,6 +1130,7 @@ fun PlayerScreen(
                                             window.attributes = layoutParams
                                         }
                                         brightnessInteractionTime = System.currentTimeMillis()
+                                        showBrightnessSlider = true
                                     }
                                     
                                     gestureVolumeRatio = newBrightness
@@ -1166,14 +1183,18 @@ fun PlayerScreen(
                         mediaController?.play()
                     }
                 } else if (currentGesture == GestureType.NONE && kotlin.math.abs(dragDistanceX) <= 20f && kotlin.math.abs(dragDistanceY) <= 20f) {
-                    // Tap handling
-                    if (showBrightnessSlider) {
+                    val tapPos = down.position
+                    val inTopControls = showControls && (tapPos.y <= 160f * density)
+                    val inBottomControls = showControls && (tapPos.y >= size.height - 200f * density)
+                    
+                    if (inTopControls || inBottomControls) {
+                        controlsInteractionTrigger = System.currentTimeMillis()
+                    } else if (showBrightnessSlider) {
                         pendingSingleTapJob?.cancel()
                         showBrightnessSlider = false
                         lastTapTime = 0L
                     } else {
                         val now = System.currentTimeMillis()
-                        val tapPos = down.position
                         val timeDiff = now - lastTapTime
                         val dist = (tapPos - lastTapPosition).getDistance()
                         
@@ -1213,10 +1234,9 @@ fun PlayerScreen(
                             pendingSingleTapJob?.cancel()
                             pendingSingleTapJob = coroutineScope.launch {
                                 kotlinx.coroutines.delay(260L)
-                                if (showBrightnessSlider) {
-                                    showBrightnessSlider = false
-                                } else {
-                                    showControls = !showControls
+                                showControls = !showControls
+                                if (showControls) {
+                                    controlsInteractionTrigger = System.currentTimeMillis()
                                 }
                             }
                         }
@@ -1706,10 +1726,16 @@ fun PlayerScreen(
                                 if (showBrightnessSlider) {
                                     brightnessInteractionTime = System.currentTimeMillis()
                                 }
+                                controlsInteractionTrigger = System.currentTimeMillis()
                             }) {
-                                Icon(Icons.Filled.LightMode, contentDescription = "Brightness", tint = Color.White)
+                                Icon(
+                                    Icons.Filled.LightMode,
+                                    contentDescription = "Brightness",
+                                    tint = if (showBrightnessSlider) Color(0xFF2196F3) else Color.White
+                                )
                             }
                             IconButton(onClick = {
+                                controlsInteractionTrigger = System.currentTimeMillis()
                                 val currentOrientation = context.findActivity()?.requestedOrientation
                                 if (currentOrientation == ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE) {
                                     context.findActivity()?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
@@ -1720,6 +1746,7 @@ fun PlayerScreen(
                                 Icon(Icons.Filled.ScreenRotation, contentDescription = "Rotation", tint = Color.White)
                             }
                             IconButton(onClick = {
+                                controlsInteractionTrigger = System.currentTimeMillis()
                                 val surfaceView = playerViewRef.value?.videoSurfaceView as? android.view.SurfaceView
                                 if (surfaceView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                                     val bitmap = android.graphics.Bitmap.createBitmap(surfaceView.width, surfaceView.height, android.graphics.Bitmap.Config.ARGB_8888)
@@ -1755,76 +1782,6 @@ fun PlayerScreen(
                         }
                     }
                 }
-
-                    androidx.compose.animation.AnimatedVisibility(
-                        visible = showBrightnessSlider,
-                        enter = androidx.compose.animation.fadeIn(),
-                        exit = androidx.compose.animation.fadeOut(),
-                        modifier = Modifier.align(Alignment.CenterEnd).padding(end = 48.dp)
-                    ) {
-
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier
-                                .height(170.dp)
-                                .width(56.dp)
-                                .background(Color.Black.copy(alpha = 0.5f), androidx.compose.foundation.shape.RoundedCornerShape(28.dp))
-                                .padding(vertical = 12.dp)
-                        ) {
-                            Text(
-                                text = "${(currentBrightness.coerceIn(0f, 1f) * 100).roundToInt()}%",
-                                color = Color.White,
-                                fontSize = 16.sp,
-                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .width(56.dp)
-                                    .pointerInput(Unit) {
-                                        var lastAppliedBrightness = -1f
-                                        detectVerticalDragGestures(
-                                            onVerticalDrag = { change, dragAmount ->
-                                                change.consume()
-                                                val dragRatio = -dragAmount / 100.dp.toPx()
-                                                val newVal = (currentBrightness + dragRatio).coerceIn(0f, 1f)
-                                                brightnessInteractionTime = System.currentTimeMillis()
-                                                currentBrightness = newVal
-                                                
-                                                if (kotlin.math.abs(newVal - lastAppliedBrightness) > 0.02f) {
-                                                    lastAppliedBrightness = newVal
-                                                    val window = context.findActivity()?.window
-                                                    window?.let {
-                                                        val lp = it.attributes
-                                                        lp.screenBrightness = newVal
-                                                        it.attributes = lp
-                                                    }
-                                                }
-                                            }
-                                        )
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxHeight()
-                                        .width(4.dp)
-                                        .background(Color.DarkGray.copy(alpha = 0.5f), androidx.compose.foundation.shape.RoundedCornerShape(2.dp)),
-                                    contentAlignment = Alignment.BottomCenter
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxHeight(currentBrightness.coerceIn(0f, 1f))
-                                            .width(4.dp)
-                                            .background(Color(0xFF2196F3), androidx.compose.foundation.shape.RoundedCornerShape(2.dp))
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Icon(Icons.Filled.LightMode, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
-                        }
-                    }
 
                     // Bottom controls container (traps taps so controls remain visible)
                     Box(
@@ -1863,6 +1820,7 @@ fun PlayerScreen(
                             mediaController = mediaController,
                             abRepeatStart = abRepeatStart,
                             abRepeatEnd = abRepeatEnd,
+                            onInteraction = { controlsInteractionTrigger = System.currentTimeMillis() },
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
                         )
                         
@@ -2037,7 +1995,7 @@ fun PlayerScreen(
                                         context.startActivity(intent)
                                     }
                                 }) {
-                                    Icon(modifier = Modifier.size(20.dp), painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_pip), contentDescription = "PiP", tint = Color.White)
+                                    Icon(modifier = Modifier.size(20.dp), painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_pip), contentDescription = "Floating Player", tint = Color.White)
                                 }
                             }
                             
@@ -2079,6 +2037,81 @@ fun PlayerScreen(
                     }
                 }
                 }
+            }
+        }
+
+        androidx.compose.animation.AnimatedVisibility(
+            visible = showBrightnessSlider && !isInPipMode,
+            enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.scaleIn(initialScale = 0.9f),
+            exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.scaleOut(targetScale = 0.9f),
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .padding(end = 36.dp)
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .height(180.dp)
+                    .width(56.dp)
+                    .background(Color.Black.copy(alpha = 0.65f), androidx.compose.foundation.shape.RoundedCornerShape(28.dp))
+                    .border(1.dp, Color.White.copy(alpha = 0.15f), androidx.compose.foundation.shape.RoundedCornerShape(28.dp))
+                    .padding(vertical = 12.dp)
+                    .pointerInput(Unit) {
+                        detectTapGestures {
+                            brightnessInteractionTime = System.currentTimeMillis()
+                            controlsInteractionTrigger = System.currentTimeMillis()
+                        }
+                    }
+            ) {
+                Text(
+                    text = "${(currentBrightness.coerceIn(0f, 1f) * 100).roundToInt()}%",
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .width(56.dp)
+                        .pointerInput(Unit) {
+                            detectVerticalDragGestures(
+                                onVerticalDrag = { change, dragAmount ->
+                                    change.consume()
+                                    val dragRatio = -dragAmount / 110.dp.toPx()
+                                    val newVal = (currentBrightness + dragRatio).coerceIn(0f, 1f)
+                                    brightnessInteractionTime = System.currentTimeMillis()
+                                    controlsInteractionTrigger = System.currentTimeMillis()
+                                    currentBrightness = newVal
+                                    
+                                    val window = context.findActivity()?.window
+                                    window?.let {
+                                        val lp = it.attributes
+                                        lp.screenBrightness = newVal
+                                        it.attributes = lp
+                                    }
+                                }
+                            )
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .width(6.dp)
+                            .background(Color.White.copy(alpha = 0.2f), androidx.compose.foundation.shape.RoundedCornerShape(3.dp)),
+                        contentAlignment = Alignment.BottomCenter
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxHeight(currentBrightness.coerceIn(0f, 1f))
+                                .fillMaxWidth()
+                                .background(Color(0xFF2196F3), androidx.compose.foundation.shape.RoundedCornerShape(3.dp))
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Icon(Icons.Filled.LightMode, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
             }
         }
     }

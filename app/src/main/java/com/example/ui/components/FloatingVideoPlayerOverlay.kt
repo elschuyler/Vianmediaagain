@@ -42,13 +42,19 @@ fun FloatingVideoPlayerOverlay(
     isMinimizedExternal: Boolean = false,
     onMinimizeChange: (Boolean) -> Unit = {}
 ) {
+    androidx.compose.runtime.LaunchedEffect(isMinimizedExternal) {
+        if (isMinimizedExternal) {
+            com.example.service.PlayerManager.detachVideoSurface()
+        }
+    }
+
     if (isMinimizedExternal) {
         Box(
             modifier = Modifier
-                .size(48.dp)
+                .size(36.dp)
                 .clip(androidx.compose.foundation.shape.CircleShape)
                 .background(Color(0xFF2196F3))
-                .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), androidx.compose.foundation.shape.CircleShape)
+                .border(1.dp, Color.White.copy(alpha = 0.25f), androidx.compose.foundation.shape.CircleShape)
                 .pointerInput(Unit) {
                     detectDragGesturesAfterLongPress(
                         onDrag = { change: androidx.compose.ui.input.pointer.PointerInputChange, dragAmount: androidx.compose.ui.geometry.Offset ->
@@ -61,21 +67,23 @@ fun FloatingVideoPlayerOverlay(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_pip),
-                contentDescription = "Expand",
-                tint = Color.White,
-                modifier = Modifier.size(28.dp)
+                painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_launcher_foreground),
+                contentDescription = "Expand Floating Player",
+                tint = Color.Unspecified,
+                modifier = Modifier.fillMaxSize()
             )
         }
         return
     }
 
-    var title by remember { mutableStateOf(player?.currentMediaItem?.mediaMetadata?.title?.toString() ?: "Unknown") }
-    var isPlaying by remember { mutableStateOf(player?.isPlaying == true) }
-    var repeatMode by remember { mutableIntStateOf(player?.repeatMode ?: Player.REPEAT_MODE_OFF) }
-    var currentSpeed by remember { mutableFloatStateOf(player?.playbackParameters?.speed ?: 1.0f) }
+    val playerSnapshot by com.example.service.PlayerManager.playbackState.collectAsState()
+
+    var title by remember { mutableStateOf(playerSnapshot.currentTitle.ifEmpty { player?.currentMediaItem?.mediaMetadata?.title?.toString() ?: "Unknown" }) }
+    var isPlaying by remember { mutableStateOf(playerSnapshot.isPlaying) }
+    var repeatMode by remember { mutableIntStateOf(playerSnapshot.repeatMode) }
+    var currentSpeed by remember { mutableFloatStateOf(playerSnapshot.playbackSpeed) }
     val playlist = remember { mutableStateListOf<MediaItem>() }
-    var currentIndex by remember { mutableIntStateOf(player?.currentMediaItemIndex ?: 0) }
+    var currentIndex by remember { mutableIntStateOf(playerSnapshot.currentIndex.coerceAtLeast(0)) }
 
 
     val refreshPlaylist: () -> Unit = {
@@ -91,6 +99,22 @@ fun FloatingVideoPlayerOverlay(
     val context = androidx.compose.ui.platform.LocalContext.current
     val settingsManager = remember { com.example.data.SettingsManager.getInstance(context) }
     val keepScreenAwake by settingsManager.keepScreenAwake.collectAsState()
+
+    LaunchedEffect(playerSnapshot) {
+        isPlaying = playerSnapshot.isPlaying
+        repeatMode = playerSnapshot.repeatMode
+        currentSpeed = playerSnapshot.playbackSpeed
+        if (playerSnapshot.currentTitle.isNotEmpty()) {
+            title = playerSnapshot.currentTitle
+        }
+        if (playerSnapshot.currentIndex >= 0) {
+            currentIndex = playerSnapshot.currentIndex
+        }
+        if (playerSnapshot.playlist.isNotEmpty() && playerSnapshot.playlist.size != playlist.size) {
+            playlist.clear()
+            playlist.addAll(playerSnapshot.playlist)
+        }
+    }
 
     LaunchedEffect(player) {
         refreshPlaylist()
@@ -181,12 +205,29 @@ fun FloatingVideoPlayerOverlay(
                     modifier = Modifier.weight(1f)
                 )
                 IconButton(
-                    onClick = onSwitchToMiniPlayer,
+                    onClick = {
+                        com.example.service.PlayerManager.flushProgressToStorage()
+                        onSwitchToMiniPlayer()
+                    },
                     modifier = Modifier.size(28.dp)
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.QueueMusic,
-                        contentDescription = "Playlist (Mini Player)",
+                        contentDescription = "Switch to Mini Player",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                IconButton(
+                    onClick = {
+                        com.example.service.PlayerManager.flushProgressToStorage()
+                        onOpenMainPlayer()
+                    },
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.OpenInFull,
+                        contentDescription = "Open Full-Screen Player",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(20.dp)
                     )
@@ -401,11 +442,16 @@ fun FloatingVideoPlayerOverlay(
                                         }
                                     }
 
-                                    // Right Action buttons (Close, Minimize, and placeholder space for corner Resize)
+                                    // Right Action buttons ordered from right to left: Resize, Minimize, Exit (Exit, Minimize, Resize from left to right)
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.End)
                                     ) {
+                                        // Exit (Close) button
+                                        IconButton(onClick = onClose, modifier = Modifier.size(32.dp)) {
+                                            Icon(Icons.Filled.Close, "Exit", tint = Color.White, modifier = Modifier.size(18.dp))
+                                        }
+                                        // Minimize button
                                         IconButton(
                                             onClick = {
                                                 onMinimizeChange(true)
@@ -415,11 +461,25 @@ fun FloatingVideoPlayerOverlay(
                                         ) {
                                             Icon(Icons.Filled.Remove, "Minimize", tint = Color.White, modifier = Modifier.size(18.dp))
                                         }
-                                        IconButton(onClick = onClose, modifier = Modifier.size(32.dp)) {
-                                            Icon(Icons.Filled.Close, "Close completely", tint = Color.White, modifier = Modifier.size(18.dp))
+                                        // Resize button (with drag gesture)
+                                        Box(
+                                            modifier = Modifier
+                                                .size(32.dp)
+                                                .pointerInput(Unit) {
+                                                    detectDragGestures { change, dragAmount ->
+                                                        change.consume()
+                                                        onResize(dragAmount.x, dragAmount.y)
+                                                    }
+                                                },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                Icons.Filled.ZoomOutMap,
+                                                contentDescription = "Resize",
+                                                tint = Color.White,
+                                                modifier = Modifier.size(18.dp)
+                                            )
                                         }
-                                        // Reserve 32dp spacing so buttons do not overlap sticky corner resize handle
-                                        Spacer(modifier = Modifier.width(32.dp))
                                     }
                                 }
                             }
@@ -429,27 +489,6 @@ fun FloatingVideoPlayerOverlay(
 
                 }
             }
-        }
-
-        // Sticky Corner Resize handle strictly positioned at BottomEnd
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .size(32.dp)
-                .pointerInput(Unit) {
-                    detectDragGestures { change, dragAmount ->
-                        change.consume()
-                        onResize(dragAmount.x, dragAmount.y)
-                    }
-                },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                Icons.Filled.ZoomOutMap,
-                "Resize",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp)
-            )
         }
     }
 }

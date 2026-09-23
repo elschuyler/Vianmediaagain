@@ -448,7 +448,7 @@ val updateWindowForAspectRatio: (Float) -> Unit = { aspect ->
                     windowManager.updateViewLayout(currentCv, lp)
                     prefs.edit().putInt("width", lp.width).putInt("height", lp.height).apply()
                 } catch (e: Exception) {
-                    com.example.LogKeeper.logError("PlaybackService", "Error updating popup aspect ratio", e)
+                    com.example.LogKeeper.logError("PlaybackService", "Error updating floating window aspect ratio", e)
                 }
             }
         }
@@ -533,14 +533,16 @@ prefs.edit().putInt("width", lp.width).putInt("height", lp.height).apply()
 }
 },
 onOpenMainPlayer = {
-val intent = android.content.Intent(this@PlaybackService, com.example.MainActivity::class.java).apply {
-flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP
-}
-startActivity(intent)
-hideOverlay()
+    val intent = android.content.Intent(this@PlaybackService, com.example.MainActivity::class.java).apply {
+        action = "com.example.ACTION_OPEN_PLAYER"
+        flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP
+    }
+    startActivity(intent)
+    hideOverlay()
 },
 onSwitchToMiniPlayer = {
 isVideoMode = false
+com.example.service.PlayerManager.detachVideoSurface()
 val lp = layoutParams
 if (lp != null) {
     val metrics = resources.displayMetrics
@@ -681,7 +683,7 @@ composeView = null
             .build()
             
         val pipAction = androidx.media3.session.CommandButton.Builder()
-            .setDisplayName("PiP")
+            .setDisplayName("Floating Player")
             .setSessionCommand(androidx.media3.session.SessionCommand("ACTION_PIP", android.os.Bundle.EMPTY))
             .setIconResId(com.example.R.drawable.ic_pip)
             .build()

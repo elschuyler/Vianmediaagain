@@ -1,5 +1,10 @@
 package com.example.service
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 
 import android.content.Context
 import androidx.media3.exoplayer.ExoPlayer
@@ -8,10 +13,27 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
 import android.media.audiofx.LoudnessEnhancer
 import android.media.audiofx.Equalizer
 import android.media.audiofx.DynamicsProcessing
 import android.os.Build
+
+data class PlayerSnapshot(
+    val isPlaying: Boolean = false,
+    val currentPosition: Long = 0L,
+    val duration: Long = 0L,
+    val playbackState: Int = Player.STATE_IDLE,
+    val mediaItem: MediaItem? = null,
+    val currentMediaUri: android.net.Uri? = null,
+    val currentTitle: String = "",
+    val playlist: List<MediaItem> = emptyList(),
+    val currentIndex: Int = -1,
+    val repeatMode: Int = Player.REPEAT_MODE_OFF,
+    val shuffleModeEnabled: Boolean = false,
+    val playbackSpeed: Float = 1.0f
+)
 
 object PlayerManager {
     var exoPlayer: ExoPlayer? = null
@@ -20,8 +42,15 @@ object PlayerManager {
     var dynamicsProcessing: DynamicsProcessing? = null
     val centerChannelProcessor = CenterChannelAudioProcessor()
 
+    private val _playbackState = MutableStateFlow(PlayerSnapshot())
+    val playbackState: StateFlow<PlayerSnapshot> = _playbackState.asStateFlow()
+
+    private var progressTickerJob: Job? = null
+    private var appContext: Context? = null
+
     fun initialize(context: Context, skipSilence: Boolean = false) {
         if (exoPlayer != null) return
+        appContext = context.applicationContext
         com.example.LogKeeper.log("Initializing PlayerManager ExoPlayer", "PlayerManager")
         
         val dataSourceFactory = DefaultDataSource.Factory(context)
@@ -121,8 +150,10 @@ object PlayerManager {
         exoPlayer?.addListener(object : androidx.media3.common.Player.Listener {
             override fun onRepeatModeChanged(repeatMode: Int) {
                 exoPlayer?.pauseAtEndOfMediaItems = (repeatMode == androidx.media3.common.Player.REPEAT_MODE_OFF)
+                updateSnapshot()
             }
             override fun onPlaybackStateChanged(playbackState: Int) {
+                updateSnapshot()
                 if (playbackState == androidx.media3.common.Player.STATE_ENDED || playbackState == androidx.media3.common.Player.STATE_IDLE) {
                     val count = exoPlayer?.mediaItemCount ?: 0
                     if (playbackState == androidx.media3.common.Player.STATE_ENDED || count == 0) {
@@ -140,7 +171,37 @@ object PlayerManager {
                 }
             }
 
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                updateSnapshot()
+                if (!isPlaying) {
+                    flushProgressToStorage()
+                }
+            }
+
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                // When transitioning between items, persist the previous item's progress first
+                flushProgressToStorage()
+                updateSnapshot()
+            }
+
+            override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
+                updateSnapshot()
+            }
+
+            override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
+                updateSnapshot()
+            }
+
+            override fun onPositionDiscontinuity(
+                oldPosition: androidx.media3.common.Player.PositionInfo,
+                newPosition: androidx.media3.common.Player.PositionInfo,
+                reason: Int
+            ) {
+                updateSnapshot()
+            }
+
             override fun onEvents(player: androidx.media3.common.Player, events: androidx.media3.common.Player.Events) {
+                updateSnapshot()
                 if (events.contains(androidx.media3.common.Player.EVENT_TIMELINE_CHANGED)) {
                     if (player.mediaItemCount == 0) {
                         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
@@ -194,6 +255,10 @@ object PlayerManager {
                 }
             }
         })
+
+        // Start periodic state & position ticker
+        startProgressTicker()
+        updateSnapshot()
 
         exoPlayer?.audioSessionId?.let { sessionId ->
             if (sessionId != C.AUDIO_SESSION_ID_UNSET) {
@@ -291,7 +356,107 @@ object PlayerManager {
         player.trackSelectionParameters = builder.build()
     }
 
+    fun detachVideoSurface() {
+        val player = exoPlayer ?: return
+        try {
+            val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+            mainHandler.post {
+                try {
+                    player.clearVideoSurface()
+                    com.example.LogKeeper.log("Video surface successfully cleared for audio-only remote operation", "PlayerManager")
+                } catch (e: Exception) {
+                    com.example.LogKeeper.logError("PlayerManager", "Error in player.clearVideoSurface()", e)
+                }
+            }
+        } catch (e: Exception) {
+            com.example.LogKeeper.logError("PlayerManager", "Failed to post clearVideoSurface", e)
+        }
+    }
+
+    fun updateSnapshot() {
+        val player = exoPlayer ?: run {
+            _playbackState.value = PlayerSnapshot()
+            return
+        }
+        val currentItem = player.currentMediaItem
+        val uri = currentItem?.localConfiguration?.uri ?: currentItem?.mediaId?.let { android.net.Uri.parse(it) }
+        val title = currentItem?.mediaMetadata?.title?.toString()
+            ?: currentItem?.mediaMetadata?.displayTitle?.toString()
+            ?: uri?.lastPathSegment
+            ?: ""
+
+        val playlist = mutableListOf<MediaItem>()
+        for (i in 0 until player.mediaItemCount) {
+            playlist.add(player.getMediaItemAt(i))
+        }
+
+        val dur = if (player.duration < 0L) 0L else player.duration
+        val pos = if (player.currentPosition < 0L) 0L else player.currentPosition
+
+        _playbackState.value = PlayerSnapshot(
+            isPlaying = player.isPlaying,
+            currentPosition = pos,
+            duration = dur,
+            playbackState = player.playbackState,
+            mediaItem = currentItem,
+            currentMediaUri = uri,
+            currentTitle = title,
+            playlist = playlist,
+            currentIndex = player.currentMediaItemIndex,
+            repeatMode = player.repeatMode,
+            shuffleModeEnabled = player.shuffleModeEnabled,
+            playbackSpeed = player.playbackParameters.speed
+        )
+    }
+
+    fun startProgressTicker() {
+        progressTickerJob?.cancel()
+        progressTickerJob = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+            while (true) {
+                delay(500)
+                val player = exoPlayer
+                if (player != null && (player.isPlaying || player.playbackState == Player.STATE_BUFFERING)) {
+                    val pos = if (player.currentPosition < 0L) 0L else player.currentPosition
+                    val dur = if (player.duration < 0L) 0L else player.duration
+                    val current = _playbackState.value
+                    if (current.currentPosition != pos || current.duration != dur || current.isPlaying != player.isPlaying) {
+                        _playbackState.value = current.copy(
+                            currentPosition = pos,
+                            duration = dur,
+                            isPlaying = player.isPlaying,
+                            playbackState = player.playbackState
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun flushProgressToStorage() {
+        try {
+            val player = exoPlayer ?: return
+            val currentItem = player.currentMediaItem ?: return
+            val uri = currentItem.localConfiguration?.uri ?: currentItem.mediaId.let { android.net.Uri.parse(it) } ?: return
+            val uriStr = uri.toString()
+            val pos = player.currentPosition
+            val dur = player.duration
+            val title = currentItem.mediaMetadata.title?.toString() ?: uri.lastPathSegment ?: ""
+            val ctx = appContext ?: return
+
+            if (pos > 0L) {
+                com.example.data.SettingsManager.getInstance(ctx).savePlaybackState(uriStr, pos, dur, title)
+                com.example.LogKeeper.log("PlayerManager: Flushed progress to storage ($pos ms) for $title", "PlayerManager")
+            }
+        } catch (e: Exception) {
+            com.example.LogKeeper.logError("PlayerManager", "Failed to flush progress to storage", e)
+        }
+    }
+
     fun release() {
+        flushProgressToStorage()
+        progressTickerJob?.cancel()
+        progressTickerJob = null
+        _playbackState.value = PlayerSnapshot()
         val player = exoPlayer
         exoPlayer = null
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default).launch {

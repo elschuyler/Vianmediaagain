@@ -338,9 +338,9 @@ class SettingsManager private constructor(context: Context) {
     }
 
     fun getNotificationPriority(): List<String> {
-        val defaultPriority = "Loop,Playlist,PiP,Close"
+        val defaultPriority = "Loop,Playlist,Floating Player,Close"
         val saved = prefs.getString("notification_priority", defaultPriority) ?: defaultPriority
-        return saved.split(",")
+        return saved.replace("PiP", "Floating Player").split(",")
     }
     
     fun setNotificationPriority(priority: List<String>) {

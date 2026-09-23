@@ -15,6 +15,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -37,6 +38,7 @@ fun PlaybackProgressRow(
     abRepeatEnd: Long? = null,
     fallbackDuration: Long? = null,
     fallbackPosition: Long? = null,
+    onInteraction: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var currentPosition by remember { mutableLongStateOf(fallbackPosition?.takeIf { it > 0L } ?: 0L) }
@@ -51,6 +53,23 @@ fun PlaybackProgressRow(
         }
         if (currentPosition <= 0L && fallbackPosition != null && fallbackPosition > 0L) {
             currentPosition = fallbackPosition
+        }
+    }
+
+    val playerSnapshot by com.example.service.PlayerManager.playbackState.collectAsState()
+
+    LaunchedEffect(playerSnapshot, isScrubbing) {
+        if (!isScrubbing) {
+            if (playerSnapshot.duration > 0L) {
+                duration = playerSnapshot.duration
+            } else if (mediaController != null && mediaController.duration > 0L && mediaController.duration != androidx.media3.common.C.TIME_UNSET) {
+                duration = mediaController.duration
+            }
+            if (playerSnapshot.currentPosition >= 0L) {
+                currentPosition = playerSnapshot.currentPosition
+            } else if (mediaController != null && mediaController.currentPosition >= 0L) {
+                currentPosition = mediaController.currentPosition
+            }
         }
     }
 
@@ -87,6 +106,7 @@ fun PlaybackProgressRow(
         Slider(
             value = if (isScrubbing) scrubPosition else (if (duration > 0) currentPosition.toFloat() / duration.toFloat() else 0f),
             onValueChange = { scale ->
+                onInteraction()
                 if (!isScrubbing) {
                     wasPlayingBeforeScrub = mediaController?.isPlaying == true
                     mediaController?.pause()
@@ -100,6 +120,7 @@ fun PlaybackProgressRow(
                 }
             },
             onValueChangeFinished = {
+                onInteraction()
                 mediaController?.seekTo((scrubPosition * duration).toLong())
                 isScrubbing = false
                 if (wasPlayingBeforeScrub) {
@@ -163,7 +184,10 @@ fun PlaybackProgressRow(
             text = if (showRemainingTime && duration > 0) "-" + formatTime(duration - currentPosition) else formatTime(duration),
             color = Color.White,
             fontSize = 12.sp,
-            modifier = Modifier.clickable { showRemainingTime = !showRemainingTime }
+            modifier = Modifier.clickable { 
+                showRemainingTime = !showRemainingTime
+                onInteraction()
+            }
         )
     }
 }

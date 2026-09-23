@@ -15,19 +15,42 @@ import coil.request.videoFrameMillis
 
 class MyBitmapLoader(val context: Context) : BitmapLoader {
     override fun supportsMimeType(mimeType: String) = true
+
+    private fun decodeDownsampledBitmap(data: ByteArray, maxDim: Int = 256): Bitmap? {
+        val options = android.graphics.BitmapFactory.Options().apply {
+            inJustDecodeBounds = true
+        }
+        android.graphics.BitmapFactory.decodeByteArray(data, 0, data.size, options)
+        var sampleSize = 1
+        val maxSide = maxOf(options.outWidth, options.outHeight)
+        while (maxSide / (sampleSize * 2) >= maxDim) {
+            sampleSize *= 2
+        }
+        val decodeOptions = android.graphics.BitmapFactory.Options().apply {
+            inSampleSize = sampleSize
+            inPreferredConfig = Bitmap.Config.RGB_565
+        }
+        return android.graphics.BitmapFactory.decodeByteArray(data, 0, data.size, decodeOptions)
+    }
+
     override fun decodeBitmap(data: ByteArray): ListenableFuture<Bitmap> {
         val future = SettableFuture.create<Bitmap>()
-        val bmp = android.graphics.BitmapFactory.decodeByteArray(data, 0, data.size)
-        if (bmp != null) future.set(bmp) else future.setException(Exception("err"))
+        val bmp = decodeDownsampledBitmap(data, 256) ?: android.graphics.BitmapFactory.decodeByteArray(data, 0, data.size)
+        if (bmp != null) future.set(bmp) else future.setException(Exception("Failed to decode bitmap"))
         return future
     }
+
     override fun loadBitmap(uri: Uri): ListenableFuture<Bitmap> {
         val future = SettableFuture.create<Bitmap>()
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                // 1. Try Coil image loading (covers image files and supported media)
+                // 1. Try Coil image loading (downsampled to 256x256)
                 try {
-                    val req = ImageRequest.Builder(context).data(uri).size(512).build()
+                    val req = ImageRequest.Builder(context)
+                        .data(uri)
+                        .size(256)
+                        .bitmapConfig(Bitmap.Config.RGB_565)
+                        .build()
                     val result = context.imageLoader.execute(req)
                     val dr = result.drawable
                     if (dr is android.graphics.drawable.BitmapDrawable) {
@@ -42,20 +65,25 @@ class MyBitmapLoader(val context: Context) : BitmapLoader {
                     retriever.setDataSource(context, uri)
                     val pic = retriever.embeddedPicture
                     if (pic != null) {
-                        val bmp = android.graphics.BitmapFactory.decodeByteArray(pic, 0, pic.size)
+                        val bmp = decodeDownsampledBitmap(pic, 256)
                         if (bmp != null) {
                             future.set(bmp)
                             return@launch
                         }
                     }
                     val frame = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O_MR1) {
-                        retriever.getScaledFrameAtTime(1000000L, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 512, 512)
+                        retriever.getScaledFrameAtTime(1000000L, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 256, 256)
                             ?: retriever.frameAtTime
                     } else {
                         retriever.frameAtTime
                     }
                     if (frame != null) {
-                        future.set(frame)
+                        val scaled = if (frame.width > 256 || frame.height > 256) {
+                            Bitmap.createScaledBitmap(frame, 256, (256f * frame.height / frame.width).toInt().coerceAtLeast(1), true)
+                        } else {
+                            frame
+                        }
+                        future.set(scaled)
                         return@launch
                     }
                 } catch (e: Exception) {
@@ -66,7 +94,7 @@ class MyBitmapLoader(val context: Context) : BitmapLoader {
                 // 3. Try ContentResolver loadThumbnail on Android 10+
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
                     try {
-                        val thumb = context.contentResolver.loadThumbnail(uri, android.util.Size(512, 512), null)
+                        val thumb = context.contentResolver.loadThumbnail(uri, android.util.Size(256, 256), null)
                         if (thumb != null) {
                             future.set(thumb)
                             return@launch

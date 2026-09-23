@@ -3,22 +3,78 @@ package com.example.ui.screens
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.data.AppDatabase
 import com.example.data.MediaFolder
+import com.example.data.MediaItem
 import com.example.data.MediaRepository
+import com.example.data.Playlist
+import com.example.data.PlaylistRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+
+enum class LibraryTab {
+    FOLDERS,
+    VIDEOS,
+    PLAYLISTS
+}
+
+enum class SortOrder {
+    NAME,
+    DATE
+}
 
 class MediaViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = MediaRepository(application)
+    private val playlistDao = AppDatabase.getDatabase(application).playlistDao()
+    private val playlistRepository = PlaylistRepository(playlistDao)
 
     private val _mediaFolders = MutableStateFlow<List<MediaFolder>>(emptyList())
     val mediaFolders: StateFlow<List<MediaFolder>> = _mediaFolders.asStateFlow()
 
+    val allVideos: StateFlow<List<MediaItem>> = _mediaFolders.map { folders ->
+        folders.flatMap { it.mediaItems }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.Eagerly,
+        initialValue = emptyList()
+    )
+
+    val playlists: StateFlow<List<Playlist>> = playlistRepository.allPlaylists.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.Eagerly,
+        initialValue = emptyList()
+    )
+
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    private val _selectedTab = MutableStateFlow(LibraryTab.FOLDERS)
+    val selectedTab: StateFlow<LibraryTab> = _selectedTab.asStateFlow()
+
+    private val _selectedFolderId = MutableStateFlow<String?>(null)
+    val selectedFolderId: StateFlow<String?> = _selectedFolderId.asStateFlow()
+
+    private val _sortOrder = MutableStateFlow(SortOrder.DATE)
+    val sortOrder: StateFlow<SortOrder> = _sortOrder.asStateFlow()
+
+    // Persistent scroll states across tabs and views
+    var foldersScrollIndex = 0
+    var foldersScrollOffset = 0
+
+    var videosScrollIndex = 0
+    var videosScrollOffset = 0
+
+    var folderDetailScrollIndex = 0
+    var folderDetailScrollOffset = 0
+
+    var playlistsScrollIndex = 0
+    var playlistsScrollOffset = 0
 
     private var loadJob: kotlinx.coroutines.Job? = null
     private var scanJob: kotlinx.coroutines.Job? = null
@@ -26,6 +82,18 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         loadMedia()
+    }
+
+    fun selectTab(tab: LibraryTab) {
+        _selectedTab.value = tab
+    }
+
+    fun selectFolder(folderId: String?) {
+        _selectedFolderId.value = folderId
+    }
+
+    fun setSortOrder(order: SortOrder) {
+        _sortOrder.value = order
     }
 
     fun suspendOperations() {
@@ -93,6 +161,19 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 _mediaFolders.value = currentFolders
             }
+        }
+    }
+
+    fun createPlaylist(name: String, onComplete: ((Long) -> Unit)? = null) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val id = playlistRepository.insertPlaylist(Playlist(name = name.trim()))
+            onComplete?.invoke(id)
+        }
+    }
+
+    fun deletePlaylist(id: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            playlistRepository.deletePlaylistById(id)
         }
     }
 }

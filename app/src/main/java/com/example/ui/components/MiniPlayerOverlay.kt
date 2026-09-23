@@ -38,16 +38,18 @@ fun MiniPlayerOverlay(
     onMinimizeChange: (Boolean) -> Unit = {},
     onSwitchToVideo: () -> Unit = {}
 ) {
-    var isPlaying by remember { mutableStateOf(player?.isPlaying == true) }
-    var currentPosition by remember { mutableLongStateOf(player?.currentPosition ?: 0L) }
-    var duration by remember { mutableLongStateOf(player?.duration?.coerceAtLeast(0L) ?: 0L) }
-    var title by remember { mutableStateOf(player?.currentMediaItem?.mediaMetadata?.title?.toString() ?: "Unknown") }
-    var playlist by remember { mutableStateOf(emptyList<MediaItem>()) }
-    var isReversed by remember { mutableStateOf(false) }
-    var currentIndex by remember { mutableIntStateOf(player?.currentMediaItemIndex ?: -1) }
+    val playerSnapshot by com.example.service.PlayerManager.playbackState.collectAsState()
 
-    var loopMode by remember { mutableIntStateOf(player?.repeatMode ?: Player.REPEAT_MODE_OFF) }
-    var shuffleMode by remember { mutableStateOf(player?.shuffleModeEnabled == true) }
+    var isPlaying by remember { mutableStateOf(playerSnapshot.isPlaying) }
+    var currentPosition by remember { mutableLongStateOf(playerSnapshot.currentPosition) }
+    var duration by remember { mutableLongStateOf(playerSnapshot.duration) }
+    var title by remember { mutableStateOf(playerSnapshot.currentTitle.ifEmpty { player?.currentMediaItem?.mediaMetadata?.title?.toString() ?: "Unknown" }) }
+    var playlist by remember { mutableStateOf(playerSnapshot.playlist) }
+    var isReversed by remember { mutableStateOf(false) }
+    var currentIndex by remember { mutableIntStateOf(playerSnapshot.currentIndex) }
+
+    var loopMode by remember { mutableIntStateOf(playerSnapshot.repeatMode) }
+    var shuffleMode by remember { mutableStateOf(playerSnapshot.shuffleModeEnabled) }
     
     val context = androidx.compose.ui.platform.LocalContext.current
     val mediaRepo = remember { com.example.data.MediaRepository(context.applicationContext as android.app.Application) }
@@ -57,6 +59,7 @@ fun MiniPlayerOverlay(
     val coroutineScope = rememberCoroutineScope()
     
     LaunchedEffect(Unit) {
+        com.example.service.PlayerManager.detachVideoSurface()
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             folders = mediaRepo.getMediaFolders()
             playlistDao.getAllPlaylists().collect {
@@ -65,8 +68,23 @@ fun MiniPlayerOverlay(
         }
     }
 
-    LaunchedEffect(player) {
-        if (player == null) return@LaunchedEffect
+    LaunchedEffect(playerSnapshot) {
+        isPlaying = playerSnapshot.isPlaying
+        currentPosition = playerSnapshot.currentPosition
+        duration = playerSnapshot.duration
+        if (playerSnapshot.currentTitle.isNotEmpty()) {
+            title = playerSnapshot.currentTitle
+        }
+        if (playerSnapshot.playlist.isNotEmpty()) {
+            playlist = playerSnapshot.playlist
+        }
+        currentIndex = playerSnapshot.currentIndex
+        loopMode = playerSnapshot.repeatMode
+        shuffleMode = playerSnapshot.shuffleModeEnabled
+    }
+
+    DisposableEffect(player) {
+        if (player == null) return@DisposableEffect onDispose {}
         val listener = object : Player.Listener {
             override fun onIsPlayingChanged(isPlayingChange: Boolean) {
                 isPlaying = isPlayingChange
@@ -91,30 +109,18 @@ fun MiniPlayerOverlay(
             }
         }
         player.addListener(listener)
-        // initial state
-        val newPlaylist = mutableListOf<MediaItem>()
-        for (i in 0 until player.mediaItemCount) {
-            newPlaylist.add(player.getMediaItemAt(i))
-        }
-        playlist = newPlaylist
-        currentIndex = player.currentMediaItemIndex
-        loopMode = player.repeatMode
-        shuffleMode = player.shuffleModeEnabled
-
-        while (true) {
-            currentPosition = player.currentPosition.coerceAtLeast(0L)
-            duration = player.duration.coerceAtLeast(0L)
-            delay(1000)
+        onDispose {
+            player.removeListener(listener)
         }
     }
 
     if (isMinimizedExternal) {
         Box(
             modifier = Modifier
-                .size(48.dp)
+                .size(36.dp)
                 .clip(androidx.compose.foundation.shape.CircleShape)
                 .background(androidx.compose.ui.graphics.Color(0xFF2196F3))
-                .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), androidx.compose.foundation.shape.CircleShape)
+                .border(1.dp, androidx.compose.ui.graphics.Color.White.copy(alpha = 0.25f), androidx.compose.foundation.shape.CircleShape)
                 .pointerInput(Unit) {
                     detectDragGesturesAfterLongPress(
                         onDrag = { change: androidx.compose.ui.input.pointer.PointerInputChange, dragAmount: androidx.compose.ui.geometry.Offset ->
@@ -127,10 +133,10 @@ fun MiniPlayerOverlay(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_pip),
-                contentDescription = "Unfold",
-                modifier = Modifier.fillMaxSize(0.6f),
-                tint = MaterialTheme.colorScheme.onPrimary
+                painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_launcher_foreground),
+                contentDescription = "Expand Mini Player",
+                tint = androidx.compose.ui.graphics.Color.Unspecified,
+                modifier = Modifier.fillMaxSize()
             )
         }
         return
@@ -172,11 +178,15 @@ fun MiniPlayerOverlay(
                 )
                 Row {
                     val context = androidx.compose.ui.platform.LocalContext.current
-                    IconButton(onClick = onSwitchToVideo) {
-                        Icon(Icons.Filled.VideoLibrary, contentDescription = "Switch to Video", tint = MaterialTheme.colorScheme.primary)
+                    IconButton(onClick = {
+                        com.example.service.PlayerManager.flushProgressToStorage()
+                        onSwitchToVideo()
+                    }) {
+                        Icon(Icons.Filled.VideoLibrary, contentDescription = "Switch to Floating Player", tint = MaterialTheme.colorScheme.primary)
                     }
 
                     IconButton(onClick = {
+                        com.example.service.PlayerManager.flushProgressToStorage()
                         val intent = android.content.Intent(context, com.example.MainActivity::class.java).apply {
                             action = "com.example.ACTION_OPEN_PLAYER"
                             flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP
