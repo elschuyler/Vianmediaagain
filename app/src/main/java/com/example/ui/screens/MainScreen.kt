@@ -1022,7 +1022,7 @@ fun MainScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        viewModel.deletePlaylist(targetPlaylist)
+                        viewModel.deletePlaylist(targetPlaylist.id)
                         playlistToDelete = null
                         Toast.makeText(context, "Playlist deleted", Toast.LENGTH_SHORT).show()
                     },

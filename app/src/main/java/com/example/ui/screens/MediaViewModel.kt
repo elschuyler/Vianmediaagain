@@ -164,9 +164,9 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun createPlaylist(name: String, onComplete: ((Long) -> Unit)? = null) {
+    fun createPlaylist(name: String, isTemporary: Boolean = false, onComplete: ((Long) -> Unit)? = null) {
         viewModelScope.launch(Dispatchers.IO) {
-            val id = playlistRepository.insertPlaylist(Playlist(name = name.trim()))
+            val id = playlistRepository.insertPlaylist(Playlist(name = name.trim(), isTemporary = isTemporary))
             onComplete?.invoke(id)
         }
     }
@@ -175,5 +175,9 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             playlistRepository.deletePlaylistById(id)
         }
+    }
+
+    fun deletePlaylist(playlist: Playlist) {
+        deletePlaylist(playlist.id)
     }
 }

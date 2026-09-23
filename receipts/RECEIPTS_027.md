@@ -59,3 +59,21 @@
 * Deviation: None.
 * Known issues: None.
 
+---
+
+* Timestamp: 2026-09-23T19:10:00Z
+* Summary: Fixed CI compileDebugKotlin compilation failure by resolving method signature mismatches for createPlaylist and deletePlaylist.
+* Files touched:
+  - app/src/main/java/com/example/ui/screens/MediaViewModel.kt
+  - app/src/main/java/com/example/ui/screens/MainScreen.kt
+  - receipts/RECEIPTS_027.md
+* What was actually done:
+  - Updated `createPlaylist` in `MediaViewModel.kt` to accept `(name: String, isTemporary: Boolean = false, onComplete: ((Long) -> Unit)? = null)` and persist `isTemporary` when inserting new playlists.
+  - Added overloaded `deletePlaylist(playlist: Playlist)` in `MediaViewModel.kt` that delegates to `deletePlaylist(playlist.id)` for backwards compatibility.
+  - Updated `deletePlaylist` invocation at line 1025 in `MainScreen.kt` to explicitly pass `targetPlaylist.id`.
+  - Resolved both CI Kotlin compilation errors: `Argument type mismatch: actual type is 'Boolean', but 'Function1<Long, Unit>?' was expected` and `Argument type mismatch: actual type is 'Playlist', but 'Int' was expected`.
+* Verification: Verified TypeScript/applet build and static Kotlin type checks.
+* Deviation: None.
+* Known issues: None.
+
+
