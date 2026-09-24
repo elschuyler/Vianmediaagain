@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="4dp"
+    android:background="@drawable/bg_clipboard_card"
+    android:elevation="1dp"
+    android:foreground="?android:attr/selectableItemBackground"
+    android:orientation="horizontal"
+    android:padding="8dp">
+
+    <ImageView
+        android:id="@+id/ivPinBadge"
+        android:layout_width="14dp"
+        android:layout_height="14dp"
+        android:layout_gravity="top"
+        android:layout_marginTop="2dp"
+        android:layout_marginEnd="5dp"
+        android:contentDescription="Pinned card"
+        android:src="@drawable/ic_clipboard_pin_rounded"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/tvCardText"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:ellipsize="end"
+        android:maxLines="4"
+        android:lineSpacingMultiplier="1.15"
+        android:textColor="#0F172A"
+        android:textSize="13sp" />
+</LinearLayout>
