@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="20dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Phrase / Word"
+        android:textColor="#0F172A"
+        android:textStyle="bold"
+        android:textSize="14sp" />
+
+    <EditText
+        android:id="@+id/etDialogPhrase"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="e.g. On my way!"
+        android:textColor="#0F172A"
+        android:textColorHint="#94A3B8"
+        android:background="#F1F5F9"
+        android:padding="10dp"
+        android:layout_marginTop="4dp"
+        android:layout_marginBottom="14dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Shortcut (Optional)"
+        android:textColor="#0F172A"
+        android:textStyle="bold"
+        android:textSize="14sp" />
+
+    <EditText
+        android:id="@+id/etDialogShortcut"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="e.g. omw"
+        android:textColor="#0F172A"
+        android:textColorHint="#94A3B8"
+        android:background="#F1F5F9"
+        android:padding="10dp"
+        android:layout_marginTop="4dp"
+        android:layout_marginBottom="14dp"
+        android:singleLine="true" />
+
+    <TextView
+        android:id="@+id/tvDialogWeightValue"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Weight / Frequency: 250"
+        android:textColor="#0F172A"
+        android:textStyle="bold"
+        android:textSize="14sp" />
+
+    <SeekBar
+        android:id="@+id/sbDialogWeight"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:max="250"
+        android:progress="250"
+        android:layout_marginTop="6dp" />
+</LinearLayout>

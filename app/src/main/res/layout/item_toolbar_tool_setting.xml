@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingStart="16dp"
+    android:paddingEnd="16dp"
+    android:paddingTop="12dp"
+    android:paddingBottom="12dp"
+    android:background="#FFFFFF">
+
+    <!-- Drag handle indicator -->
+    <ImageView
+        android:id="@+id/ivDragHandle"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:src="@drawable/ic_drag_handle"
+        android:contentDescription="Reorder drag handle" />
+
+    <!-- Icon -->
+    <ImageView
+        android:id="@+id/ivToolIcon"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_marginStart="10dp"
+        android:contentDescription="Tool icon" />
+
+    <!-- Name -->
+    <TextView
+        android:id="@+id/tvToolTitle"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_marginStart="14dp"
+        android:textColor="#0F172A"
+        android:textSize="15sp"
+        android:textStyle="bold" />
+
+    <!-- Move Up / Down Reorder buttons -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginEnd="8dp">
+
+        <TextView
+            android:id="@+id/btnMoveUp"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:text="▲"
+            android:textSize="14sp"
+            android:textColor="#64748B"
+            android:gravity="center"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Move up" />
+
+        <TextView
+            android:id="@+id/btnMoveDown"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:text="▼"
+            android:textSize="14sp"
+            android:textColor="#64748B"
+            android:gravity="center"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Move down" />
+    </LinearLayout>
+
+    <!-- Toggle switch -->
+    <Switch
+        android:id="@+id/switchTool"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:minHeight="48dp" />
+</LinearLayout>
