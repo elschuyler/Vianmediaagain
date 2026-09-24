@@ -8,7 +8,6 @@ pluginManagement {
       }
     }
     mavenCentral()
-    maven { url = uri("https://jcenter.bintray.com/") }
     gradlePluginPortal()
   }
 }
@@ -20,11 +19,10 @@ dependencyResolutionManagement {
   repositories {
     google()
     mavenCentral()
-    maven { url = uri("https://jcenter.bintray.com/") }
     maven { url = uri("https://jitpack.io") }
   }
 }
 
-rootProject.name = "Vianbhr Media"
+rootProject.name = "VianBoard"
 
 include(":app")
