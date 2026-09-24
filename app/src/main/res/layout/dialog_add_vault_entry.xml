@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="20dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Confidential Phrase / Secret"
+        android:textColor="#0F172A"
+        android:textStyle="bold"
+        android:textSize="14sp" />
+
+    <EditText
+        android:id="@+id/etDialogVaultPhrase"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="e.g. 123 Broadway, Apt 4B, New York, NY"
+        android:textColor="#0F172A"
+        android:textColorHint="#94A3B8"
+        android:background="#F1F5F9"
+        android:padding="10dp"
+        android:layout_marginTop="4dp"
+        android:layout_marginBottom="14dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Shortcut"
+        android:textColor="#0F172A"
+        android:textStyle="bold"
+        android:textSize="14sp" />
+
+    <EditText
+        android:id="@+id/etDialogVaultShortcut"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="e.g. myaddr"
+        android:textColor="#0F172A"
+        android:textColorHint="#94A3B8"
+        android:background="#F1F5F9"
+        android:padding="10dp"
+        android:layout_marginTop="4dp"
+        android:layout_marginBottom="14dp"
+        android:singleLine="true" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Category"
+        android:textColor="#0F172A"
+        android:textStyle="bold"
+        android:textSize="14sp" />
+
+    <EditText
+        android:id="@+id/etDialogVaultCategory"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="e.g. Address, Credentials, ID, Notes"
+        android:textColor="#0F172A"
+        android:textColorHint="#94A3B8"
+        android:background="#F1F5F9"
+        android:padding="10dp"
+        android:layout_marginTop="4dp"
+        android:layout_marginBottom="14dp"
+        android:singleLine="true" />
+
+    <!-- Mask Preview -->
+    <TextView
+        android:id="@+id/tvDialogMaskPreview"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Mask Preview in Keyboard: [ 🔒 •••• ]"
+        android:textColor="#7C3AED"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:background="#F5F3FF"
+        android:padding="8dp" />
+</LinearLayout>

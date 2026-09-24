@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/popupRoot"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_clipboard_card"
+    android:elevation="6dp"
+    android:orientation="horizontal"
+    android:padding="6dp">
+
+    <!-- Action 1: Pin / Unpin -->
+    <LinearLayout
+        android:id="@+id/btnPopupPin"
+        android:layout_width="wrap_content"
+        android:layout_height="36dp"
+        android:background="?android:attr/selectableItemBackground"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp">
+
+        <ImageView
+            android:id="@+id/ivPopupPinIcon"
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:contentDescription="Pin"
+            android:src="@drawable/ic_clipboard_pin_rounded" />
+
+        <TextView
+            android:id="@+id/tvPopupPinText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:text="Pin"
+            android:textColor="#0F172A"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <!-- Action 2: Middle Action (Move to Notes / Edit) -->
+    <LinearLayout
+        android:id="@+id/btnPopupAction"
+        android:layout_width="wrap_content"
+        android:layout_height="36dp"
+        android:layout_marginStart="4dp"
+        android:background="?android:attr/selectableItemBackground"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp">
+
+        <ImageView
+            android:id="@+id/ivPopupActionIcon"
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:contentDescription="Action"
+            android:src="@drawable/ic_prompt_list" />
+
+        <TextView
+            android:id="@+id/tvPopupActionText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:text="To Notes"
+            android:textColor="#0F172A"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <!-- Action 3: Delete -->
+    <LinearLayout
+        android:id="@+id/btnPopupDelete"
+        android:layout_width="wrap_content"
+        android:layout_height="36dp"
+        android:layout_marginStart="4dp"
+        android:background="?android:attr/selectableItemBackground"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp">
+
+        <ImageView
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:contentDescription="Delete"
+            android:src="@drawable/sym_keyboard_delete_rounded" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:text="Delete"
+            android:textColor="#EF4444"
+            android:textSize="12sp" />
+    </LinearLayout>
+</LinearLayout>
