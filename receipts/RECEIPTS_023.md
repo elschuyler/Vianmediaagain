@@ -1,0 +1,8 @@
+- Timestamp: 2026-08-10T10:56:00Z
+- Summary: Restored the Mini Player shortcut button in the main player controls (RightTools).
+- Files touched:
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+- What was actually done:
+  - Re-added the IconButton for ACTION_MINIPLAYER with ic_widget_miniplayer icon inside the RightTools composable, right before the PiP (ACTION_VIDEO_OVERLAY) button.
+- Verification: local build only
+- Deviation: None

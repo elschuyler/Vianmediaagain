@@ -1,0 +1,14 @@
+- Timestamp: 2026-07-26T14:18
+- Summary: Styled Mini Player to be predominantly white and fixed drag-and-drop animation conflict. Added Temp Current playlist functionality.
+- Files: 
+  - MiniPlayerOverlay.kt
+  - PlayerScreen.kt
+  - PlaylistDetailScreen.kt
+- Actions:
+  - Mini Player: Shrunk folded floating button to 40.dp.
+  - Mini Player: Changed expanded background to white. Updated icons, top bar, and progress slider colors to blue (0xFF2196F3) to match Library styling.
+  - Playlist: When `PlayerScreen` receives a multi-item queue, it now persists a "Temp Current" playlist in the Room database.
+  - Playlist: When the Mini Player is closed, the "Temp Current" playlist is deleted.
+  - Playlist Detail: Added a "Save As" action button in the `TopAppBar` specifically when viewing the "Temp Current" playlist, allowing the user to rename and keep it.
+  - Drag and Drop: Removed `Modifier.animateItem()` from `PlaylistDetailScreen` which was conflicting with the manual `translationY` animation. This restores the smooth visual displacement of other items without causing layout jumping.
+- Verification: Compiled and verified locally.

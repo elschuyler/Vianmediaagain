@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    
+    <!-- White rounded play triangle (from Next Player) -->
+    <group android:scaleX="0.4"
+        android:scaleY="0.4"
+        android:translateX="32.4"
+        android:translateY="32.4">
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M36.7 92.81c-1.3 0-2.57-0.34-3.7-0.98-2.53-1.44-4.1-4.22-4.1-7.24V23.4c0-3.03 1.57-5.8 4.1-7.24 1.15-0.66 2.46-1 3.79-0.98 1.33 0.01 2.62 0.39 3.76 1.08l52.28 31.3c1.09 0.68 1.99 1.62 2.61 2.75 0.62 1.12 0.95 2.39 0.95 3.68 0 1.28-0.33 2.55-0.95 3.67-0.62 1.13-1.52 2.08-2.61 2.76l-52.29 31.3c-1.16 0.7-2.49 1.08-3.85 1.08Z"/>
+    </group>
+    
+    <!-- 's' thin -->
+    <path
+        android:strokeColor="#2196F3"
+        android:strokeWidth="1.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"
+        android:pathData="M 49.2, 52.5 C 47.5, 52.5 47.5, 54 48.5, 54 C 49.5, 54 49.5, 55.5 47.8, 55.5" />
+
+    <!-- 'V' thick -->
+    <path
+        android:strokeColor="#2196F3"
+        android:strokeWidth="3.0"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"
+        android:pathData="M 50.5, 49.5 L 54.5, 58.5 L 58.5, 49.5" />
+
+    <!-- 'l' thin -->
+    <path
+        android:strokeColor="#2196F3"
+        android:strokeWidth="1.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"
+        android:pathData="M 59.8, 50 L 59.8, 57" />
+
+    <!-- Scissor silhouette in bottom right -->
+    <!-- Translate to bottom right and scale up -->
+    <group android:translateX="60" android:translateY="60" android:scaleX="1.2" android:scaleY="1.2">
+        <!-- Add a subtle dark circle background for the scissor to make it stand out against the blue background -->
+        <path
+            android:fillColor="#222222"
+            android:pathData="M12,12 m-14,0 a14,14 0 1,0 28,0 a14,14 0 1,0 -28,0" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M9.64 7.64c.23-.5.36-1.05.36-1.64 0-2.21-1.79-4-4-4S2 3.79 2 6s1.79 4 4 4c.59 0 1.14-.13 1.64-.36L10 12l-2.36 2.36C7.14 14.13 6.59 14 6 14c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4c0-.59-.13-1.14-.36-1.64L12 14l7 7h3v-1L9.64 7.64zM6 8c-1.1 0-2-.89-2-2s.9-2 2-2 2 .89 2 2-.9 2-2 2zm0 12c-1.1 0-2-.89-2-2s.9-2 2-2 2 .89 2 2-.9 2-2 2zm6-7.5c-.28 0-.5-.22-.5-.5s.22-.5.5-.5.5.22.5.5-.22.5-.5.5zM19 3l-6 6 2 2 7-7V3z" />
+    </group>
+</vector>

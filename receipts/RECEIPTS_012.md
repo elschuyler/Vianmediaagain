@@ -1,0 +1,8 @@
+- Timestamp: 2026-07-27T05:14
+- Summary: Changed Mini Player minimized floating button to use the app icon design.
+- Files: 
+  - MiniPlayerOverlay.kt
+- Actions:
+  - Updated the `isMinimizedExternal` floating button to use the actual app icon (`ic_launcher_foreground`) using an `Image` block (instead of `Icon`) so it retains the original icon colors (white triangle, blue text).
+  - Changed the floating button background to `Color(0xFF2196F3)` to perfectly match the app icon's background color (`ic_launcher_background`), and slightly increased the size to 48dp for better visual proportion and minimum touch target size.
+- Verification: Compiled and verified locally.

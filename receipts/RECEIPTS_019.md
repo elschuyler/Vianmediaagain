@@ -1,0 +1,17 @@
+- Timestamp: 2026-07-29T12:15:00Z
+- Summary: Implemented custom progress slider on cut to only show within bounds, and customizable cut text.
+- Files touched:
+  - app/src/main/java/com/example/ui/screens/VideoEditorScreen.kt
+- What was actually done:
+  - Overrode `track` in the top `Slider` for video preview progress to only draw the track line between `trimStartMs` and `trimEndMs` when in `TRIM` mode.
+  - Added a `BasicTextField` between the start and end text values in the `TRIM` tool to show a customizable cut time indicator (defaults to "Cut: {duration}").
+- Verification: local build only
+- Timestamp: 2026-07-29T17:15:00Z
+- Summary: Implemented widget fixes for unresponsive controls and file explorer issues when app is killed.
+- Files touched:
+  - app/src/main/java/com/example/widget/MediaWidgetService.kt
+  - app/src/main/java/com/example/widget/MediaWidgetProvider.kt
+- What was actually done:
+  - Modified `MediaWidgetService` to no longer revert to Folders view just because the player is paused.
+  - Refactored `MediaWidgetProvider` to use Media3's `MediaController.buildAsync()` to dispatch widget actions directly instead of raw broadcasts. This ensures `PlaybackService` is correctly started if it was dead when the user clicked a widget button.
+- Verification: local build only

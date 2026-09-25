@@ -1,0 +1,21 @@
+- Timestamp: 2026-08-10T13:35:00Z
+- Summary: Fixed portrait videos becoming landscape in batch converter and editor.
+- Files touched:
+  - app/src/main/java/com/example/ui/components/FFmpegBatchDialog.kt
+  - app/src/main/java/com/example/ui/screens/VideoEditorScreen.kt
+  - app/src/main/java/com/example/service/FFmpegService.kt
+- What was actually done:
+  - Added `-metadata:s:v:0 rotate=0` to all `mp4` output commands in `VideoEditorScreen` and `FFmpegBatchDialog` so that Android media players do not apply double-rotation to videos that FFmpeg has already auto-rotated physically.
+  - Added `-metadata:s:v:0 rotate=0` to all pre-conversion steps.
+  - Modified the scaling filter in `FFmpegBatchDialog` to dynamically adapt the aspect ratio `scale=w='if(gte(iw,ih),$targetW,$targetH)':h='if(gte(iw,ih),$targetH,$targetW)'` to prevent portrait videos from getting padded with huge side black bars when exported in standard 720p/1080p landscape presets.
+- Verification: local build only
+- Deviation: None
+- Timestamp: 2026-08-11T00:26:00Z
+- Summary: Fixed crop tool preview in Video Editor using Compose layout modifiers.
+- Files touched:
+  - app/src/main/java/com/example/ui/screens/VideoEditorScreen.kt
+- What was actually done:
+  - Removed `exoPlayer.setVideoEffects` for crop and aspect ratio presentation effects because Media3 effects were conflicting with Compose rotation and failing to preview the cropped view accurately.
+  - Implemented a pure Compose visual crop inside `VideoEditorScreen`. Used a custom `layout` and `graphicsLayer` to dynamically scale and translate the `AndroidView` (ExoPlayer) based on the user's `cropRect` selection, centering the cropped region inside a clipped container bounds without modifying the actual ExoPlayer stream.
+- Verification: local build only
+- Deviation: None

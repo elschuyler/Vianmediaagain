@@ -1,0 +1,29 @@
+- Timestamp: 2026-07-29T13:02:00-07:00
+- Summary: Implemented post-export preview modal.
+- Files touched:
+  - app/src/main/java/com/example/service/FFmpegService.kt
+  - app/src/main/java/com/example/ui/navigation/AppNavigation.kt
+  - app/src/main/java/com/example/ui/screens/VideoEditorScreen.kt
+- What was actually done:
+  - Added `lastOutputUri` to `FFmpegStatus` to track the generated file URI.
+  - Intercepted FFmpeg export completion in `VideoEditorScreen` to show a modal dialog.
+  - Modal shows a portrait 200x300 ExoPlayer of the newly exported file.
+  - Modal includes an "Edit Finished File" button that launches `MainActivity` with action `edit` to recursively edit the result.
+  - Disabled `AppNavigation` auto-finish behavior for `VideoEditorScreen` so the modal can be shown.
+- Verification: compiling.
+
+- Timestamp: 2026-07-30T10:02:26-07:00
+- Request: Implement the fixes for the orientation bug when opening landscape videos in the player.
+- Touched Files: app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+- Action: Updated the ExoPlayer listener to trigger orientation updates not only on `onVideoSizeChanged` but also on `EVENT_MEDIA_ITEM_TRANSITION` and `onPlaybackStateChanged` (when `STATE_READY`).
+- Verification: local build only
+- Deviation: N/A
+- Known Issues: None.
+
+- Timestamp: 2026-07-30T10:09:40-07:00
+- Request: Add ability to tap time text in the video editor cut tool to open a popup for precise time input (millisecond adjustment).
+- Touched Files: app/src/main/java/com/example/ui/screens/VideoEditorScreen.kt
+- Action: Added `showTimeInputDialog` and `timeInputText` states. Rendered an `AlertDialog` when `showTimeInputDialog` is set, allowing precise editing of milliseconds for the start/end bounds of cuts. Updated the bounds clamping logic to ensure `start <= end`. Made the time `Text` labels clickable.
+- Verification: local build only
+- Deviation: Used milliseconds directly instead of a complex time picker to allow maximum precision and simple typing for the user as requested "input number in time".
+- Known Issues: None.

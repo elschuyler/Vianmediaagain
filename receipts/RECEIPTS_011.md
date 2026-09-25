@@ -1,0 +1,10 @@
+- Timestamp: 2026-07-27T04:41
+- Summary: Styled Mini Player to match Library styling and updated buttons to black/onSurface.
+- Files: 
+  - MiniPlayerOverlay.kt
+- Actions:
+  - Header (Top title bar) background changed to `MaterialTheme.colorScheme.surface` to match default Library TopAppBar.
+  - Replaced solid blue buttons with `MaterialTheme.colorScheme.onSurface`.
+  - Added subtle blue boundary lines via `Modifier.border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))` around the mini player and floating button.
+  - Inserted a `HorizontalDivider` with subtle primary tint below the top title bar to separate it from the controls.
+- Verification: Compiled and verified locally.

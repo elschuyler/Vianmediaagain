@@ -1,0 +1,7 @@
+- Timestamp: 2026-07-27T13:02
+- Summary: Fixed wrong item being dragged in playlist reorder.
+- Files: 
+  - PlaylistDetailScreen.kt
+- Actions:
+  - Updated `.pointerInput(Unit)` to `.pointerInput(item.id, index)` on the drag handle icon. This ensures that the gesture detector captures the latest `index` for the current `item.id`, preventing the wrong item from being dragged when the list is recomposed or reordered.
+- Verification: Compiled and verified locally.

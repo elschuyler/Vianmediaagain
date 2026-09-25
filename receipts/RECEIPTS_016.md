@@ -1,0 +1,15 @@
+- Timestamp: 2026-07-27T15:10
+- Summary: Fixed blank home screen widget and styled it to match Mini Player theme.
+- Files: 
+  - widget_media.xml
+  - widget_list_item.xml
+  - PlaybackService.kt
+  - Custom drawable files (`widget_bg.xml`, `ic_widget_*.xml`, etc.)
+- Actions:
+  - The blank widget was caused by `RemoteViews` failing to inflate unsupported XML attributes (like `android:backgroundTint` on `<Button>` and `android:tint` on `<ImageButton>` on many launcher versions), causing it to crash and show a broken state.
+  - Replaced all `<ImageButton>` elements with `<ImageView>` and `<Button>` with `<TextView>`.
+  - Removed all `android:tint` and `android:backgroundTint` tags.
+  - Created a custom rounded `widget_bg.xml` shape (12dp corners, #F5F7FA background, subtle primary border) matching the Mini Player's aesthetic.
+  - Created hardcoded tinted vector drawables (`#19202D`) for all widget playback icons so they render cleanly in `RemoteViews`.
+  - Updated `PlaybackService.kt` to push the new icons to the widget when state updates (including shuffle mode and play/pause).
+- Verification: Compiled and verified locally.

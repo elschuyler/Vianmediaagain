@@ -1,0 +1,10 @@
+- Timestamp: 2026-07-27T05:25
+- Summary: Fixed pinkish tint in Mini Player by making backgrounds opaque and matching Library theme.
+- Files: 
+  - MiniPlayerOverlay.kt
+- Actions:
+  - Removed `.copy(alpha = 0.95f)` from the Mini Player container background. The previous semi-transparency caused underlying content (e.g., video frames) to bleed through, creating a pinkish hue.
+  - Set the Mini Player container background to `MaterialTheme.colorScheme.background` (light grayish-blue) to perfectly match the main Library background, fulfilling the request for "slight blue color of app Library".
+  - Retained the `surface` (white) background for the top bar, matching the Library's `TopAppBar`.
+  - Removed alpha transparency from the bottom-right floating controls (`surfaceVariant`) to ensure absolute opacity and no color bleeding.
+- Verification: Compiled and verified locally.

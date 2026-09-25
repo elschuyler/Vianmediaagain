@@ -1,0 +1,9 @@
+- Timestamp: 2026-07-27T12:40
+- Summary: Auto-cleanup of Temp Current playlist and zoomed Mini Player floating icon.
+- Files: 
+  - PlayerManager.kt
+  - MiniPlayerOverlay.kt
+- Actions:
+  - Added global playback state listeners to `PlayerManager.kt` (`onPlaybackStateChanged` and `onEvents`). When the player reaches `STATE_ENDED`, `STATE_IDLE`, or has its media timeline cleared (`mediaItemCount == 0`), a background coroutine deletes the `Temp Current` playlist from the Room database.
+  - Scaled the foreground image in the `MiniPlayerOverlay` minimized floating button to `1.6f` with `ContentScale.Crop`. This crops out the excess blue background and zooms in on the central play triangle icon, making it much more prominent and readable.
+- Verification: Compiled and verified locally.

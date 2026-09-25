@@ -1,0 +1,11 @@
+- Timestamp: 2026-07-26T09:17
+- Summary: Styled Mini Player and fixed Playlist drag-and-drop animation.
+- Files: 
+  - MiniPlayerOverlay.kt
+  - PlaylistDetailScreen.kt
+- Actions:
+  - Reduced the folded mini-player button size to 48.dp.
+  - Updated MiniPlayer colors to match the blue (0xFF2196F3) and white theme of the Library.
+  - Replaced the default Slider in MiniPlayer with a custom track/thumb exactly like the Main Player.
+  - Added `Modifier.animateItem()` to the list items in `PlaylistDetailScreen` so list reordering is animated visually rather than just swapping text instantly.
+- Verification: Compiled successfully.

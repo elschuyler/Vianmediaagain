@@ -1,0 +1,232 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
+    <application
+        android:allowBackup="true"
+        android:largeHeap="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.MyApplication"
+        android:enableOnBackInvokedCallback="true">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:supportsPictureInPicture="true"
+            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|uiMode|keyboard|keyboardHidden|colorMode|density"
+            android:theme="@style/Theme.MyApplication"
+        android:enableOnBackInvokedCallback="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        
+        <activity
+            android:name=".BatchActionActivity"
+            android:exported="true"
+            android:label="Batch Compress"
+            android:icon="@mipmap/ic_batch_launcher"
+            android:roundIcon="@mipmap/ic_batch_launcher_round"
+            android:theme="@style/Theme.Transparent">
+            <intent-filter
+                android:label="Batch Compress"
+                android:icon="@mipmap/ic_batch_launcher"
+                android:roundIcon="@mipmap/ic_batch_launcher_round">
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="video/*" />
+                <data android:mimeType="audio/*" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+        </activity>
+
+        <activity-alias
+            android:name=".PlayMediaActivity"
+            android:targetActivity=".MainActivity"
+            android:label="Play"
+            android:icon="@mipmap/ic_play_launcher"
+            android:roundIcon="@mipmap/ic_play_launcher_round"
+            android:exported="true">
+            <intent-filter
+                android:label="Play"
+                android:icon="@mipmap/ic_play_launcher"
+                android:roundIcon="@mipmap/ic_play_launcher_round">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="video/*" />
+                <data android:mimeType="audio/*" />
+                <data android:mimeType="image/*" />
+                <data android:scheme="file" />
+                <data android:scheme="content" />
+            </intent-filter>
+            <intent-filter
+                android:label="Play"
+                android:icon="@mipmap/ic_play_launcher"
+                android:roundIcon="@mipmap/ic_play_launcher_round">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="video/*" />
+                <data android:mimeType="audio/*" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".EditMediaActivity"
+            android:targetActivity=".MainActivity"
+            android:label="Edit"
+            android:icon="@mipmap/ic_edit_launcher"
+            android:roundIcon="@mipmap/ic_edit_launcher_round"
+            android:exported="true">
+            <intent-filter
+                android:label="Edit"
+                android:icon="@mipmap/ic_edit_launcher"
+                android:roundIcon="@mipmap/ic_edit_launcher_round">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="video/*" />
+                <data android:mimeType="audio/*" />
+                <data android:mimeType="image/*" />
+                <data android:scheme="file" />
+                <data android:scheme="content" />
+            </intent-filter>
+            <intent-filter
+                android:label="Edit"
+                android:icon="@mipmap/ic_edit_launcher"
+                android:roundIcon="@mipmap/ic_edit_launcher_round">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="video/*" />
+                <data android:mimeType="audio/*" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".PipMediaActivity"
+            android:targetActivity=".MainActivity"
+            android:label="@string/floating_player"
+            android:icon="@mipmap/ic_pip_launcher"
+            android:roundIcon="@mipmap/ic_pip_launcher_round"
+            android:exported="true">
+            <intent-filter
+                android:label="@string/floating_player"
+                android:icon="@mipmap/ic_pip_launcher"
+                android:roundIcon="@mipmap/ic_pip_launcher_round">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="video/*" />
+                <data android:mimeType="audio/*" />
+                <data android:mimeType="image/*" />
+                <data android:scheme="file" />
+                <data android:scheme="content" />
+            </intent-filter>
+            <intent-filter
+                android:label="@string/floating_player"
+                android:icon="@mipmap/ic_pip_launcher"
+                android:roundIcon="@mipmap/ic_pip_launcher_round">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="video/*" />
+                <data android:mimeType="audio/*" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".MiniMediaActivity"
+            android:targetActivity=".MainActivity"
+            android:label="Playlist / Mini Play"
+            android:icon="@mipmap/ic_mini_launcher"
+            android:roundIcon="@mipmap/ic_mini_launcher_round"
+            android:exported="true">
+            <intent-filter
+                android:label="Playlist / Mini Play"
+                android:icon="@mipmap/ic_mini_launcher"
+                android:roundIcon="@mipmap/ic_mini_launcher_round">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="video/*" />
+                <data android:mimeType="audio/*" />
+                <data android:mimeType="image/*" />
+                <data android:scheme="file" />
+                <data android:scheme="content" />
+            </intent-filter>
+            <intent-filter
+                android:label="Playlist / Mini Play"
+                android:icon="@mipmap/ic_mini_launcher"
+                android:roundIcon="@mipmap/ic_mini_launcher_round">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="video/*" />
+                <data android:mimeType="audio/*" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+            <intent-filter
+                android:label="Playlist / Mini Play"
+                android:icon="@mipmap/ic_mini_launcher"
+                android:roundIcon="@mipmap/ic_mini_launcher_round">
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="video/*" />
+                <data android:mimeType="audio/*" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
+        </activity-alias>
+        
+        <service
+            android:name=".service.PlaybackService"
+            android:foregroundServiceType="mediaPlayback"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaSessionService"/>
+            </intent-filter>
+        </service>
+        
+        <service
+            android:name=".service.CompressionService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false" />
+            
+        <service
+            android:name=".service.FFmpegService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false" />
+        
+        <activity
+            android:name=".widget.WidgetSearchActivity"
+            android:theme="@style/Theme.Transparent"
+            android:excludeFromRecents="true"
+            android:exported="false" />
+
+        <receiver android:name=".widget.MediaWidgetProvider" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/media_widget_info" />
+        </receiver>
+        
+        <service android:name=".widget.MediaWidgetService" android:permission="android.permission.BIND_REMOTEVIEWS" android:exported="false" />
+    </application>
+
+</manifest>

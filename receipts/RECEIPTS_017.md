@@ -1,0 +1,9 @@
+- Timestamp: 2026-07-28T12:18
+- Summary: Connected widget to LogKeeper for deep error logging.
+- Files: 
+  - MediaWidgetProvider.kt
+  - MediaWidgetService.kt
+- Actions:
+  - Wrapped `onUpdate`, `updateAppWidget`, and `onReceive` methods in `MediaWidgetProvider` with extensive `LogKeeper.log` and `LogKeeper.logError` calls.
+  - Wrapped `onGetViewFactory`, `onCreate`, `onDataSetChanged`, `getCount`, and `getViewAt` methods in `MediaWidgetService` / `MediaWidgetFactory` with robust state and exception logging.
+- Verification: Compiled and verified locally.

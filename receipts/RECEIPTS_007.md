@@ -1,0 +1,10 @@
+- Timestamp: 2026-07-26T03:25
+- Summary: Implemented Vian Permissions Manager on the Settings page.
+- Files: 
+  - PermissionsManagerScreen.kt (new)
+  - SettingsScreen.kt
+- Actions:
+  - Created `PermissionsManagerScreen` which displays toggles for Media Storage, Notifications, and System Overlay (PiP/Mini Player).
+  - Added folded descriptions explaining which features use these permissions (e.g. Media Player, Background Playback, Mini Player Overlay).
+  - Integrated the new screen as a dialog opened from a new "Vian Permissions Manager" button in `SettingsScreen`.
+- Verification: Syntax checking.

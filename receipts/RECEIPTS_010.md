@@ -1,0 +1,8 @@
+- Timestamp: 2026-07-27T04:29
+- Summary: Fixed visual reshuffling and flickering after a playlist item is dropped.
+- Files: 
+  - PlaylistDetailScreen.kt
+- Actions:
+  - Drag-and-drop: Immediately snap `translationY` to 0 when the drop is committed (`draggedItemIndex == null`). This prevents the displaced items from animating back to their old positions before jumping to their new logical positions.
+  - Database Updates: Replaced the iterative `updatePlaylistItem` loop with a single batch `updatePlaylistItems` transaction. This prevents multiple intermediate list emissions from the database, which were causing partial updates and visual glitching via the `LaunchedEffect` listener.
+- Verification: Compiled and verified locally.
