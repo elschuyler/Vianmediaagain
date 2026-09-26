@@ -785,7 +785,6 @@ fun MainScreen(
                 }
             }
         }
-    }
 
     if (showAddToPlaylistDialog) {
         var createNew = playlists.isEmpty()

@@ -162,7 +162,18 @@
 * Deviation: None.
 * Known issues: None.
 
+---
 
-
-
-
+* Timestamp: 2026-09-26T01:40:00Z
+* Summary: Fixed CI compileDebugKotlin task failure by removing stray closing curly brace at line 788 in MainScreen.kt that orphaned dialog blocks into top-level namespace.
+* Files touched:
+  - app/src/main/java/com/example/ui/screens/MainScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_027.md
+* What was actually done:
+  - Removed single stray closing brace `}` at line 788 in `app/src/main/java/com/example/ui/screens/MainScreen.kt` immediately following the `Scaffold` container closing brace.
+  - Restored all 8 dialogue composables (`showAddToPlaylistDialog`, `showCreatePlaylistDialog`, `playlistToDelete`, `showInfoDialog`, `showDeleteConfirmDialog`, `showRenameDialog`, `showNetworkStreamDialog`, `showSettingsDialog`) within the `MainScreen` function scope.
+  - Verified brace depth balance across all 1,361 lines of `MainScreen.kt` evaluates to strictly 0 at EOF with zero negative transitions.
+* Verification: Static brace balance audited cleanly; applet static check and compilation verified.
+* Deviation: None.
+* Known issues: None.
