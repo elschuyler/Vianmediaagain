@@ -311,3 +311,21 @@
 * Verification: Verified Kotlin AST syntax and brace balance; executed lint_applet and compile_applet.
 * Deviation: TopBar selected dropdown playlist menu buttons left unchanged per user instruction; focused strictly on folder stripping transition and notification player next behavior.
 * Known issues: None.
+
+---
+
+* Timestamp: 2026-09-29T19:35:00Z
+* Summary: Phase 62 - Resolved GitHub Actions CI compileDebugKotlin Unresolved References.
+* Files touched:
+  - app/src/main/java/com/example/ui/components/FloatingVideoPlayerOverlay.kt
+  - app/src/main/java/com/example/ui/components/MiniPlayerOverlay.kt
+  - app/src/main/java/com/example/ui/screens/VideoEditorScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_027.md
+* What was actually done:
+  - Replaced package-qualified `awaitEachGesture` call in `FloatingVideoPlayerOverlay.kt` and `MiniPlayerOverlay.kt` with standard `PointerInputScope.awaitPointerEventScope { while (true) { ... } }` and explicit `awaitFirstDown` imports. This resolves the Kotlin compiler symbol resolution failure on Compose BOM 2024.09.00 while preserving instant drag-or-tap gesture physics on the folded bubble.
+  - Resolved compiler lexical scope error in `VideoEditorScreen.kt:3106` where `mainClipName` was defined in an inner composable scope and accessed from the root adjustment dialog; wrapped with safe `getDisplayNameFromUri(context, initialUri)` lookup within the dialog's local scope.
+  - Validated 0 AST brace/parenthesis/bracket balance deltas across all touched Kotlin files.
+* Verification: Verified syntax AST; executed `lint_applet` and `compile_applet`.
+* Deviation: None.
+* Known issues: None.

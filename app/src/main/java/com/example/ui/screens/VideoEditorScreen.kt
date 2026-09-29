@@ -3103,7 +3103,11 @@ fun VideoEditorScreen(
             val targetUriStr = clipToAdjustUri!!
             val isMainClip = (targetUriStr == "main" || targetUriStr == currentMainUri)
             val clipDisplayName = if (isMainClip) {
-                mainClipName
+                try {
+                    getDisplayNameFromUri(context, initialUri)
+                } catch (e: Exception) {
+                    "Main Video"
+                }
             } else {
                 try {
                     getDisplayNameFromUri(context, Uri.parse(targetUriStr))

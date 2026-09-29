@@ -7,6 +7,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -122,31 +123,33 @@ fun MiniPlayerOverlay(
                 .background(androidx.compose.ui.graphics.Color(0xFF2196F3))
                 .border(1.dp, androidx.compose.ui.graphics.Color.White.copy(alpha = 0.35f), androidx.compose.foundation.shape.CircleShape)
                 .pointerInput(Unit) {
-                    androidx.compose.foundation.gestures.awaitEachGesture {
-                        val down = androidx.compose.foundation.gestures.awaitFirstDown(requireUnconsumed = false)
-                        var isDrag = false
-                        var totalDragX = 0f
-                        var totalDragY = 0f
-                        val touchSlop = viewConfiguration.touchSlop
+                    awaitPointerEventScope {
                         while (true) {
-                            val event = awaitPointerEvent()
-                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                            if (!change.pressed) {
-                                if (!isDrag) {
-                                    onMinimizeChange(false)
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            var isDrag = false
+                            var totalDragX = 0f
+                            var totalDragY = 0f
+                            val touchSlop = viewConfiguration.touchSlop
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                if (!change.pressed) {
+                                    if (!isDrag) {
+                                        onMinimizeChange(false)
+                                    }
+                                    break
                                 }
-                                break
-                            }
-                            val dragAmount = change.position - change.previousPosition
-                            totalDragX += dragAmount.x
-                            totalDragY += dragAmount.y
-                            val dist = kotlin.math.hypot(totalDragX, totalDragY)
-                            if (!isDrag && dist > touchSlop) {
-                                isDrag = true
-                            }
-                            if (isDrag) {
-                                change.consume()
-                                onDrag(dragAmount.x, dragAmount.y)
+                                val dragAmount = change.position - change.previousPosition
+                                totalDragX += dragAmount.x
+                                totalDragY += dragAmount.y
+                                val dist = kotlin.math.hypot(totalDragX, totalDragY)
+                                if (!isDrag && dist > touchSlop) {
+                                    isDrag = true
+                                }
+                                if (isDrag) {
+                                    change.consume()
+                                    onDrag(dragAmount.x, dragAmount.y)
+                                }
                             }
                         }
                     }
