@@ -35,12 +35,38 @@ data class PlayerSnapshot(
     val playbackSpeed: Float = 1.0f
 )
 
+data class FloatingPlayerSessionState(
+    var windowX: Int? = null,
+    var windowY: Int? = null,
+    var windowWidth: Int? = null,
+    var windowHeight: Int? = null,
+    var audioWindowWidth: Int? = null,
+    var audioWindowHeight: Int? = null,
+    var bubbleX: Int? = null,
+    var bubbleY: Int? = null,
+    var isMinimized: Boolean = false
+) {
+    fun reset() {
+        windowX = null
+        windowY = null
+        windowWidth = null
+        windowHeight = null
+        audioWindowWidth = null
+        audioWindowHeight = null
+        bubbleX = null
+        bubbleY = null
+        isMinimized = false
+    }
+}
+
 object PlayerManager {
     var exoPlayer: ExoPlayer? = null
     var loudnessEnhancer: LoudnessEnhancer? = null
     var equalizer: Equalizer? = null
     var dynamicsProcessing: DynamicsProcessing? = null
     val centerChannelProcessor = CenterChannelAudioProcessor()
+    val floatingSession = FloatingPlayerSessionState()
+    var isImplicitFolderQueue: Boolean = false
 
     private val _playbackState = MutableStateFlow(PlayerSnapshot())
     val playbackState: StateFlow<PlayerSnapshot> = _playbackState.asStateFlow()
@@ -488,5 +514,59 @@ object PlayerManager {
             } catch (e: Exception) {}
         }
         dynamicsProcessing = null
+        isImplicitFolderQueue = false
+    }
+
+    fun appendOrTransitionQueue(context: Context, newMediaItems: List<MediaItem>) {
+        if (newMediaItems.isEmpty()) return
+        val executeBlock = {
+            val player = exoPlayer
+            if (player != null) {
+                if (player.mediaItemCount == 0) {
+                    player.setMediaItems(newMediaItems)
+                    player.prepare()
+                    player.play()
+                    isImplicitFolderQueue = false
+                } else {
+                    if (isImplicitFolderQueue) {
+                        val currentIdx = player.currentMediaItemIndex
+                        val totalCount = player.mediaItemCount
+                        if (currentIdx + 1 < totalCount) {
+                            player.removeMediaItems(currentIdx + 1, totalCount)
+                        }
+                        player.addMediaItems(newMediaItems)
+                        if (currentIdx > 0) {
+                            player.removeMediaItems(0, currentIdx)
+                        }
+                        isImplicitFolderQueue = false
+                        com.example.LogKeeper.log("PlayerManager: Transitioned implicit folder queue to explicit user playlist (current item + ${newMediaItems.size} added)", "PlayerManager")
+                    } else {
+                        player.addMediaItems(newMediaItems)
+                        com.example.LogKeeper.log("PlayerManager: Appended ${newMediaItems.size} items to existing queue", "PlayerManager")
+                    }
+                }
+                updateSnapshot()
+
+                val allUris = mutableListOf<String>()
+                for (i in 0 until player.mediaItemCount) {
+                    allUris.add(player.getMediaItemAt(i).mediaId)
+                }
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                    try {
+                        val db = com.example.data.AppDatabase.getDatabase(context.applicationContext)
+                        val playlistRepo = com.example.data.PlaylistRepository(db.playlistDao())
+                        playlistRepo.saveOrUpdateTemporaryPlaylist(allUris)
+                    } catch (e: Exception) {
+                        com.example.LogKeeper.logError("PlayerManager", "Failed to sync temporary playlist", e)
+                    }
+                }
+            }
+        }
+
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+            executeBlock()
+        } else {
+            android.os.Handler(android.os.Looper.getMainLooper()).post(executeBlock)
+        }
     }
 }

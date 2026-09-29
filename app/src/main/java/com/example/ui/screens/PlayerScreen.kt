@@ -248,6 +248,11 @@ fun PlayerScreen(
         }
     }
 
+    // Dismiss any remote mini/floating overlay to enforce main player exclusivity
+    LaunchedEffect(Unit) {
+        com.example.service.PlaybackService.hideOverlay(context)
+    }
+
     var activeGesture by remember { mutableStateOf(GestureType.NONE) }
     var gestureText by remember { mutableStateOf("") }
     var gestureVolumeRatio by remember { mutableFloatStateOf(0f) }
@@ -556,6 +561,7 @@ fun PlayerScreen(
                             if (isPlaying) {
                                 controller.play()
                             }
+                            com.example.service.PlayerManager.isImplicitFolderQueue = true
                         }
                     }
                     

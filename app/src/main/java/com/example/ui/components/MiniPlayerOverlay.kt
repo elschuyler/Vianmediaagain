@@ -117,26 +117,47 @@ fun MiniPlayerOverlay(
     if (isMinimizedExternal) {
         Box(
             modifier = Modifier
-                .size(36.dp)
+                .size(40.dp)
                 .clip(androidx.compose.foundation.shape.CircleShape)
                 .background(androidx.compose.ui.graphics.Color(0xFF2196F3))
-                .border(1.dp, androidx.compose.ui.graphics.Color.White.copy(alpha = 0.25f), androidx.compose.foundation.shape.CircleShape)
+                .border(1.dp, androidx.compose.ui.graphics.Color.White.copy(alpha = 0.35f), androidx.compose.foundation.shape.CircleShape)
                 .pointerInput(Unit) {
-                    detectDragGesturesAfterLongPress(
-                        onDrag = { change: androidx.compose.ui.input.pointer.PointerInputChange, dragAmount: androidx.compose.ui.geometry.Offset ->
-                            change.consume()
-                            onDrag(dragAmount.x, dragAmount.y)
+                    androidx.compose.foundation.gestures.awaitEachGesture {
+                        val down = androidx.compose.foundation.gestures.awaitFirstDown(requireUnconsumed = false)
+                        var isDrag = false
+                        var totalDragX = 0f
+                        var totalDragY = 0f
+                        val touchSlop = viewConfiguration.touchSlop
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                            if (!change.pressed) {
+                                if (!isDrag) {
+                                    onMinimizeChange(false)
+                                }
+                                break
+                            }
+                            val dragAmount = change.position - change.previousPosition
+                            totalDragX += dragAmount.x
+                            totalDragY += dragAmount.y
+                            val dist = kotlin.math.hypot(totalDragX, totalDragY)
+                            if (!isDrag && dist > touchSlop) {
+                                isDrag = true
+                            }
+                            if (isDrag) {
+                                change.consume()
+                                onDrag(dragAmount.x, dragAmount.y)
+                            }
                         }
-                    )
-                }
-                .clickable { onMinimizeChange(false) },
+                    }
+                },
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_launcher_foreground),
                 contentDescription = "Expand Mini Player",
                 tint = androidx.compose.ui.graphics.Color.Unspecified,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(0.9f)
             )
         }
         return

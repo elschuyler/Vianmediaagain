@@ -175,7 +175,7 @@ class MainActivity : ComponentActivity() {
 
           if (player != null) {
               if (hasActivePlayback) {
-                  player.addMediaItems(mediaItems)
+                  com.example.service.PlayerManager.appendOrTransitionQueue(this, mediaItems)
                   android.widget.Toast.makeText(this, "Added ${mediaItems.size} item(s) to queue", android.widget.Toast.LENGTH_SHORT).show()
               } else {
                   player.setMediaItems(mediaItems)
@@ -305,6 +305,9 @@ class MainActivity : ComponentActivity() {
       if (handleFloatingOrMiniIntent(intent)) {
           return
       }
+      if (intent.action == "com.example.ACTION_OPEN_PLAYER") {
+          com.example.service.PlaybackService.hideOverlay(this)
+      }
       _currentIntent.value = intent
   }
 
@@ -315,6 +318,9 @@ class MainActivity : ComponentActivity() {
         persistUriPermissions(intent)
         if (handleFloatingOrMiniIntent(intent)) {
             return
+        }
+        if (intent?.action == "com.example.ACTION_OPEN_PLAYER") {
+            com.example.service.PlaybackService.hideOverlay(this)
         }
     } catch (e: Exception) {
         LogKeeper.logError("MainActivity", "Error handling startup intent", e)
@@ -394,6 +400,7 @@ class MainActivity : ComponentActivity() {
             Box(modifier = Modifier.fillMaxSize()) {
               var initialUris: List<String> = emptyList()
               if (currentIntent?.action == "com.example.ACTION_OPEN_PLAYER") {
+                  com.example.service.PlaybackService.hideOverlay(applicationContext)
                   val intentUri = currentIntent?.getStringExtra("uri")
                   val currentMediaId = intentUri
                       ?: com.example.service.PlayerManager.exoPlayer?.currentMediaItem?.mediaId

@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -12,6 +13,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.*
@@ -160,7 +162,11 @@ data class VideoEditState(
     val hasCaptions: Boolean = false,
     val captionText: String = "Sample Text",
     val joinVideoUri: String? = null,
-    val joinAtEnd: Boolean = true
+    val joinVideoUris: List<String> = emptyList(),
+    val joinAtEnd: Boolean = true,
+    val joinFitMode: String = "Fit",
+    val joinClipFitModes: Map<String, String> = emptyMap(),
+    val joinAspectPreset: String = "Match Main"
 )
 
 enum class VideoEditorTool {
@@ -171,10 +177,26 @@ enum class VideoEditorTool {
 @Composable
 fun VideoEditorScreen(
     uriString: String,
+    initialJoinUris: List<String> = emptyList(),
     onNavigateBack: () -> Unit
 ) {
-    var editState by remember { mutableStateOf(VideoEditState()) }
-    var currentTool by remember { mutableStateOf(VideoEditorTool.NONE) }
+    val initialCleanJoins = remember(initialJoinUris, uriString) {
+        initialJoinUris.filter { it.isNotBlank() && it != uriString }
+    }
+    var editState by remember {
+        mutableStateOf(
+            VideoEditState(
+                joinVideoUri = initialCleanJoins.firstOrNull(),
+                joinVideoUris = initialCleanJoins,
+                joinAtEnd = true
+            )
+        )
+    }
+    var currentTool by remember {
+        mutableStateOf(
+            if (initialCleanJoins.isNotEmpty()) VideoEditorTool.JOIN else VideoEditorTool.NONE
+        )
+    }
     var backupEditState by remember { mutableStateOf<VideoEditState?>(null) }
     var showTimeInputDialog by remember { mutableStateOf<String?>(null) }
     var timeInputText by remember { mutableStateOf("") }
@@ -183,22 +205,32 @@ fun VideoEditorScreen(
     var currentPositionMs by remember { mutableLongStateOf(0L) }
     var joinDurationMs by remember { mutableLongStateOf(0L) }
     var isPlaying by remember { mutableStateOf(false) }
+    var clipToAdjustUri by remember { mutableStateOf<String?>(null) }
+    var showReorderDialog by remember { mutableStateOf(false) }
     
     val context = LocalContext.current
     val joinVideoPickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
-        contract = androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
-        onResult = { uri ->
-            if (uri != null) {
-                // Persist permission
-                try {
-                    context.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                } catch (e: Exception) {}
-                editState = editState.copy(joinVideoUri = uri.toString())
+        contract = androidx.activity.result.contract.ActivityResultContracts.OpenMultipleDocuments(),
+        onResult = { uris ->
+            if (uris.isNotEmpty()) {
+                uris.forEach { uri ->
+                    try {
+                        context.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    } catch (e: Exception) {}
+                }
+                val newUris = uris.map { it.toString() }
+                val currentList = if (editState.joinVideoUris.isNotEmpty()) editState.joinVideoUris else listOfNotNull(editState.joinVideoUri)
+                val combined = (currentList + newUris).distinct()
+                editState = editState.copy(
+                    joinVideoUris = combined,
+                    joinVideoUri = combined.firstOrNull()
+                )
             }
         }
     )
-    val initialUri = Uri.parse(uriString)
-    val mimeType = remember { context.contentResolver.getType(initialUri) }
+    var currentMainUri by remember(uriString) { mutableStateOf(uriString) }
+    val initialUri = remember(currentMainUri) { Uri.parse(currentMainUri) }
+    val mimeType = remember(currentMainUri) { context.contentResolver.getType(initialUri) }
 
     var convertedUri by remember { mutableStateOf<String?>(null) }
     var isConverting by remember { mutableStateOf(false) }
@@ -216,7 +248,7 @@ fun VideoEditorScreen(
         }
     }
 
-    val effectiveUri = convertedUri ?: uriString
+    val effectiveUri = convertedUri ?: currentMainUri
     val effectiveMimeType = if (convertedUri != null) "video/mp4" else mimeType
 
     // Zero-Memory: Track session temporary files and delete them on screen exit
@@ -236,17 +268,24 @@ fun VideoEditorScreen(
         }
     }
 
-    LaunchedEffect(editState.joinVideoUri) {
-        if (editState.joinVideoUri != null) {
-            try {
-                val retriever = android.media.MediaMetadataRetriever()
-                retriever.setDataSource(context, android.net.Uri.parse(editState.joinVideoUri))
-                val timeString = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
-                if (timeString != null) {
-                    joinDurationMs = timeString.toLong()
+    LaunchedEffect(editState.joinVideoUris, editState.joinVideoUri) {
+        val urisToMeasure = if (editState.joinVideoUris.isNotEmpty()) editState.joinVideoUris else listOfNotNull(editState.joinVideoUri)
+        if (urisToMeasure.isNotEmpty()) {
+            withContext(Dispatchers.IO) {
+                var totalJoinMs = 0L
+                for (uStr in urisToMeasure) {
+                    try {
+                        val retriever = android.media.MediaMetadataRetriever()
+                        retriever.setDataSource(context, android.net.Uri.parse(uStr))
+                        val timeString = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
+                        if (timeString != null) {
+                            totalJoinMs += timeString.toLong()
+                        }
+                        retriever.release()
+                    } catch (e: Exception) {}
                 }
-                retriever.release()
-            } catch (e: Exception) {}
+                joinDurationMs = totalJoinMs
+            }
         } else {
             joinDurationMs = 0L
         }
@@ -478,20 +517,21 @@ fun VideoEditorScreen(
         } catch (e: Exception) {}
     }
 
-    val exoPlayer = remember(effectiveUri, editState.joinVideoUri, editState.joinAtEnd) {
+    val exoPlayer = remember(effectiveUri, editState.joinVideoUris, editState.joinVideoUri, editState.joinAtEnd) {
         val uriToUse = if (mimeType == "image/gif" || mimeType == "image/webp") convertedUri else effectiveUri?.toString()
         if (uriToUse == null) null
         else androidx.media3.exoplayer.ExoPlayer.Builder(context).build().apply {
             val items = mutableListOf<androidx.media3.common.MediaItem>()
             val mainItem = androidx.media3.common.MediaItem.fromUri(android.net.Uri.parse(uriToUse))
-            val joinItem = editState.joinVideoUri?.let { androidx.media3.common.MediaItem.fromUri(android.net.Uri.parse(it)) }
+            val joins = if (editState.joinVideoUris.isNotEmpty()) editState.joinVideoUris else listOfNotNull(editState.joinVideoUri)
+            val joinItems = joins.map { androidx.media3.common.MediaItem.fromUri(android.net.Uri.parse(it)) }
             
-            if (joinItem != null && !editState.joinAtEnd) {
-                items.add(joinItem)
+            if (joinItems.isNotEmpty() && !editState.joinAtEnd) {
+                items.addAll(joinItems)
             }
             items.add(mainItem)
-            if (joinItem != null && editState.joinAtEnd) {
-                items.add(joinItem)
+            if (joinItems.isNotEmpty() && editState.joinAtEnd) {
+                items.addAll(joinItems)
             }
             
             setMediaItems(items)
@@ -627,7 +667,18 @@ fun VideoEditorScreen(
                     else videoWidth.toFloat() / videoHeight.toFloat()
                 } else 16f/9f
                 val ratio = baseRatio
+                val isJoinActive = editState.joinVideoUris.isNotEmpty() || editState.joinVideoUri != null || currentTool == VideoEditorTool.JOIN
                 val effectiveRatio = when {
+                    isJoinActive && editState.joinAspectPreset != "Match Main" -> {
+                        when (editState.joinAspectPreset) {
+                            "16:9" -> 16f / 9f
+                            "9:16" -> 9f / 16f
+                            "1:1" -> 1f
+                            "4:3" -> 4f / 3f
+                            "21:9" -> 21f / 9f
+                            else -> ratio
+                        }
+                    }
                     editState.aspectRatio != "Original" -> {
                         when (editState.aspectRatio) {
                             "16:9" -> 16f / 9f
@@ -775,7 +826,16 @@ fun VideoEditorScreen(
                                 view.apply {
                                     player = exoPlayer
                                     useController = false
-                                    resizeMode = if (editState.aspectRatio != "Original") androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL else androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                                    val activeJoinFit = if (isJoinActive) {
+                                        editState.joinClipFitModes["main"] ?: editState.joinFitMode
+                                    } else "Fit"
+                                    val calcResizeMode = when {
+                                        isJoinActive && activeJoinFit == "Fill" -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                                        isJoinActive && activeJoinFit == "Stretch" -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL
+                                        editState.aspectRatio != "Original" -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL
+                                        else -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                                    }
+                                    resizeMode = calcResizeMode
                                 }
                             },
                             update = { view ->
@@ -783,7 +843,16 @@ fun VideoEditorScreen(
                                     view.player = exoPlayer
                                 }
                                 view.useController = false
-                                view.resizeMode = if (editState.aspectRatio != "Original") androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL else androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                                val activeJoinFit = if (isJoinActive) {
+                                    editState.joinClipFitModes["main"] ?: editState.joinFitMode
+                                } else "Fit"
+                                val calcResizeMode = when {
+                                    isJoinActive && activeJoinFit == "Fill" -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                                    isJoinActive && activeJoinFit == "Stretch" -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL
+                                    editState.aspectRatio != "Original" -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL
+                                    else -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                                }
+                                view.resizeMode = calcResizeMode
                             },
                             modifier = Modifier.fillMaxSize()
                         )
@@ -982,8 +1051,9 @@ fun VideoEditorScreen(
 
                 val currentEditState by rememberUpdatedState(editState)
                 val currentToolState by rememberUpdatedState(currentTool)
-                val mainVideoIndex = if (currentEditState.joinVideoUri != null && !currentEditState.joinAtEnd) 1 else 0
-                val totalItems = if (currentEditState.joinVideoUri != null) 2 else 1
+                val activeJoinList = if (currentEditState.joinVideoUris.isNotEmpty()) currentEditState.joinVideoUris else listOfNotNull(currentEditState.joinVideoUri)
+                val mainVideoIndex = if (activeJoinList.isNotEmpty() && !currentEditState.joinAtEnd) activeJoinList.size else 0
+                val totalItems = 1 + activeJoinList.size
                 LaunchedEffect(exoPlayer) {
                     while (true) {
                         if (!isDragging) {
@@ -1102,7 +1172,8 @@ fun VideoEditorScreen(
                     }
                 }
                 
-                if (editState.joinVideoUri != null) {
+                val activeJoins = if (editState.joinVideoUris.isNotEmpty()) editState.joinVideoUris else listOfNotNull(editState.joinVideoUri)
+                if (activeJoins.isNotEmpty()) {
                     val mainDur = virtualDurationMs
                     virtualDurationMs += joinDurationMs
                     
@@ -1124,10 +1195,10 @@ fun VideoEditorScreen(
                         isDragging = true
                         val newVirtualPos = (value * virtualDurationMs).toLong()
                         
-                        val mainVideoIndexState = if (editState.joinVideoUri != null && !editState.joinAtEnd) 1 else 0
-                        val mainDur = if (editState.joinVideoUri != null) virtualDurationMs - joinDurationMs else virtualDurationMs
+                        val mainVideoIndexState = if (activeJoins.isNotEmpty() && !editState.joinAtEnd) activeJoins.size else 0
+                        val mainDur = if (activeJoins.isNotEmpty()) virtualDurationMs - joinDurationMs else virtualDurationMs
                         
-                        val isJoinPlay = if (editState.joinVideoUri != null) {
+                        val isJoinPlay = if (activeJoins.isNotEmpty()) {
                             if (editState.joinAtEnd) newVirtualPos > mainDur else newVirtualPos < joinDurationMs
                         } else false
                         
@@ -1138,7 +1209,7 @@ fun VideoEditorScreen(
                             currentIndex = targetIndex
                             exoPlayer?.seekTo(targetIndex, targetPos)
                         } else {
-                            val mainVirtualPos = if (editState.joinVideoUri != null && !editState.joinAtEnd) newVirtualPos - joinDurationMs else newVirtualPos
+                            val mainVirtualPos = if (activeJoins.isNotEmpty() && !editState.joinAtEnd) newVirtualPos - joinDurationMs else newVirtualPos
                             var newRealPos = mainVirtualPos
                             
                             if (true) {
@@ -1295,7 +1366,8 @@ fun VideoEditorScreen(
                                             value = ds1..de1,
                                             onValueChange = { range ->
                                                 editState = editState.copy(doubleTrimStart1Ms = range.start.toLong(), doubleTrimEnd1Ms = range.endInclusive.toLong())
-                                                exoPlayer?.seekTo(if (editState.joinVideoUri != null && !editState.joinAtEnd) 1 else 0, if (Math.abs(range.start - ds1) > 100) range.start.toLong() else range.endInclusive.toLong())
+                                                val seekMainIdx = if (!editState.joinAtEnd) (if (editState.joinVideoUris.isNotEmpty()) editState.joinVideoUris.size else if (editState.joinVideoUri != null) 1 else 0) else 0
+                                                exoPlayer?.seekTo(seekMainIdx, if (Math.abs(range.start - ds1) > 100) range.start.toLong() else range.endInclusive.toLong())
                                             },
                                             valueRange = 0f..durationMs.toFloat().coerceAtLeast(1f),
                                             modifier = Modifier.fillMaxWidth(),
@@ -1312,7 +1384,8 @@ fun VideoEditorScreen(
                                             value = ds2..de2,
                                             onValueChange = { range ->
                                                 editState = editState.copy(doubleTrimStart2Ms = range.start.toLong(), doubleTrimEnd2Ms = range.endInclusive.toLong())
-                                                exoPlayer?.seekTo(if (editState.joinVideoUri != null && !editState.joinAtEnd) 1 else 0, if (Math.abs(range.start - ds2) > 100) range.start.toLong() else range.endInclusive.toLong())
+                                                val seekMainIdx = if (!editState.joinAtEnd) (if (editState.joinVideoUris.isNotEmpty()) editState.joinVideoUris.size else if (editState.joinVideoUri != null) 1 else 0) else 0
+                                                exoPlayer?.seekTo(seekMainIdx, if (Math.abs(range.start - ds2) > 100) range.start.toLong() else range.endInclusive.toLong())
                                             },
                                             valueRange = 0f..durationMs.toFloat().coerceAtLeast(1f),
                                             modifier = Modifier.fillMaxWidth(),
@@ -1337,10 +1410,11 @@ fun VideoEditorScreen(
                                                     trimStartMs = range.start.toLong(),
                                                     trimEndMs = range.endInclusive.toLong()
                                                 )
+                                                val seekMainIdx = if (!editState.joinAtEnd) (if (editState.joinVideoUris.isNotEmpty()) editState.joinVideoUris.size else if (editState.joinVideoUri != null) 1 else 0) else 0
                                                 if (Math.abs(range.start.toLong() - oldStart) > 100) {
-                                                    exoPlayer?.seekTo(if (editState.joinVideoUri != null && !editState.joinAtEnd) 1 else 0, range.start.toLong())
+                                                    exoPlayer?.seekTo(seekMainIdx, range.start.toLong())
                                                 } else {
-                                                    exoPlayer?.seekTo(if (editState.joinVideoUri != null && !editState.joinAtEnd) 1 else 0, range.endInclusive.toLong())
+                                                    exoPlayer?.seekTo(seekMainIdx, range.endInclusive.toLong())
                                                 }
                                             },
                                             valueRange = 0f..durationMs.toFloat().coerceAtLeast(1f),
@@ -1997,26 +2071,363 @@ fun VideoEditorScreen(
                                 }
                             }
                             VideoEditorTool.JOIN -> {
+                                val activeJoins = if (editState.joinVideoUris.isNotEmpty()) editState.joinVideoUris else listOfNotNull(editState.joinVideoUri)
+                                val mainClipName = remember(currentMainUri) { getDisplayNameFromUri(context, initialUri) }
                                 Column(modifier = Modifier.fillMaxWidth()) {
-                                    Text("Join Videos", style = MaterialTheme.typography.titleSmall)
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                        androidx.compose.material3.Button(onClick = { joinVideoPickerLauncher.launch(arrayOf("video/*")) }) {
-                                            Text(if (editState.joinVideoUri != null) "Change Video" else "Select Video")
-                                        }
-                                        if (editState.joinVideoUri != null) {
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Text("Video selected", style = MaterialTheme.typography.bodySmall)
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "Join Sequence (${1 + activeJoins.size} Clips)",
+                                            style = MaterialTheme.typography.titleSmall
+                                        )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            if (activeJoins.isNotEmpty()) {
+                                                TextButton(
+                                                    onClick = { showReorderDialog = true },
+                                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                                ) {
+                                                    Icon(Icons.Filled.SwapHoriz, contentDescription = null, modifier = Modifier.size(14.dp))
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text("Reorder", style = MaterialTheme.typography.labelSmall)
+                                                }
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                TextButton(
+                                                    onClick = {
+                                                        editState = editState.copy(joinVideoUri = null, joinVideoUris = emptyList(), joinClipFitModes = emptyMap())
+                                                    },
+                                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                                ) {
+                                                    Text("Clear All", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                                                }
+                                            }
                                         }
                                     }
-                                    if (editState.joinVideoUri != null) {
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            androidx.compose.material3.RadioButton(selected = !editState.joinAtEnd, onClick = { editState = editState.copy(joinAtEnd = false) })
-                                            Text("Add to Beginning")
-                                            Spacer(modifier = Modifier.width(16.dp))
-                                            androidx.compose.material3.RadioButton(selected = editState.joinAtEnd, onClick = { editState = editState.copy(joinAtEnd = true) })
-                                            Text("Add to End")
+
+                                    Spacer(modifier = Modifier.height(4.dp))
+
+                                    // Position order toggle
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.clickable { editState = editState.copy(joinAtEnd = true) }
+                                        ) {
+                                            androidx.compose.material3.RadioButton(
+                                                selected = editState.joinAtEnd,
+                                                onClick = { editState = editState.copy(joinAtEnd = true) }
+                                            )
+                                            Text("Joined at End", style = MaterialTheme.typography.bodySmall)
+                                        }
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.clickable { editState = editState.copy(joinAtEnd = false) }
+                                        ) {
+                                            androidx.compose.material3.RadioButton(
+                                                selected = !editState.joinAtEnd,
+                                                onClick = { editState = editState.copy(joinAtEnd = false) }
+                                            )
+                                            Text("Joined at Start", style = MaterialTheme.typography.bodySmall)
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    // Horizontally scrollable Join Row
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .horizontalScroll(rememberScrollState())
+                                            .padding(vertical = 4.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        val renderMainCard = @Composable {
+                                            val mainFitMode = editState.joinClipFitModes["main"] ?: editState.joinFitMode
+                                            Card(
+                                                shape = RoundedCornerShape(8.dp),
+                                                colors = CardDefaults.cardColors(
+                                                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                                                ),
+                                                modifier = Modifier
+                                                    .width(140.dp)
+                                                    .pointerInput(Unit) {
+                                                        detectTapGestures(
+                                                            onLongPress = {
+                                                                clipToAdjustUri = "main"
+                                                            }
+                                                        )
+                                                    }
+                                            ) {
+                                                Column(modifier = Modifier.padding(8.dp)) {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                                        modifier = Modifier.fillMaxWidth()
+                                                    ) {
+                                                        Surface(
+                                                            shape = RoundedCornerShape(4.dp),
+                                                            color = MaterialTheme.colorScheme.primary
+                                                        ) {
+                                                            Text(
+                                                                text = "Main Video",
+                                                                style = MaterialTheme.typography.labelSmall,
+                                                                color = MaterialTheme.colorScheme.onPrimary,
+                                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                                            )
+                                                        }
+                                                        IconButton(
+                                                            onClick = { clipToAdjustUri = "main" },
+                                                            modifier = Modifier.size(20.dp)
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = Icons.Filled.Tune,
+                                                                contentDescription = "Adjust Aspect & Fit",
+                                                                modifier = Modifier.size(14.dp),
+                                                                tint = MaterialTheme.colorScheme.primary
+                                                            )
+                                                        }
+                                                    }
+                                                    Spacer(modifier = Modifier.height(6.dp))
+                                                    Text(
+                                                        text = mainClipName,
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        maxLines = 1,
+                                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                                    )
+                                                    Spacer(modifier = Modifier.height(2.dp))
+                                                    Text(
+                                                        text = formatMsScaled(durationMs, editState.speed),
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                    Spacer(modifier = Modifier.height(4.dp))
+                                                    Surface(
+                                                        shape = RoundedCornerShape(4.dp),
+                                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                                    ) {
+                                                        Text(
+                                                            text = if (mainFitMode == "Fill") "Fill (No Box)" else if (mainFitMode == "Fit") "Fit (Dark Box)" else mainFitMode,
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            color = MaterialTheme.colorScheme.primary,
+                                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        val renderJoinCard = @Composable { index: Int, uriStr: String ->
+                                            val clipName = remember(uriStr) {
+                                                try {
+                                                    getDisplayNameFromUri(context, android.net.Uri.parse(uriStr))
+                                                } catch (e: Exception) {
+                                                    "Clip ${index + 1}"
+                                                }
+                                            }
+                                            val clipFitMode = editState.joinClipFitModes[uriStr] ?: editState.joinFitMode
+                                            Card(
+                                                shape = RoundedCornerShape(8.dp),
+                                                colors = CardDefaults.cardColors(
+                                                    containerColor = MaterialTheme.colorScheme.surface
+                                                ),
+                                                modifier = Modifier
+                                                    .width(148.dp)
+                                                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
+                                                    .pointerInput(uriStr) {
+                                                        detectTapGestures(
+                                                            onLongPress = {
+                                                                clipToAdjustUri = uriStr
+                                                            }
+                                                        )
+                                                    }
+                                            ) {
+                                                Column(modifier = Modifier.padding(8.dp)) {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                                        modifier = Modifier.fillMaxWidth()
+                                                    ) {
+                                                        Surface(
+                                                            shape = RoundedCornerShape(4.dp),
+                                                            color = MaterialTheme.colorScheme.secondaryContainer
+                                                        ) {
+                                                            Text(
+                                                                text = "Join #${index + 1}",
+                                                                style = MaterialTheme.typography.labelSmall,
+                                                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                                            )
+                                                        }
+                                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                                            if (index > 0) {
+                                                                IconButton(
+                                                                    onClick = {
+                                                                        val currentList = if (editState.joinVideoUris.isNotEmpty()) editState.joinVideoUris else listOfNotNull(editState.joinVideoUri)
+                                                                        val updated = currentList.toMutableList()
+                                                                        val temp = updated[index]
+                                                                        updated[index] = updated[index - 1]
+                                                                        updated[index - 1] = temp
+                                                                        editState = editState.copy(
+                                                                            joinVideoUris = updated,
+                                                                            joinVideoUri = updated.firstOrNull()
+                                                                        )
+                                                                    },
+                                                                    modifier = Modifier.size(20.dp)
+                                                                ) {
+                                                                    Icon(
+                                                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                                                        contentDescription = "Move Earlier",
+                                                                        modifier = Modifier.size(13.dp)
+                                                                    )
+                                                                }
+                                                            }
+                                                            if (index < activeJoins.size - 1) {
+                                                                IconButton(
+                                                                    onClick = {
+                                                                        val currentList = if (editState.joinVideoUris.isNotEmpty()) editState.joinVideoUris else listOfNotNull(editState.joinVideoUri)
+                                                                        val updated = currentList.toMutableList()
+                                                                        val temp = updated[index]
+                                                                        updated[index] = updated[index + 1]
+                                                                        updated[index + 1] = temp
+                                                                        editState = editState.copy(
+                                                                            joinVideoUris = updated,
+                                                                            joinVideoUri = updated.firstOrNull()
+                                                                        )
+                                                                    },
+                                                                    modifier = Modifier.size(20.dp)
+                                                                ) {
+                                                                    Icon(
+                                                                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                                                        contentDescription = "Move Later",
+                                                                        modifier = Modifier.size(13.dp)
+                                                                    )
+                                                                }
+                                                            }
+                                                            IconButton(
+                                                                onClick = {
+                                                                    val currentList = if (editState.joinVideoUris.isNotEmpty()) editState.joinVideoUris else listOfNotNull(editState.joinVideoUri)
+                                                                    val updated = currentList.filterIndexed { i, _ -> i != index }
+                                                                    editState = editState.copy(
+                                                                        joinVideoUris = updated,
+                                                                        joinVideoUri = updated.firstOrNull()
+                                                                    )
+                                                                },
+                                                                modifier = Modifier.size(20.dp)
+                                                            ) {
+                                                                Icon(
+                                                                    imageVector = Icons.Filled.Close,
+                                                                    contentDescription = "Remove Clip",
+                                                                    modifier = Modifier.size(14.dp)
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                    Spacer(modifier = Modifier.height(6.dp))
+                                                    Text(
+                                                        text = clipName,
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        maxLines = 1,
+                                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                                    )
+                                                    Spacer(modifier = Modifier.height(2.dp))
+                                                    Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Surface(
+                                                            shape = RoundedCornerShape(4.dp),
+                                                            color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f)
+                                                        ) {
+                                                            Text(
+                                                                text = if (clipFitMode == "Fill") "Fill (No Box)" else if (clipFitMode == "Fit") "Fit (Dark Box)" else clipFitMode,
+                                                                style = MaterialTheme.typography.labelSmall,
+                                                                color = MaterialTheme.colorScheme.secondary,
+                                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                            )
+                                                        }
+                                                        IconButton(
+                                                            onClick = { clipToAdjustUri = uriStr },
+                                                            modifier = Modifier.size(20.dp)
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = Icons.Filled.Tune,
+                                                                contentDescription = "Adjust Frame & Order",
+                                                                modifier = Modifier.size(14.dp),
+                                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        if (!editState.joinAtEnd) {
+                                            activeJoins.forEachIndexed { index, uriStr ->
+                                                renderJoinCard(index, uriStr)
+                                                Icon(
+                                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(16.dp),
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                            renderMainCard()
+                                        } else {
+                                            renderMainCard()
+                                            activeJoins.forEachIndexed { index, uriStr ->
+                                                Icon(
+                                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(16.dp),
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                                renderJoinCard(index, uriStr)
+                                            }
+                                        }
+
+                                        Icon(
+                                            imageVector = Icons.Filled.Add,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp),
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+
+                                        Card(
+                                            shape = RoundedCornerShape(8.dp),
+                                            colors = CardDefaults.cardColors(
+                                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                            ),
+                                            modifier = Modifier
+                                                .width(100.dp)
+                                                .clickable { joinVideoPickerLauncher.launch(arrayOf("video/*")) }
+                                                .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                                        ) {
+                                            Column(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(12.dp),
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                verticalArrangement = Arrangement.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Filled.VideoLibrary,
+                                                    contentDescription = "Add Video",
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(24.dp)
+                                                )
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Text(
+                                                    text = "+ Add",
+                                                    style = MaterialTheme.typography.labelMedium,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -2094,7 +2505,8 @@ fun VideoEditorScreen(
                                 "end" -> editState.copy(trimEndMs = p.coerceAtLeast(editState.trimStartMs))
                                 else -> editState
                             }
-                            exoPlayer?.seekTo(if (editState.joinVideoUri != null && !editState.joinAtEnd) 1 else 0, p)
+                            val seekMainIdx = if (!editState.joinAtEnd) (if (editState.joinVideoUris.isNotEmpty()) editState.joinVideoUris.size else if (editState.joinVideoUri != null) 1 else 0) else 0
+                            exoPlayer?.seekTo(seekMainIdx, p)
                         }
                         showTimeInputDialog = null
                     }) {
@@ -2189,18 +2601,19 @@ fun VideoEditorScreen(
                         }
                         val crf = (35 - (quality * 17)).toInt()
                         
-                        var joinPath: String? = null
-                        if (editState.joinVideoUri != null) {
+                        val joinPaths = mutableListOf<String>()
+                        val urisToJoin = if (editState.joinVideoUris.isNotEmpty()) editState.joinVideoUris else listOfNotNull(editState.joinVideoUri)
+                        for ((idx, uStr) in urisToJoin.withIndex()) {
                             try {
-                                val u = android.net.Uri.parse(editState.joinVideoUri!!)
-                                val tempFile = java.io.File(context.cacheDir, "join_${System.currentTimeMillis()}.mp4")
+                                val u = android.net.Uri.parse(uStr)
+                                val tempFile = java.io.File(context.cacheDir, "join_${System.currentTimeMillis()}_$idx.mp4")
                                 sessionTempFiles.add(tempFile)
                                 context.contentResolver.openInputStream(u)?.use { input ->
                                     tempFile.outputStream().use { output ->
                                         input.copyTo(output)
                                     }
                                 }
-                                joinPath = tempFile.absolutePath
+                                joinPaths.add(tempFile.absolutePath)
                             } catch (e: Exception) {
                                 e.printStackTrace()
                             }
@@ -2215,6 +2628,11 @@ fun VideoEditorScreen(
                             "Portrait" -> true
                             "Landscape" -> false
                             else -> when {
+                                joinPaths.isNotEmpty() && editState.joinAspectPreset == "9:16" -> true
+                                joinPaths.isNotEmpty() && editState.joinAspectPreset == "16:9" -> false
+                                joinPaths.isNotEmpty() && editState.joinAspectPreset == "1:1" -> false
+                                joinPaths.isNotEmpty() && editState.joinAspectPreset == "4:3" -> false
+                                joinPaths.isNotEmpty() && editState.joinAspectPreset == "21:9" -> false
                                 editState.aspectRatio == "9:16" -> true
                                 editState.aspectRatio == "16:9" -> false
                                 editState.aspectRatio == "4:3" -> false
@@ -2393,7 +2811,7 @@ fun VideoEditorScreen(
                         val presetArg = if (fastExport) "ultrafast" else "medium"
 
                         var cmd = ""
-                        if (isSpeedCurveActive && joinPath == null) {
+                        if (isSpeedCurveActive && joinPaths.isEmpty()) {
                             val activeDurationSec = if (!editState.isDoubleTrim && !editState.isCutMode) {
                                 val start = editState.trimStartMs.coerceIn(0L, durationMs)
                                 val end = editState.trimEndMs.coerceIn(start, durationMs).takeIf { it > 0 } ?: durationMs
@@ -2463,33 +2881,68 @@ fun VideoEditorScreen(
                                 "gif" -> "-y $trimArgs -i %INPUT% -filter_complex \"$curveFilterComplex\" -map \"[v_out]\" -loop 0 %OUTPUT%"
                                 else -> "-y -i %INPUT% %OUTPUT%"
                             }
-                        } else if (joinPath != null && format == "mp4") {
-                            // Complex filter for joining
-                            val v0 = if (filterList.isNotEmpty()) "[0:v]${filterList.joinToString(",")}[v0];" else "[0:v]copy[v0];"
+                        } else if (joinPaths.isNotEmpty() && format == "mp4") {
+                            // Complex filter for multi-video joining with fit mode / dark box adjustment
+                            var fw = globalTargetW
+                            var fh = globalTargetH
+                            if (editState.joinAspectPreset != "Match Main") {
+                                when (editState.joinAspectPreset) {
+                                    "16:9" -> { val base = if (fw > fh) fw else fh; fw = base; fh = (base * 9) / 16 }
+                                    "9:16" -> { val base = if (fh > fw) fh else fw; fh = base; fw = (base * 9) / 16 }
+                                    "1:1" -> { val sz = minOf(fw, fh); fw = sz; fh = sz }
+                                    "4:3" -> { val base = if (fw > fh) fw else fh; fw = base; fh = (base * 3) / 4 }
+                                    "21:9" -> { val base = if (fw > fh) fw else fh; fw = base; fh = (base * 9) / 21 }
+                                }
+                            }
+                            // Guarantee even dimensions for H.264
+                            fw = (fw / 2) * 2
+                            fh = (fh / 2) * 2
+
+                            fun buildJoinClipFilter(inputTag: String, outputTag: String, fitMode: String, extraFilters: List<String> = emptyList()): String {
+                                val pre = if (extraFilters.isNotEmpty()) "${extraFilters.joinToString(",")}," else ""
+                                return when (fitMode) {
+                                    "Fill" -> {
+                                        // Zooms and crops to fill aspect ratio without dark boxes / black bars
+                                        "[$inputTag]${pre}scale=w=$fw:h=$fh:force_original_aspect_ratio=increase,crop=w=$fw:h=$fh,scale=trunc(iw/2)*2:trunc(ih/2)*2,setsar=1[$outputTag];"
+                                    }
+                                    "Stretch" -> {
+                                        // Directly scales to canvas dimensions
+                                        "[$inputTag]${pre}scale=w=$fw:h=$fh,scale=trunc(iw/2)*2:trunc(ih/2)*2,setsar=1[$outputTag];"
+                                    }
+                                    "Blur" -> {
+                                        // Blurs video behind frame to eliminate dark boxes
+                                        "[$inputTag]${pre}split[${outputTag}_b][${outputTag}_f];[${outputTag}_b]scale=w=$fw:h=$fh:force_original_aspect_ratio=increase,crop=w=$fw:h=$fh,boxblur=20:5[${outputTag}_bg];[${outputTag}_f]scale=w=$fw:h=$fh:force_original_aspect_ratio=decrease[${outputTag}_fg];[${outputTag}_bg][${outputTag}_fg]overlay=(W-w)/2:(H-h)/2,scale=trunc(iw/2)*2:trunc(ih/2)*2,setsar=1[$outputTag];"
+                                    }
+                                    else -> {
+                                        // "Fit" (Default: full frame with dark box / letterbox padding)
+                                        "[$inputTag]${pre}scale=w=$fw:h=$fh:force_original_aspect_ratio=decrease,pad=w=$fw:h=$fh:(ow-iw)/2:(oh-ih)/2:color=black,scale=trunc(iw/2)*2:trunc(ih/2)*2,setsar=1[$outputTag];"
+                                    }
+                                }
+                            }
+
+                            val v0Fit = editState.joinClipFitModes["main"] ?: editState.joinFitMode
+                            val v0Safe = buildJoinClipFilter("0:v", "v0", v0Fit, filterList)
                             val a0 = if (audioFilterList.isNotEmpty()) "[0:a]${audioFilterList.joinToString(",")}[a0];" else "[0:a]anull[a0];"
-                            
-                            // For join video, we scale it to match the target
-                            val fw = globalTargetW
-                            val fh = globalTargetH
-                            
-                            val v1 = "[1:v]scale=w=$fw:h=$fh:force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2,setsar=1[v1];"
-                            val a1 = "[1:a]anull[a1];"
-                            
-                            val concat = if (editState.joinAtEnd) {
-                                "[v0][a0][v1][a1]concat=n=2:v=1:a=1[v][a]"
-                            } else {
-                                "[v1][a1][v0][a0]concat=n=2:v=1:a=1[v][a]"
+
+                            val joinFilterDefs = StringBuilder()
+                            for (i in 1..joinPaths.size) {
+                                val clipUri = if (i - 1 < urisToJoin.size) urisToJoin[i - 1] else ""
+                                val clipFit = editState.joinClipFitModes[clipUri] ?: editState.joinFitMode
+                                joinFilterDefs.append(buildJoinClipFilter("$i:v", "v$i", clipFit))
+                                joinFilterDefs.append("[$i:a]anull[a$i];")
                             }
-                            
-                            // If res is original we still need a common scale to avoid concat errors
-                            val v0Safe = if (filterList.isNotEmpty()) {
-                                "[0:v]${filterList.joinToString(",")},scale=w=$fw:h=$fh:force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2,setsar=1[v0];"
+
+                            val totalSegments = 1 + joinPaths.size
+                            val concatInputs = if (editState.joinAtEnd) {
+                                "[v0][a0]" + (1..joinPaths.size).joinToString("") { "[v$it][a$it]" }
                             } else {
-                                "[0:v]scale=w=$fw:h=$fh:force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2,setsar=1[v0];"
+                                (1..joinPaths.size).joinToString("") { "[v$it][a$it]" } + "[v0][a0]"
                             }
-                            val safeFilterComplex = "$v0Safe$a0$v1$a1$concat"
-                            
-                            cmd = "-y $trimArgs -i %INPUT% -i '$joinPath' -filter_complex \"$safeFilterComplex\" -map \"[v]\" -map \"[a]\" -r $fps -vcodec libx264 -crf $crf -preset $presetArg -metadata:s:v:0 rotate=0 %OUTPUT%"
+                            val concat = "${concatInputs}concat=n=$totalSegments:v=1:a=1[v][a]"
+                            val safeFilterComplex = "$v0Safe$a0$joinFilterDefs$concat"
+                            val joinInputsArg = joinPaths.joinToString(" ") { "-i '$it'" }
+
+                            cmd = "-y $trimArgs -i %INPUT% $joinInputsArg -filter_complex \"$safeFilterComplex\" -map \"[v]\" -map \"[a]\" -r $fps -vcodec libx264 -crf $crf -preset $presetArg -metadata:s:v:0 rotate=0 %OUTPUT%"
                         } else {
                             cmd = when (format) {
                                 "mp4" -> "-y $trimArgs -i %INPUT% $videoFilterArgs $audioFilterArgs -r $fps -vcodec libx264 -crf $crf -preset $presetArg -metadata:s:v:0 rotate=0 %OUTPUT%"
@@ -2644,6 +3097,401 @@ fun VideoEditorScreen(
                     }
                 }
             }
+        }
+
+        if (clipToAdjustUri != null) {
+            val targetUriStr = clipToAdjustUri!!
+            val isMainClip = (targetUriStr == "main" || targetUriStr == currentMainUri)
+            val clipDisplayName = if (isMainClip) {
+                mainClipName
+            } else {
+                try {
+                    getDisplayNameFromUri(context, Uri.parse(targetUriStr))
+                } catch (e: Exception) {
+                    "Joined Clip"
+                }
+            }
+            val activeJoins = if (editState.joinVideoUris.isNotEmpty()) editState.joinVideoUris else listOfNotNull(editState.joinVideoUri)
+            val currentClipFit = editState.joinClipFitModes[if (isMainClip) "main" else targetUriStr] ?: editState.joinFitMode
+            var selectedFitMode by remember(targetUriStr) { mutableStateOf(currentClipFit) }
+            var selectedAspectPreset by remember(targetUriStr) { mutableStateOf(editState.joinAspectPreset) }
+
+            AlertDialog(
+                onDismissRequest = { clipToAdjustUri = null },
+                icon = {
+                    Icon(Icons.Filled.AspectRatio, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                },
+                title = {
+                    Text(
+                        text = if (isMainClip) "Adjust Main Video" else "Adjust Joined Clip",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                },
+                text = {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        Text(
+                            text = clipDisplayName,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Text(
+                            text = "Aspect Ratio & Framing (Dark Box vs Fill)",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Choose how this clip fits the sequence canvas to eliminate or keep dark boxes.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        val fitOptions = listOf(
+                            Triple("Fill", "Fill Aspect Ratio (No Dark Box)", "Zooms and crops to fill frame without black bars / dark boxes"),
+                            Triple("Fit", "Fit with Dark Box (Letterbox)", "Full video visible; dark bars pad borders"),
+                            Triple("Stretch", "Stretch to Fit", "Forces video to match aspect ratio dimensions directly"),
+                            Triple("Blur", "Blurred Background Padding", "Blurs video behind frame to eliminate dark boxes")
+                        )
+
+                        fitOptions.forEach { (modeKey, title, desc) ->
+                            val isSelected = selectedFitMode == modeKey
+                            Card(
+                                shape = RoundedCornerShape(8.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 3.dp)
+                                    .clickable { selectedFitMode = modeKey }
+                                    .border(
+                                        width = if (isSelected) 1.5.dp else 0.5.dp,
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                                        shape = RoundedCornerShape(8.dp)
+                                    )
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    androidx.compose.material3.RadioButton(
+                                        selected = isSelected,
+                                        onClick = { selectedFitMode = modeKey }
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = title,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = desc,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Text(
+                            text = "Sequence Target Aspect Ratio",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            val presets = listOf("Match Main", "16:9", "9:16", "1:1", "4:3", "21:9")
+                            presets.forEach { preset ->
+                                FilterChip(
+                                    selected = selectedAspectPreset == preset,
+                                    onClick = { selectedAspectPreset = preset },
+                                    label = { Text(preset) }
+                                )
+                            }
+                        }
+
+                        if (!isMainClip && activeJoins.isNotEmpty()) {
+                            val clipIndex = activeJoins.indexOf(targetUriStr)
+                            if (clipIndex != -1) {
+                                Spacer(modifier = Modifier.height(14.dp))
+                                Text(
+                                    text = "Sequence Order (Position #${clipIndex + 1} of ${activeJoins.size})",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            if (clipIndex > 0) {
+                                                val updated = activeJoins.toMutableList()
+                                                val temp = updated[clipIndex]
+                                                updated[clipIndex] = updated[clipIndex - 1]
+                                                updated[clipIndex - 1] = temp
+                                                editState = editState.copy(
+                                                    joinVideoUris = updated,
+                                                    joinVideoUri = updated.firstOrNull()
+                                                )
+                                            }
+                                        },
+                                        enabled = clipIndex > 0,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Move Earlier", style = MaterialTheme.typography.labelSmall)
+                                    }
+
+                                    OutlinedButton(
+                                        onClick = {
+                                            if (clipIndex < activeJoins.size - 1) {
+                                                val updated = activeJoins.toMutableList()
+                                                val temp = updated[clipIndex]
+                                                updated[clipIndex] = updated[clipIndex + 1]
+                                                updated[clipIndex + 1] = temp
+                                                editState = editState.copy(
+                                                    joinVideoUris = updated,
+                                                    joinVideoUri = updated.firstOrNull()
+                                                )
+                                            }
+                                        },
+                                        enabled = clipIndex < activeJoins.size - 1,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text("Move Later", style = MaterialTheme.typography.labelSmall)
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedButton(
+                                    onClick = {
+                                        val oldMain = currentMainUri
+                                        currentMainUri = targetUriStr
+                                        val updated = activeJoins.map { if (it == targetUriStr) oldMain else it }
+                                        editState = editState.copy(
+                                            joinVideoUris = updated,
+                                            joinVideoUri = updated.firstOrNull()
+                                        )
+                                        clipToAdjustUri = null
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(Icons.Filled.Star, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Make Primary (Main) Video", style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val key = if (isMainClip) "main" else targetUriStr
+                            val updatedFitModes = editState.joinClipFitModes.toMutableMap()
+                            updatedFitModes[key] = selectedFitMode
+                            editState = editState.copy(
+                                joinClipFitModes = updatedFitModes,
+                                joinAspectPreset = selectedAspectPreset
+                            )
+                            clipToAdjustUri = null
+                        }
+                    ) {
+                        Text("Apply")
+                    }
+                },
+                dismissButton = {
+                    Row {
+                        TextButton(
+                            onClick = {
+                                editState = editState.copy(
+                                    joinFitMode = selectedFitMode,
+                                    joinClipFitModes = emptyMap(),
+                                    joinAspectPreset = selectedAspectPreset
+                                )
+                                clipToAdjustUri = null
+                            }
+                        ) {
+                            Text("Apply to All")
+                        }
+                        TextButton(onClick = { clipToAdjustUri = null }) {
+                            Text("Cancel")
+                        }
+                    }
+                }
+            )
+        }
+
+        if (showReorderDialog) {
+            val activeJoins = if (editState.joinVideoUris.isNotEmpty()) editState.joinVideoUris else listOfNotNull(editState.joinVideoUri)
+            AlertDialog(
+                onDismissRequest = { showReorderDialog = false },
+                icon = {
+                    Icon(Icons.Filled.SwapHoriz, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                },
+                title = {
+                    Text("Rearrange Join Order", style = MaterialTheme.typography.titleMedium)
+                },
+                text = {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        Text(
+                            text = "Shift clips earlier or later in the playback sequence.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Text(
+                            text = "Sequence Flow",
+                            style = MaterialTheme.typography.labelMedium
+                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.clickable { editState = editState.copy(joinAtEnd = true) }
+                            ) {
+                                androidx.compose.material3.RadioButton(
+                                    selected = editState.joinAtEnd,
+                                    onClick = { editState = editState.copy(joinAtEnd = true) }
+                                )
+                                Text("Main First", style = MaterialTheme.typography.bodySmall)
+                            }
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.clickable { editState = editState.copy(joinAtEnd = false) }
+                            ) {
+                                androidx.compose.material3.RadioButton(
+                                    selected = !editState.joinAtEnd,
+                                    onClick = { editState = editState.copy(joinAtEnd = false) }
+                                )
+                                Text("Joined First", style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        activeJoins.forEachIndexed { idx, uStr ->
+                            val clipName = remember(uStr) {
+                                try {
+                                    getDisplayNameFromUri(context, Uri.parse(uStr))
+                                } catch (e: Exception) {
+                                    "Clip #${idx + 1}"
+                                }
+                            }
+                            Card(
+                                shape = RoundedCornerShape(8.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 3.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(4.dp),
+                                            color = MaterialTheme.colorScheme.secondaryContainer
+                                        ) {
+                                            Text(
+                                                text = "#${idx + 1}",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = clipName,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            maxLines = 1,
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                        )
+                                    }
+                                    Row {
+                                        IconButton(
+                                            onClick = {
+                                                if (idx > 0) {
+                                                    val updated = activeJoins.toMutableList()
+                                                    val temp = updated[idx]
+                                                    updated[idx] = updated[idx - 1]
+                                                    updated[idx - 1] = temp
+                                                    editState = editState.copy(
+                                                        joinVideoUris = updated,
+                                                        joinVideoUri = updated.firstOrNull()
+                                                    )
+                                                }
+                                            },
+                                            enabled = idx > 0,
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(Icons.Filled.ArrowUpward, contentDescription = "Move Up", modifier = Modifier.size(18.dp))
+                                        }
+                                        IconButton(
+                                            onClick = {
+                                                if (idx < activeJoins.size - 1) {
+                                                    val updated = activeJoins.toMutableList()
+                                                    val temp = updated[idx]
+                                                    updated[idx] = updated[idx + 1]
+                                                    updated[idx + 1] = temp
+                                                    editState = editState.copy(
+                                                        joinVideoUris = updated,
+                                                        joinVideoUri = updated.firstOrNull()
+                                                    )
+                                                }
+                                            },
+                                            enabled = idx < activeJoins.size - 1,
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(Icons.Filled.ArrowDownward, contentDescription = "Move Down", modifier = Modifier.size(18.dp))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = { showReorderDialog = false }) {
+                        Text("Done")
+                    }
+                }
+            )
         }
     }
 }

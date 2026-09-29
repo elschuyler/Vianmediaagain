@@ -83,10 +83,19 @@ fun AppNavigation(
     
 
 
+    var inAppJoinUris by remember { mutableStateOf<List<String>>(emptyList()) }
+    val initialJoinUris = remember(initialUris, forceAction) {
+        if (forceAction == "edit" && initialUris.size > 1) {
+            initialUris.drop(1)
+        } else {
+            emptyList()
+        }
+    }
+
     var batchCompressionUris by remember { mutableStateOf<List<String>?>(null) }
     var batchFFmpegUris by remember { mutableStateOf<List<String>?>(null) }
-    LaunchedEffect(initialUris) {
-        if (initialUris.size > 1) {
+    LaunchedEffect(initialUris, forceAction) {
+        if (initialUris.size > 1 && forceAction != "edit") {
             val mimeType = context.contentResolver.getType(android.net.Uri.parse(initialUris.first()))
             val isImage = mimeType?.startsWith("image/") == true
             val isVideo = mimeType?.startsWith("video/") == true
@@ -170,7 +179,13 @@ fun AppNavigation(
                     navController.navigate("audio_trimmer/$encodedUri")
                 },
                 onNavigateToVideoEditor = { uri ->
+                    inAppJoinUris = emptyList()
                     val encodedUri = android.util.Base64.encodeToString(uri.toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
+                    navController.navigate("video_editor/$encodedUri")
+                },
+                onNavigateToVideoEditorWithJoin = { mainUri, joinUris ->
+                    inAppJoinUris = joinUris
+                    val encodedUri = android.util.Base64.encodeToString(mainUri.toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
                     navController.navigate("video_editor/$encodedUri")
                 },
                 initialSearchActive = (forceAction == "ACTION_SEARCH")
@@ -294,9 +309,12 @@ fun AppNavigation(
             val decodedUri = try {
                 String(android.util.Base64.decode(uriString, android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP))
             } catch (e: Exception) { uriString }
+            val effectiveJoinUris = if (inAppJoinUris.isNotEmpty()) inAppJoinUris else initialJoinUris
             com.example.ui.screens.VideoEditorScreen(
                 uriString = decodedUri,
+                initialJoinUris = effectiveJoinUris,
                 onNavigateBack = { 
+                    inAppJoinUris = emptyList()
                     val popped = navController.popBackStack()
                     com.example.LogKeeper.log("popBackStack() returned $popped, current backstack size: ${navController.currentBackStack.value.size}", "Navigation")
                     if (!popped || (initialUris.isNotEmpty() && navController.currentDestination?.route == "main")) {

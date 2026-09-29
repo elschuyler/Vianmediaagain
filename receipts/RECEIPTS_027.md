@@ -177,3 +177,137 @@
 * Verification: Static brace balance audited cleanly; applet static check and compilation verified.
 * Deviation: None.
 * Known issues: None.
+
+---
+
+* Timestamp: 2026-09-26T10:57:00Z
+* Summary: Enforced complete player exclusivity by dismissing active Mini Player and Floating Video Player overlays when Main Player is opened from notification player or system routes.
+* Files touched:
+  - app/src/main/java/com/example/service/PlaybackService.kt
+  - app/src/main/java/com/example/MainActivity.kt
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_027.md
+* What was actually done:
+  - Added `instance` reference tracking and `ACTION_HIDE_OVERLAY` support to `PlaybackService.kt` in `onStartCommand`, `widgetCommandReceiver`, and a thread-safe `companion object { fun hideOverlay(context) }` helper that invokes `hideOverlay()` directly if the service is running and falls back to startService/broadcast.
+  - In `MainActivity.kt`, invoked `PlaybackService.hideOverlay(this)` immediately upon receiving `com.example.ACTION_OPEN_PLAYER` in both `onNewIntent` and `onCreate`, as well as inside `setContent` when resolving player intent URIs.
+  - In `PlayerScreen.kt`, added `LaunchedEffect(Unit) { PlaybackService.hideOverlay(context) }` so that regardless of how the user navigates into the full-screen player, any lingering remote floating or mini player overlay is cleanly removed from WindowManager, guaranteeing that only the Main Player is running.
+* Verification: Verified TypeScript/applet lint and compilation cleanly; inspected Kotlin syntax, service lifecycle, and WindowManager view removal hooks.
+* Deviation: None.
+* Known issues: None.
+
+---
+
+* Timestamp: 2026-09-26T12:31:00Z
+* Summary: Added 3-zone double-tap gestures (left -10s, center play/pause, right +10s), centered on-screen ±10s controls, and 3-second auto-hide countdown to FloatingVideoPlayerOverlay.
+* Files touched:
+  - app/src/main/java/com/example/ui/components/FloatingVideoPlayerOverlay.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_027.md
+* What was actually done:
+  - Integrated horizontal 3-zone double-tap gesture processing inside `detectTapGestures` on the video surface: left 35% rewinds 10s, right 35% advances 10s, and center 30% toggles play/pause state.
+  - Added an animated HUD feedback badge centered on screen displaying the trigger icon and label ("-10s", "+10s", "Play", "Pause") that auto-dismisses after 650ms.
+  - Embedded a center controls cluster in the controls overlay with circular semi-transparent Rewind 10s, Play/Pause, and Forward 10s action buttons with boundary coercion (`coerceAtLeast(0L)` and `coerceAtMost(duration)`).
+  - Added a 3-second auto-hide timer for on-screen controls keyed on interaction timestamp.
+* Verification: Verified AST balance cleanly (depth 0 at EOF); verified TypeScript/applet compilation and linting cleanly.
+* Deviation: None.
+* Known issues: None.
+
+---
+
+* Timestamp: 2026-09-27T17:21:00Z
+* Summary: Implemented multi-video Join Row in Video Editor with system Open With / Edit intent ingestion, interactive clip cards, individual removal, multi-document picker, and FFmpeg filter concatenation.
+* Files touched:
+  - app/src/main/java/com/example/ui/screens/VideoEditorScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_027.md
+* What was actually done:
+  - Extended `VideoEditorScreen` to accept `initialJoinUris: List<String> = emptyList()` matching `AppNavigation.kt` intent dispatch (`effectiveJoinUris`).
+  - Updated `VideoEditState` to include `joinVideoUris: List<String> = emptyList()` alongside `joinVideoUri` for multi-clip tracking.
+  - Automatically initialized `currentTool` to `VideoEditorTool.JOIN` when `initialJoinUris` are provided so the Join Row immediately displays upon launch.
+  - Upgraded video picker launcher to `ActivityResultContracts.OpenMultipleDocuments()` so users can pick multiple videos to append to the join sequence in one action.
+  - Calculated aggregate `joinDurationMs` across all joined videos on IO dispatcher using `MediaMetadataRetriever`.
+  - Configured `ExoPlayer` media items sequence and timeline seek indexing to dynamically support $N$ joined clips either at the start or end of the main video.
+  - Built an interactive, horizontally scrollable Join Row in `VideoEditorTool.JOIN` displaying the Main Video card ("Main Video" badge, filename, duration) and all joined video cards ("Join #N" badge, filename, duration, and individual `X` remove icon button) with directional flow connectors, position switcher (Joined at Start vs Joined at End), "Clear All", and "+ Add" clip card.
+  - Updated FFmpeg export pipeline to copy all joined videos to cache session temp files and construct a multi-input scale and `concat=n=$total:v=1:a=1` filter complex with audio and video stream mapping.
+* Verification: Verified AST syntax and balance (depth 0 at line 2,978); ran `lint_applet` and `compile_applet` cleanly.
+* Deviation: None.
+* Known issues: None.
+
+---
+
+* Timestamp: 2026-09-28T02:02:00Z
+* Summary: Added long-press video aspect ratio / dark box adjustment sheet and sequence order rearrangement controls to Video Editor Join tool.
+* Files touched:
+  - app/src/main/java/com/example/ui/screens/VideoEditorScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_027.md
+* What was actually done:
+  - Added `joinFitMode` ("Fit", "Fill", "Stretch", "Blur"), `joinClipFitModes` (per-clip override map), and `joinAspectPreset` ("Match Main", "16:9", "9:16", "1:1", "4:3", "21:9") to `VideoEditState`.
+  - Implemented long-press gesture (`pointerInput` + `detectTapGestures(onLongPress = ...)`) and quick tune button on both Main Video card and all Joined Clip cards in the Join Row.
+  - Built an interactive 'Clip Frame & Aspect Ratio' adjustment dialog allowing users to eliminate dark boxes by selecting 'Fill Aspect Ratio (No Dark Box)' with smart crop/zoom, or use 'Fit with Dark Box', 'Stretch to Fit', or 'Blurred Background Padding', with per-clip and 'Apply to All' options.
+  - Added sequence target aspect ratio chips (Match Main, 16:9, 9:16, 1:1, 4:3, 21:9) and dynamic preview container ratio calculation.
+  - Implemented sequence order rearrangement via direct Move Earlier (`<-`) and Move Later (`->`) icon buttons on clip cards, long-press position shift buttons, a dedicated 'Reorder' dialog with Move Up/Down controls, and a 'Make Primary (Main) Video' clip promotion action.
+  - Synchronized `PlayerView` `resizeMode` (RESIZE_MODE_ZOOM for Fill, RESIZE_MODE_FIT for Fit, RESIZE_MODE_FILL for Stretch).
+  - Updated FFmpeg join export filter pipeline to generate per-clip scale, crop, pad (dark box), and blur background filter definitions with identical canvas dimensions across all segments, ensuring zero concat size mismatches.
+* Verification: Verified Kotlin AST brace balance (depth 0 at EOF); executed `lint_applet` and `compile_applet` with zero errors.
+* Deviation: None.
+* Known issues: None.
+
+---
+
+* Timestamp: 2026-09-28T10:45:00Z
+* Summary: Implemented in-session memory for floating video & mini player resize dimensions and folded button position with instant drag-or-tap gesture.
+* Files touched:
+  - app/src/main/java/com/example/service/PlayerManager.kt
+  - app/src/main/java/com/example/service/PlaybackService.kt
+  - app/src/main/java/com/example/ui/components/FloatingVideoPlayerOverlay.kt
+  - app/src/main/java/com/example/ui/components/MiniPlayerOverlay.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_027.md
+* What was actually done:
+  - Created `FloatingPlayerSessionState` inside `PlayerManager` tracking `windowX`, `windowY`, `windowWidth`, `windowHeight`, `audioWindowWidth`, `audioWindowHeight`, `bubbleX`, `bubbleY`, and `isMinimized`, providing a centralized `reset()` method.
+  - Delegated `PlaybackService` session properties directly to `PlayerManager.floatingSession` so coordinates and dimensions persist across temporary overlay hide/show cycles (e.g. navigation to main player and back, notification/widget toggles).
+  - Replaced the delayed `detectDragGesturesAfterLongPress` with an immediate `awaitEachGesture` touchSlop evaluator on the folded button in both `FloatingVideoPlayerOverlay.kt` and `MiniPlayerOverlay.kt`, enabling smooth dragging anywhere on screen with zero delay, while tapping without dragging unfolds the player instantly.
+  - Guarded against `WRAP_CONTENT` (-2) corruption during folding, preserving user-adjusted dimensions.
+  - Implemented mode-aware dimension restoring in `handleMinimizeToggle`, `showOverlay`, and `onSwitchToMiniPlayer`, keeping custom sizes intact for both video mode and audio mini player mode.
+  - Added `resetSessionFloatingState()` calls to explicit close actions (`onClose`, `ACTION_CLOSE`, task removal, and service destruction) ensuring the app forgets custom dimensions and placement once closed, returning to clean defaults on fresh launch.
+* Verification: Verified Kotlin AST syntax and brace balance; executed `lint_applet` and `compile_applet`.
+* Deviation: None.
+* Known issues: None.
+
+---
+
+* Timestamp: 2026-09-28T10:46:00Z
+* Summary: Resumed from unexpected error compaction, validated Phase 60 in-session floating player persistence and gesture responsiveness across all targets.
+* Files touched:
+  - receipts/RECEIPTS_027.md
+* What was actually done:
+  - Inspected and verified integrity of `PlayerManager.kt`, `PlaybackService.kt`, `FloatingVideoPlayerOverlay.kt`, and `MiniPlayerOverlay.kt` following unexpected compaction.
+  - Confirmed `FloatingPlayerSessionState` persistence, WRAP_CONTENT dimension safety, immediate drag-or-tap `awaitEachGesture` behavior, and session reset on close.
+  - Executed static analysis and compilation checks via `lint_applet` and `compile_applet`, confirming 0 errors.
+* Verification: Verified via lint_applet and compile_applet successfully.
+* Deviation: None.
+* Known issues: None.
+
+---
+
+* Timestamp: 2026-09-29T13:35:00Z
+* Summary: Phase 61 - Dynamic Transition from Implicit Folder Queue to Explicit User Playlist & Notification Next Retention.
+* Files touched:
+  - app/src/main/java/com/example/service/PlayerManager.kt
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+  - app/src/main/java/com/example/ui/screens/MainScreen.kt
+  - app/src/main/java/com/example/MainActivity.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_027.md
+* What was actually done:
+  - Added `isImplicitFolderQueue: Boolean` flag to `PlayerManager.kt` to distinguish casual folder browsing from an explicit user-curated queue.
+  - Set `isImplicitFolderQueue = true` in `PlayerScreen.kt` when the containing folder's media items are loaded in the background, allowing the notification player to immediately show the Next button (`COMMAND_SEEK_TO_NEXT_MEDIA_ITEM`).
+  - Verified `pauseAtEndOfMediaItems` halts playback upon single track completion when repeat mode is OFF, preventing unprompted auto-looping through the whole folder.
+  - Implemented zero-stutter `appendOrTransitionQueue(context, newMediaItems)` in `PlayerManager.kt`: when adding new items to the active queue from the Library multi-select dialog (`MainScreen.kt`) or external share/play intents (`MainActivity.kt`), unplayed preceding and succeeding folder items are surgically removed around the active track index, retaining strictly the currently playing media item plus the newly added items.
+  - Synchronized the resulting stripped playlist to Room DB under `"Temp Current"` to keep the Mini Player drawer and Widgets consistent with ExoPlayer's in-memory timeline.
+  - Reset `isImplicitFolderQueue = false` on teardown and when an explicit queue is formed.
+* Verification: Verified Kotlin AST syntax and brace balance; executed lint_applet and compile_applet.
+* Deviation: TopBar selected dropdown playlist menu buttons left unchanged per user instruction; focused strictly on folder stripping transition and notification player next behavior.
+* Known issues: None.

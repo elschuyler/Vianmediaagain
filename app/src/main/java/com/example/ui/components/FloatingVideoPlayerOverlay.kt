@@ -7,6 +7,7 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
@@ -51,26 +52,47 @@ fun FloatingVideoPlayerOverlay(
     if (isMinimizedExternal) {
         Box(
             modifier = Modifier
-                .size(36.dp)
+                .size(40.dp)
                 .clip(androidx.compose.foundation.shape.CircleShape)
                 .background(Color(0xFF2196F3))
-                .border(1.dp, Color.White.copy(alpha = 0.25f), androidx.compose.foundation.shape.CircleShape)
+                .border(1.dp, Color.White.copy(alpha = 0.35f), androidx.compose.foundation.shape.CircleShape)
                 .pointerInput(Unit) {
-                    detectDragGesturesAfterLongPress(
-                        onDrag = { change: androidx.compose.ui.input.pointer.PointerInputChange, dragAmount: androidx.compose.ui.geometry.Offset ->
-                            change.consume()
-                            onDrag(dragAmount.x, dragAmount.y)
+                    androidx.compose.foundation.gestures.awaitEachGesture {
+                        val down = androidx.compose.foundation.gestures.awaitFirstDown(requireUnconsumed = false)
+                        var isDrag = false
+                        var totalDragX = 0f
+                        var totalDragY = 0f
+                        val touchSlop = viewConfiguration.touchSlop
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                            if (!change.pressed) {
+                                if (!isDrag) {
+                                    onMinimizeChange(false)
+                                }
+                                break
+                            }
+                            val dragAmount = change.position - change.previousPosition
+                            totalDragX += dragAmount.x
+                            totalDragY += dragAmount.y
+                            val dist = kotlin.math.hypot(totalDragX, totalDragY)
+                            if (!isDrag && dist > touchSlop) {
+                                isDrag = true
+                            }
+                            if (isDrag) {
+                                change.consume()
+                                onDrag(dragAmount.x, dragAmount.y)
+                            }
                         }
-                    )
-                }
-                .clickable { onMinimizeChange(false) },
+                    }
+                },
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_launcher_foreground),
                 contentDescription = "Expand Floating Player",
                 tint = Color.Unspecified,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(0.9f)
             )
         }
         return
@@ -243,6 +265,24 @@ fun FloatingVideoPlayerOverlay(
                 contentAlignment = Alignment.Center
             ) {
                 var showControls by remember { mutableStateOf(false) }
+                var lastInteractionTime by remember { mutableLongStateOf(0L) }
+                var gestureFeedbackText by remember { mutableStateOf("") }
+                var showGestureFeedback by remember { mutableStateOf(false) }
+
+                LaunchedEffect(showGestureFeedback, gestureFeedbackText) {
+                    if (showGestureFeedback) {
+                        delay(650)
+                        showGestureFeedback = false
+                    }
+                }
+
+                LaunchedEffect(showControls, lastInteractionTime) {
+                    if (showControls) {
+                        delay(3000)
+                        showControls = false
+                    }
+                }
+
                 if (player != null) {
                     AndroidView(
                         factory = { ctx ->
@@ -262,7 +302,58 @@ fun FloatingVideoPlayerOverlay(
                         },
                         modifier = Modifier.fillMaxSize().pointerInput(Unit) {
                             detectTapGestures(
-                                onTap = { showControls = !showControls }
+                                onTap = {
+                                    showControls = !showControls
+                                    if (showControls) {
+                                        lastInteractionTime = System.currentTimeMillis()
+                                    }
+                                },
+                                onDoubleTap = { offset ->
+                                    lastInteractionTime = System.currentTimeMillis()
+                                    val width = size.width.toFloat()
+                                    if (width > 0f) {
+                                        val ratio = offset.x / width
+                                        if (ratio < 0.35f) {
+                                            // Left 35%: Rewind 10s
+                                            player?.let { p ->
+                                                val target = (p.currentPosition - 10000L).coerceAtLeast(0L)
+                                                p.seekTo(target)
+                                                gestureFeedbackText = "-10s"
+                                                showGestureFeedback = true
+                                            }
+                                        } else if (ratio > 0.65f) {
+                                            // Right 35%: Forward 10s
+                                            player?.let { p ->
+                                                val duration = p.duration.coerceAtLeast(0L)
+                                                val target = (p.currentPosition + 10000L).coerceAtMost(duration)
+                                                p.seekTo(target)
+                                                gestureFeedbackText = "+10s"
+                                                showGestureFeedback = true
+                                            }
+                                        } else {
+                                            // Center 30%: Toggle Play/Pause
+                                            player?.let { p ->
+                                                if (p.playbackState == Player.STATE_ENDED) {
+                                                    p.seekTo(0)
+                                                    p.prepare()
+                                                    p.play()
+                                                    gestureFeedbackText = "Play"
+                                                } else if (p.playbackState == Player.STATE_IDLE) {
+                                                    p.prepare()
+                                                    p.play()
+                                                    gestureFeedbackText = "Play"
+                                                } else if (p.isPlaying) {
+                                                    p.pause()
+                                                    gestureFeedbackText = "Pause"
+                                                } else {
+                                                    p.play()
+                                                    gestureFeedbackText = "Play"
+                                                }
+                                                showGestureFeedback = true
+                                            }
+                                        }
+                                    }
+                                }
                             )
                         }
                     )
@@ -278,6 +369,88 @@ fun FloatingVideoPlayerOverlay(
                                 .fillMaxSize()
                                 .background(Color.Black.copy(alpha = 0.5f))
                         ) {
+                            // Center ±10s and Play/Pause Cluster
+                            Row(
+                                modifier = Modifier.align(Alignment.Center),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                IconButton(
+                                    onClick = {
+                                        lastInteractionTime = System.currentTimeMillis()
+                                        player?.let { p ->
+                                            val target = (p.currentPosition - 10000L).coerceAtLeast(0L)
+                                            p.seekTo(target)
+                                            gestureFeedbackText = "-10s"
+                                            showGestureFeedback = true
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .size(38.dp)
+                                        .background(Color.Black.copy(alpha = 0.55f), CircleShape)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.FastRewind,
+                                        contentDescription = "Rewind 10s",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+
+                                IconButton(
+                                    onClick = {
+                                        lastInteractionTime = System.currentTimeMillis()
+                                        player?.let { controller ->
+                                            if (controller.playbackState == androidx.media3.common.Player.STATE_ENDED) {
+                                                controller.seekTo(0)
+                                                controller.prepare()
+                                                controller.play()
+                                            } else if (controller.playbackState == androidx.media3.common.Player.STATE_IDLE) {
+                                                controller.prepare()
+                                                controller.play()
+                                            } else if (controller.isPlaying) {
+                                                controller.pause()
+                                            } else {
+                                                controller.play()
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .size(46.dp)
+                                        .background(Color.Black.copy(alpha = 0.65f), CircleShape)
+                                ) {
+                                    Icon(
+                                        imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                                        contentDescription = "Play/Pause",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                }
+
+                                IconButton(
+                                    onClick = {
+                                        lastInteractionTime = System.currentTimeMillis()
+                                        player?.let { p ->
+                                            val duration = p.duration.coerceAtLeast(0L)
+                                            val target = (p.currentPosition + 10000L).coerceAtMost(duration)
+                                            p.seekTo(target)
+                                            gestureFeedbackText = "+10s"
+                                            showGestureFeedback = true
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .size(38.dp)
+                                        .background(Color.Black.copy(alpha = 0.55f), CircleShape)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.FastForward,
+                                        contentDescription = "Forward 10s",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                            }
+
                             Column(
                                 modifier = Modifier
                                     .align(Alignment.BottomCenter)
@@ -486,7 +659,43 @@ fun FloatingVideoPlayerOverlay(
                         }
                     }
 
-
+                    // Double-tap visual feedback badge
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = showGestureFeedback,
+                        enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.scaleIn(initialScale = 0.85f),
+                        exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.scaleOut(targetScale = 0.85f),
+                        modifier = Modifier.align(Alignment.Center)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .background(Color.Black.copy(alpha = 0.75f), RoundedCornerShape(14.dp))
+                                .padding(horizontal = 14.dp, vertical = 8.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                val icon = when (gestureFeedbackText) {
+                                    "-10s" -> Icons.Filled.FastRewind
+                                    "+10s" -> Icons.Filled.FastForward
+                                    "Pause" -> Icons.Filled.Pause
+                                    else -> Icons.Filled.PlayArrow
+                                }
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = gestureFeedbackText,
+                                    color = Color.White,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }

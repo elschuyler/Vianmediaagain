@@ -55,10 +55,52 @@ private var mediaSession: MediaSession? = null
 private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 private var decoderServiceRetryCount = 0
 
+// In-session memory for floating window dimensions and positions (remembered while open, reset on close)
+private var sessionWindowX: Int?
+    get() = PlayerManager.floatingSession.windowX
+    set(value) { PlayerManager.floatingSession.windowX = value }
+
+private var sessionWindowY: Int?
+    get() = PlayerManager.floatingSession.windowY
+    set(value) { PlayerManager.floatingSession.windowY = value }
+
+private var sessionWindowWidth: Int?
+    get() = PlayerManager.floatingSession.windowWidth
+    set(value) { PlayerManager.floatingSession.windowWidth = value }
+
+private var sessionWindowHeight: Int?
+    get() = PlayerManager.floatingSession.windowHeight
+    set(value) { PlayerManager.floatingSession.windowHeight = value }
+
+private var sessionAudioWindowWidth: Int?
+    get() = PlayerManager.floatingSession.audioWindowWidth
+    set(value) { PlayerManager.floatingSession.audioWindowWidth = value }
+
+private var sessionAudioWindowHeight: Int?
+    get() = PlayerManager.floatingSession.audioWindowHeight
+    set(value) { PlayerManager.floatingSession.audioWindowHeight = value }
+
+private var sessionBubbleX: Int?
+    get() = PlayerManager.floatingSession.bubbleX
+    set(value) { PlayerManager.floatingSession.bubbleX = value }
+
+private var sessionBubbleY: Int?
+    get() = PlayerManager.floatingSession.bubbleY
+    set(value) { PlayerManager.floatingSession.bubbleY = value }
+
+private var sessionIsMinimized: Boolean
+    get() = PlayerManager.floatingSession.isMinimized
+    set(value) { PlayerManager.floatingSession.isMinimized = value }
+
+fun resetSessionFloatingState() {
+    PlayerManager.floatingSession.reset()
+}
+
 // Removed inactivity timeout
 
 override fun onCreate() {
 super.onCreate()
+instance = this
 savedStateRegistryController.performRestore(null)
 lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
 windowManager = getSystemService(android.content.Context.WINDOW_SERVICE) as WindowManager
@@ -447,22 +489,23 @@ override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSes
 return mediaSession
 }
 
-override fun onTaskRemoved(rootIntent: android.content.Intent?) {
-super.onTaskRemoved(rootIntent)
-com.example.LogKeeper.log("onTaskRemoved called, cleaning up.", "PlaybackService")
-val player = mediaSession?.player
-if (player != null && (!player.playWhenReady || player.mediaItemCount == 0 || player.playbackState == androidx.media3.common.Player.STATE_ENDED)) {
-    try {
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
-            stopForeground(STOP_FOREGROUND_REMOVE)
+    override fun onTaskRemoved(rootIntent: android.content.Intent?) {
+        super.onTaskRemoved(rootIntent)
+        com.example.LogKeeper.log("onTaskRemoved called, cleaning up.", "PlaybackService")
+        val player = mediaSession?.player
+        if (player != null && (!player.playWhenReady || player.mediaItemCount == 0 || player.playbackState == androidx.media3.common.Player.STATE_ENDED)) {
+            try {
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                }
+                val notificationManager = getSystemService(android.content.Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager
+                notificationManager?.cancelAll()
+            } catch (e: Exception) {}
+            player.stop()
+            resetSessionFloatingState()
+            stopSelf()
         }
-        val notificationManager = getSystemService(android.content.Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager
-        notificationManager?.cancelAll()
-    } catch (e: Exception) {}
-    player.stop()
-    stopSelf()
-}
-}
+    }
 
 
 @SuppressLint("ClickableViewAccessibility")
@@ -477,23 +520,108 @@ cv.setViewTreeSavedStateRegistryOwner(this@PlaybackService)
 val prefs = getSharedPreferences("MiniPlayerPrefs", android.content.Context.MODE_PRIVATE)
 
 cv.setContent {
-var isMinimized by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+var isMinimized by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(sessionIsMinimized) }
 var isVideoMode by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(startInVideoMode) }
 var videoAspectRatio by androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(16f / 9f) }
+
+val handleMinimizeToggle: (Boolean) -> Unit = { minimized ->
+    if (isMinimized != minimized) {
+        isMinimized = minimized
+        sessionIsMinimized = minimized
+        val lp = layoutParams
+        if (lp != null) {
+            val metrics = resources.displayMetrics
+            if (minimized) {
+                // 1. Remember windowed position & size before collapsing (guarded against WRAP_CONTENT)
+                if (lp.width > 0) {
+                    if (isVideoMode) {
+                        sessionWindowWidth = lp.width
+                    } else {
+                        sessionAudioWindowWidth = lp.width
+                    }
+                }
+                if (lp.height > 0) {
+                    if (isVideoMode) {
+                        sessionWindowHeight = lp.height
+                    } else {
+                        sessionAudioWindowHeight = lp.height
+                    }
+                }
+                sessionWindowX = lp.x
+                sessionWindowY = lp.y
+
+                // 2. Set WRAP_CONTENT for compact folded bubble
+                lp.width = WindowManager.LayoutParams.WRAP_CONTENT
+                lp.height = WindowManager.LayoutParams.WRAP_CONTENT
+
+                // 3. Restore remembered folded button position or default to docked right edge
+                val bubbleSizePx = (40 * metrics.density).toInt()
+                val targetBubbleX = sessionBubbleX ?: (metrics.widthPixels - bubbleSizePx - (16 * metrics.density).toInt()).coerceAtLeast(0)
+                val targetBubbleY = sessionBubbleY ?: lp.y.coerceIn(0, (metrics.heightPixels - bubbleSizePx).coerceAtLeast(0))
+
+                lp.x = targetBubbleX.coerceIn(0, (metrics.widthPixels - bubbleSizePx).coerceAtLeast(0))
+                lp.y = targetBubbleY.coerceIn(0, (metrics.heightPixels - bubbleSizePx).coerceAtLeast(0))
+                sessionBubbleX = lp.x
+                sessionBubbleY = lp.y
+            } else {
+                // 1. Remember folded bubble position before expanding
+                sessionBubbleX = lp.x
+                sessionBubbleY = lp.y
+
+                // 2. Restore window dimensions respecting aspect ratio
+                val topBarHeightPx = (32 * metrics.density).toInt()
+                val minWidth = (200 * metrics.density).toInt()
+                val maxWidth = (metrics.widthPixels * 0.95f).toInt()
+                val maxHeight = (metrics.heightPixels * 0.7f).toInt()
+                val aspect = videoAspectRatio.coerceIn(0.4f, 2.5f)
+
+                val targetWidth: Int
+                var targetHeight: Int
+
+                if (isVideoMode) {
+                    targetWidth = (sessionWindowWidth ?: (300 * metrics.density).toInt()).coerceIn(minWidth, maxWidth)
+                    targetHeight = sessionWindowHeight ?: (((targetWidth) / aspect).toInt() + topBarHeightPx)
+                } else {
+                    targetWidth = (sessionAudioWindowWidth ?: sessionWindowWidth ?: (300 * metrics.density).toInt()).coerceIn(minWidth, maxWidth)
+                    targetHeight = (sessionAudioWindowHeight ?: sessionWindowHeight ?: (200 * metrics.density).toInt()).coerceIn((120 * metrics.density).toInt(), maxHeight)
+                }
+
+                if (targetHeight > maxHeight) {
+                    targetHeight = maxHeight
+                }
+
+                lp.width = targetWidth
+                lp.height = targetHeight
+
+                // 3. Restore remembered window position with screen bounds safety
+                val defaultWinX = (24 * metrics.density).toInt()
+                val defaultWinY = (100 * metrics.density).toInt()
+                val targetWinX = sessionWindowX ?: defaultWinX
+                val targetWinY = sessionWindowY ?: defaultWinY
+
+                lp.x = targetWinX.coerceIn(0, (metrics.widthPixels - targetWidth).coerceAtLeast(0))
+                lp.y = targetWinY.coerceIn(0, (metrics.heightPixels - targetHeight).coerceAtLeast(0))
+                sessionWindowX = lp.x
+                sessionWindowY = lp.y
+            }
+            windowManager.updateViewLayout(cv, lp)
+        }
+    }
+}
 
 val updateWindowForAspectRatio: (Float) -> Unit = { aspect ->
     if (aspect > 0.2f && aspect < 5.0f) {
         videoAspectRatio = aspect
         val lp = layoutParams
         val currentCv = composeView
-        if (lp != null && currentCv != null && isVideoMode) {
+        if (lp != null && currentCv != null && isVideoMode && !isMinimized) {
             val metrics = resources.displayMetrics
             val topBarHeightPx = (32 * metrics.density).toInt()
             val minWidth = (200 * metrics.density).toInt()
             val maxWidth = (metrics.widthPixels * 0.95f).toInt()
             val maxHeight = (metrics.heightPixels * 0.7f).toInt()
 
-            var targetWidth = lp.width.coerceIn(minWidth, maxWidth)
+            var targetWidth = (sessionWindowWidth ?: lp.width).coerceIn(minWidth, maxWidth)
             var targetHeight = ((targetWidth) / aspect).toInt() + topBarHeightPx
 
             if (targetHeight > maxHeight) {
@@ -501,22 +629,21 @@ val updateWindowForAspectRatio: (Float) -> Unit = { aspect ->
                 targetWidth = (((targetHeight - topBarHeightPx) * aspect).toInt()).coerceIn(minWidth, maxWidth)
             }
 
-            if (lp.y + targetHeight > metrics.heightPixels) {
-                lp.y = (metrics.heightPixels - targetHeight - (16 * metrics.density).toInt()).coerceAtLeast(0)
-            }
-            if (lp.x + targetWidth > metrics.widthPixels) {
-                lp.x = (metrics.widthPixels - targetWidth - (16 * metrics.density).toInt()).coerceAtLeast(0)
-            }
+            lp.width = targetWidth
+            lp.height = targetHeight
 
-            if (lp.width != targetWidth || lp.height != targetHeight) {
-                lp.width = targetWidth
-                lp.height = targetHeight
-                try {
-                    windowManager.updateViewLayout(currentCv, lp)
-                    prefs.edit().putInt("width", lp.width).putInt("height", lp.height).apply()
-                } catch (e: Exception) {
-                    com.example.LogKeeper.logError("PlaybackService", "Error updating floating window aspect ratio", e)
-                }
+            lp.x = lp.x.coerceIn(0, (metrics.widthPixels - targetWidth).coerceAtLeast(0))
+            lp.y = lp.y.coerceIn(0, (metrics.heightPixels - targetHeight).coerceAtLeast(0))
+
+            sessionWindowWidth = targetWidth
+            sessionWindowHeight = targetHeight
+            sessionWindowX = lp.x
+            sessionWindowY = lp.y
+
+            try {
+                windowManager.updateViewLayout(currentCv, lp)
+            } catch (e: Exception) {
+                com.example.LogKeeper.logError("PlaybackService", "Error updating floating window aspect ratio", e)
             }
         }
     }
@@ -530,73 +657,65 @@ onClose = {
 val player = com.example.service.PlayerManager.exoPlayer
 player?.stop()
 player?.clearMediaItems()
+resetSessionFloatingState()
 hideOverlay()
 stopSelf()
 },
 onMinimize = {
-    isMinimized = true
-    val lp = layoutParams
-    if (lp != null) {
-        lp.width = WindowManager.LayoutParams.WRAP_CONTENT
-        lp.height = WindowManager.LayoutParams.WRAP_CONTENT
-        windowManager.updateViewLayout(cv, lp)
-    }
+    handleMinimizeToggle(true)
 },
 isMinimizedExternal = isMinimized,
 onMinimizeChange = { minimized ->
-    isMinimized = minimized
-    val lp = layoutParams
-    if (lp != null) {
-        if (minimized) {
-            lp.width = WindowManager.LayoutParams.WRAP_CONTENT
-            lp.height = WindowManager.LayoutParams.WRAP_CONTENT
-        } else {
-            val metrics = resources.displayMetrics
-            val topBarHeightPx = (32 * metrics.density).toInt()
-            val minWidth = (200 * metrics.density).toInt()
-            val maxWidth = (metrics.widthPixels * 0.95f).toInt()
-            val maxHeight = (metrics.heightPixels * 0.7f).toInt()
-            val aspect = videoAspectRatio.coerceIn(0.4f, 2.5f)
-            val w = prefs.getInt("width", (300 * metrics.density).toInt()).coerceIn(minWidth, maxWidth)
-            var h = ((w / aspect).toInt() + topBarHeightPx)
-            if (h > maxHeight) {
-                h = maxHeight
-            }
-            lp.width = w
-            lp.height = h
-        }
-        windowManager.updateViewLayout(cv, lp)
-    }
+    handleMinimizeToggle(minimized)
 },
 onDrag = { dx, dy ->
 val lp = layoutParams
 if (lp != null) {
-lp.x += dx.toInt()
-lp.y += dy.toInt()
-windowManager.updateViewLayout(cv, lp)
-prefs.edit().putInt("x", lp.x).putInt("y", lp.y).apply()
+    val metrics = resources.displayMetrics
+    lp.x += dx.toInt()
+    lp.y += dy.toInt()
+    if (isMinimized) {
+        val bubbleSizePx = (40 * metrics.density).toInt()
+        lp.x = lp.x.coerceIn(0, (metrics.widthPixels - bubbleSizePx).coerceAtLeast(0))
+        lp.y = lp.y.coerceIn(0, (metrics.heightPixels - bubbleSizePx).coerceAtLeast(0))
+        sessionBubbleX = lp.x
+        sessionBubbleY = lp.y
+    } else {
+        lp.x = lp.x.coerceIn(0, (metrics.widthPixels - lp.width).coerceAtLeast(0))
+        lp.y = lp.y.coerceIn(0, (metrics.heightPixels - lp.height).coerceAtLeast(0))
+        sessionWindowX = lp.x
+        sessionWindowY = lp.y
+    }
+    windowManager.updateViewLayout(cv, lp)
 }
 },
 onResize = { dw, dh ->
 val lp = layoutParams
-if (lp != null) {
-val metrics = resources.displayMetrics
-val topBarHeightPx = (32 * metrics.density).toInt()
-val minWidth = (200 * metrics.density).toInt()
-val maxWidth = (metrics.widthPixels * 0.95f).toInt()
-val maxHeight = (metrics.heightPixels * 0.7f).toInt()
+if (lp != null && !isMinimized) {
+    val metrics = resources.displayMetrics
+    val topBarHeightPx = (32 * metrics.density).toInt()
+    val minWidth = (200 * metrics.density).toInt()
+    val maxWidth = (metrics.widthPixels * 0.95f).toInt()
+    val maxHeight = (metrics.heightPixels * 0.7f).toInt()
 
-val aspect = videoAspectRatio.coerceIn(0.4f, 2.5f)
-val newWidth = (lp.width + dw.toInt()).coerceIn(minWidth, maxWidth)
-var newHeight = ((newWidth) / aspect).toInt() + topBarHeightPx
-if (newHeight > maxHeight) {
-    newHeight = maxHeight
-}
+    val aspect = videoAspectRatio.coerceIn(0.4f, 2.5f)
+    val newWidth = (lp.width + dw.toInt()).coerceIn(minWidth, maxWidth)
+    var newHeight = ((newWidth) / aspect).toInt() + topBarHeightPx
+    if (newHeight > maxHeight) {
+        newHeight = maxHeight
+    }
 
-lp.width = newWidth
-lp.height = newHeight
-windowManager.updateViewLayout(cv, lp)
-prefs.edit().putInt("width", lp.width).putInt("height", lp.height).apply()
+    lp.width = newWidth
+    lp.height = newHeight
+    lp.x = lp.x.coerceIn(0, (metrics.widthPixels - lp.width).coerceAtLeast(0))
+    lp.y = lp.y.coerceIn(0, (metrics.heightPixels - lp.height).coerceAtLeast(0))
+
+    sessionWindowWidth = lp.width
+    sessionWindowHeight = lp.height
+    sessionWindowX = lp.x
+    sessionWindowY = lp.y
+
+    windowManager.updateViewLayout(cv, lp)
 }
 },
 onOpenMainPlayer = {
@@ -620,8 +739,14 @@ com.example.service.PlayerManager.detachVideoSurface()
 val lp = layoutParams
 if (lp != null) {
     val metrics = resources.displayMetrics
-    lp.width = (300 * metrics.density).toInt()
-    lp.height = (200 * metrics.density).toInt()
+    val targetAudioW = (sessionAudioWindowWidth ?: sessionWindowWidth ?: (300 * metrics.density).toInt()).coerceIn((200 * metrics.density).toInt(), (metrics.widthPixels * 0.95f).toInt())
+    val targetAudioH = (sessionAudioWindowHeight ?: (200 * metrics.density).toInt()).coerceIn((120 * metrics.density).toInt(), (metrics.heightPixels * 0.7f).toInt())
+    lp.width = targetAudioW
+    lp.height = targetAudioH
+    lp.x = lp.x.coerceIn(0, (metrics.widthPixels - lp.width).coerceAtLeast(0))
+    lp.y = lp.y.coerceIn(0, (metrics.heightPixels - lp.height).coerceAtLeast(0))
+    sessionWindowX = lp.x
+    sessionWindowY = lp.y
     windowManager.updateViewLayout(cv, lp)
 }
 },
@@ -634,45 +759,54 @@ onClose = {
 val player = com.example.service.PlayerManager.exoPlayer
 player?.stop()
 player?.clearMediaItems()
+resetSessionFloatingState()
 hideOverlay()
 stopSelf()
 },
 onMinimize = {
-hideOverlay()
+    handleMinimizeToggle(true)
 },
 onDrag = { dx, dy ->
 val lp = layoutParams
 if (lp != null) {
-lp.x += dx.toInt()
-lp.y += dy.toInt()
-windowManager.updateViewLayout(cv, lp)
-prefs.edit().putInt("x", lp.x).putInt("y", lp.y).apply()
+    val metrics = resources.displayMetrics
+    lp.x += dx.toInt()
+    lp.y += dy.toInt()
+    if (isMinimized) {
+        val bubbleSizePx = (40 * metrics.density).toInt()
+        lp.x = lp.x.coerceIn(0, (metrics.widthPixels - bubbleSizePx).coerceAtLeast(0))
+        lp.y = lp.y.coerceIn(0, (metrics.heightPixels - bubbleSizePx).coerceAtLeast(0))
+        sessionBubbleX = lp.x
+        sessionBubbleY = lp.y
+    } else {
+        lp.x = lp.x.coerceIn(0, (metrics.widthPixels - lp.width).coerceAtLeast(0))
+        lp.y = lp.y.coerceIn(0, (metrics.heightPixels - lp.height).coerceAtLeast(0))
+        sessionWindowX = lp.x
+        sessionWindowY = lp.y
+    }
+    windowManager.updateViewLayout(cv, lp)
 }
 },
 onResize = { dw, dh ->
 val lp = layoutParams
-if (lp != null) {
-lp.width = (lp.width + dw.toInt()).coerceAtLeast(400)
-lp.height = (lp.height + dh.toInt()).coerceAtLeast(400)
-windowManager.updateViewLayout(cv, lp)
-prefs.edit().putInt("width", lp.width).putInt("height", lp.height).apply()
+if (lp != null && !isMinimized) {
+    val metrics = resources.displayMetrics
+    lp.width = (lp.width + dw.toInt()).coerceIn((200 * metrics.density).toInt(), (metrics.widthPixels * 0.95f).toInt())
+    lp.height = (lp.height + dh.toInt()).coerceIn((120 * metrics.density).toInt(), (metrics.heightPixels * 0.7f).toInt())
+    lp.x = lp.x.coerceIn(0, (metrics.widthPixels - lp.width).coerceAtLeast(0))
+    lp.y = lp.y.coerceIn(0, (metrics.heightPixels - lp.height).coerceAtLeast(0))
+    sessionAudioWindowWidth = lp.width
+    sessionAudioWindowHeight = lp.height
+    sessionWindowWidth = lp.width
+    sessionWindowHeight = lp.height
+    sessionWindowX = lp.x
+    sessionWindowY = lp.y
+    windowManager.updateViewLayout(cv, lp)
 }
 },
 isMinimizedExternal = isMinimized,
 onMinimizeChange = { minimized ->
-isMinimized = minimized
-val lp = layoutParams
-if (lp != null) {
-if (minimized) {
-lp.width = WindowManager.LayoutParams.WRAP_CONTENT
-lp.height = WindowManager.LayoutParams.WRAP_CONTENT
-} else {
-val metrics = resources.displayMetrics
-lp.width = prefs.getInt("width", (300 * metrics.density).toInt())
-lp.height = prefs.getInt("height", (200 * metrics.density).toInt())
-}
-windowManager.updateViewLayout(cv, lp)
-}
+    handleMinimizeToggle(minimized)
 },
 onSwitchToVideo = {
     isVideoMode = true
@@ -704,27 +838,54 @@ val initialAspect = if (vs != null && vs.width > 0 && vs.height > 0) {
     16f / 9f
 }
 val topBarHeightPx = (32 * metrics.density).toInt()
-val defaultWidth = (300 * metrics.density).toInt()
-val widthPx = prefs.getInt("width", defaultWidth)
-val initialHeight = ((widthPx) / initialAspect).toInt() + topBarHeightPx
-val heightPx = if (startInVideoMode) initialHeight else prefs.getInt("height", (200 * metrics.density).toInt())
+val minWidth = (200 * metrics.density).toInt()
+val maxWidth = (metrics.widthPixels * 0.95f).toInt()
+val maxHeight = (metrics.heightPixels * 0.7f).toInt()
+val defaultWidth = (300 * metrics.density).toInt().coerceIn(minWidth, maxWidth)
+val widthPx = (if (startInVideoMode) sessionWindowWidth else (sessionAudioWindowWidth ?: sessionWindowWidth)) ?: defaultWidth
+val widthPxCoerced = widthPx.coerceIn(minWidth, maxWidth)
+var initialHeight = ((widthPxCoerced) / initialAspect).toInt() + topBarHeightPx
+if (initialHeight > maxHeight) {
+    initialHeight = maxHeight
+}
+val heightPx = if (startInVideoMode) {
+    sessionWindowHeight ?: initialHeight
+} else {
+    sessionAudioWindowHeight ?: sessionWindowHeight ?: (200 * metrics.density).toInt()
+}
+
+val defaultX = (24 * metrics.density).toInt()
+val defaultY = (100 * metrics.density).toInt()
+val initialX = (sessionWindowX ?: defaultX).coerceIn(0, (metrics.widthPixels - widthPxCoerced).coerceAtLeast(0))
+val initialY = (sessionWindowY ?: defaultY).coerceIn(0, (metrics.heightPixels - heightPx).coerceAtLeast(0))
+
+sessionWindowWidth = widthPxCoerced
+sessionWindowHeight = heightPx
+sessionWindowX = initialX
+sessionWindowY = initialY
+
+val bubbleSizePx = (40 * metrics.density).toInt()
+val isCurrentlyMinimized = sessionIsMinimized
+val targetBubbleX = (sessionBubbleX ?: (metrics.widthPixels - bubbleSizePx - (16 * metrics.density).toInt())).coerceIn(0, (metrics.widthPixels - bubbleSizePx).coerceAtLeast(0))
+val targetBubbleY = (sessionBubbleY ?: initialY).coerceIn(0, (metrics.heightPixels - bubbleSizePx).coerceAtLeast(0))
+
 layoutParams = WindowManager.LayoutParams(
-widthPx,
-heightPx,
+if (isCurrentlyMinimized) WindowManager.LayoutParams.WRAP_CONTENT else widthPxCoerced,
+if (isCurrentlyMinimized) WindowManager.LayoutParams.WRAP_CONTENT else heightPx,
 type,
 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
 PixelFormat.TRANSLUCENT
 ).apply {
 gravity = Gravity.TOP or Gravity.START
-x = prefs.getInt("x", 100)
-y = prefs.getInt("y", 100)
+x = if (isCurrentlyMinimized) targetBubbleX else initialX
+y = if (isCurrentlyMinimized) targetBubbleY else initialY
 }
 windowManager.addView(composeView, layoutParams)
 lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START)
 lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
 }
 
-private fun hideOverlay() {
+fun hideOverlay() {
 composeView?.let {
 lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
 lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
@@ -760,6 +921,8 @@ composeView = null
             if (android.provider.Settings.canDrawOverlays(this)) {
                 showOverlay(false)
             }
+        } else if (cmd == "ACTION_HIDE_OVERLAY") {
+            hideOverlay()
         }
         return super.onStartCommand(intent, flags, startId)
     }
@@ -782,7 +945,11 @@ composeView = null
             mediaSession = null
         }
         lifecycleRegistry.handleLifecycleEvent(androidx.lifecycle.Lifecycle.Event.ON_DESTROY)
+        resetSessionFloatingState()
         hideOverlay()
+        if (instance == this) {
+            instance = null
+        }
         super.onDestroy()
     }
 
@@ -820,6 +987,7 @@ composeView = null
             when (cmd) {
                 "ACTION_MINIPLAYER", "ACTION_OVERLAY" -> showOverlay(false)
                 "ACTION_VIDEO_OVERLAY" -> showOverlay(true)
+                "ACTION_HIDE_OVERLAY" -> hideOverlay()
                 "ACTION_CLOSE" -> {
                     com.example.LogKeeper.log("ACTION_CLOSE received -> stopping and removing notification", "PlaybackService")
                     try {
@@ -831,6 +999,7 @@ composeView = null
                     } catch (e: Exception) {}
                     player.stop()
                     player.clearMediaItems()
+                    resetSessionFloatingState()
                     hideOverlay()
                     stopSelf()
                 }
@@ -860,6 +1029,32 @@ composeView = null
                 }
             }
             updateWidgetUI()
+        }
+    }
+
+    companion object {
+        private var instance: PlaybackService? = null
+
+        fun hideOverlay(context: android.content.Context) {
+            val inst = instance
+            if (inst != null) {
+                inst.hideOverlay()
+            } else {
+                try {
+                    val intent = android.content.Intent(context, PlaybackService::class.java).apply {
+                        putExtra("command", "ACTION_HIDE_OVERLAY")
+                    }
+                    context.startService(intent)
+                } catch (e: Exception) {
+                    try {
+                        val broadcastIntent = android.content.Intent("com.example.ACTION_WIDGET_COMMAND").apply {
+                            putExtra("command", "ACTION_HIDE_OVERLAY")
+                            setPackage(context.packageName)
+                        }
+                        context.sendBroadcast(broadcastIntent)
+                    } catch (e2: Exception) {}
+                }
+            }
         }
     }
 }

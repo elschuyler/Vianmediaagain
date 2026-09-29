@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
@@ -79,6 +80,7 @@ fun MainScreen(
     onNavigateToPlaylistDetail: (Int) -> Unit = {},
     onNavigateToAudioTrimmer: (String) -> Unit = {},
     onNavigateToVideoEditor: (String) -> Unit = {},
+    onNavigateToVideoEditorWithJoin: (String, List<String>) -> Unit = { _, _ -> },
     initialSearchActive: Boolean = false
 ) {
     val viewModel: MediaViewModel = viewModel()
@@ -345,6 +347,17 @@ fun MainScreen(
                 BottomAppBar {
                     Spacer(modifier = Modifier.weight(1f))
                     if (selectedMediaItems.size > 1) {
+                        val allVideos = selectedMediaItems.all { it.mediaType == com.example.data.MediaType.VIDEO }
+                        if (allVideos) {
+                            IconButton(onClick = {
+                                val first = selectedMediaItems.first().uri.toString()
+                                val rest = selectedMediaItems.drop(1).map { it.uri.toString() }
+                                onNavigateToVideoEditorWithJoin(first, rest)
+                            }) {
+                                Icon(Icons.Filled.VideoLibrary, contentDescription = "Join in Editor")
+                            }
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
                         IconButton(onClick = {
                             val intent = android.content.Intent(context, com.example.BatchActionActivity::class.java).apply {
                                 action = android.content.Intent.ACTION_SEND_MULTIPLE
@@ -852,25 +865,20 @@ fun MainScreen(
                     onClick = {
                         coroutineScope.launch {
                             if (targetType == 2) {
-                                val player = com.example.service.PlayerManager.exoPlayer
-                                if (player != null) {
-                                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                        selectedMediaItems.forEach { item ->
-                                            val meta = androidx.media3.common.MediaMetadata.Builder()
-                                                .setTitle(item.name)
-                                                .setDisplayTitle(item.name)
-                                                .setArtworkUri(item.uri)
-                                                .build()
-                                            val mediaItem = androidx.media3.common.MediaItem.Builder()
-                                                .setUri(item.uri)
-                                                .setMediaId(item.uri.toString())
-                                                .setMediaMetadata(meta)
-                                                .build()
-                                            player.addMediaItem(mediaItem)
-                                        }
-                                        Toast.makeText(context, "Added to Current Queue", Toast.LENGTH_SHORT).show()
-                                    }
+                                val mediaItems = selectedMediaItems.map { item ->
+                                    val meta = androidx.media3.common.MediaMetadata.Builder()
+                                        .setTitle(item.name)
+                                        .setDisplayTitle(item.name)
+                                        .setArtworkUri(item.uri)
+                                        .build()
+                                    androidx.media3.common.MediaItem.Builder()
+                                        .setUri(item.uri)
+                                        .setMediaId(item.uri.toString())
+                                        .setMediaMetadata(meta)
+                                        .build()
                                 }
+                                com.example.service.PlayerManager.appendOrTransitionQueue(context, mediaItems)
+                                Toast.makeText(context, "Added to Current Queue", Toast.LENGTH_SHORT).show()
                             } else {
                                 val playlistId = if (targetType == 1) {
                                     if (newPlaylistName.isNotBlank()) {
