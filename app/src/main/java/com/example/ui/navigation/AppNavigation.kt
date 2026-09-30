@@ -53,7 +53,7 @@ fun AppNavigation(
             val base64Flags = android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING
             if (forceAction == "mini" || forceAction == "pip" || forceAction == "none") {
                 null
-            } else if (forceAction == "play" || forceAction == "com.example.ACTION_OPEN_PLAYER") {
+            } else if (forceAction == "play" || forceAction == "com.example.ACTION_OPEN_PLAYER" || forceAction == android.content.Intent.ACTION_VIEW) {
                 val encodedUri = android.util.Base64.encodeToString(initialUris.first().toByteArray(), base64Flags)
                 "player/$encodedUri"
             } else if (forceAction == "edit") {
@@ -79,7 +79,23 @@ fun AppNavigation(
         } else null
     }
 
-    val startDest = intentDest ?: defaultStartDest
+    val isExternalIntent = initialUris.isNotEmpty() && (
+        forceAction == "play" ||
+        forceAction == "edit" ||
+        forceAction == android.content.Intent.ACTION_VIEW ||
+        forceAction == android.content.Intent.ACTION_SEND ||
+        forceAction == android.content.Intent.ACTION_SEND_MULTIPLE
+    )
+    var isExternalLaunch by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(isExternalIntent) }
+
+    LaunchedEffect(isExternalIntent) {
+        if (isExternalIntent) {
+            isExternalLaunch = true
+        }
+    }
+
+    val initialStartDest = remember { intentDest ?: defaultStartDest }
+    val startDest = androidx.compose.runtime.saveable.rememberSaveable { initialStartDest }
     
 
 
@@ -110,7 +126,7 @@ fun AppNavigation(
     }
 
     LaunchedEffect(forceAction, initialUris) {
-        if (forceAction == "play" || forceAction == "com.example.ACTION_OPEN_PLAYER") {
+        if (forceAction == "play" || forceAction == "com.example.ACTION_OPEN_PLAYER" || forceAction == android.content.Intent.ACTION_VIEW) {
             val targetUri = initialUris.firstOrNull()
                 ?: com.example.service.PlayerManager.exoPlayer?.currentMediaItem?.mediaId
                 ?: com.example.service.PlayerManager.playbackState.value.playlist.getOrNull(
@@ -122,7 +138,9 @@ fun AppNavigation(
                 val encodedUri = android.util.Base64.encodeToString(targetUri.toByteArray(), base64Flags)
                 val currentRoute = navController.currentDestination?.route
                 val currentUriArg = navController.currentBackStackEntry?.arguments?.getString("uri")
-                if (currentRoute != "player/{uri}" || currentUriArg != encodedUri) {
+                val isAlreadyOnPlayer = (currentRoute == "player/{uri}" && currentUriArg == encodedUri) ||
+                    (startDest == "player/$encodedUri" && currentRoute == null)
+                if (!isAlreadyOnPlayer) {
                     navController.navigate("player/$encodedUri") {
                         launchSingleTop = true
                     }
@@ -241,11 +259,16 @@ fun AppNavigation(
                         try {
                             (context as? android.app.Activity)?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
                         } catch (e: Exception) {}
-                        val popped = navController.popBackStack()
-                        com.example.LogKeeper.log("popBackStack() returned $popped, current backstack size: ${navController.currentBackStack.value.size}", "Navigation")
-                        if (!popped || (initialUris.isNotEmpty() && navController.currentDestination?.route == "main")) {
-                            com.example.LogKeeper.log("No backstack entry to pop or launched via intent — finishing Activity", "Navigation")
+                        if (isExternalLaunch) {
+                            com.example.LogKeeper.log("External launch session ended — finishing Activity", "Navigation")
                             (context as? android.app.Activity)?.finish()
+                        } else {
+                            val popped = navController.popBackStack()
+                            com.example.LogKeeper.log("popBackStack() returned $popped, current backstack size: ${navController.currentBackStack.value.size}", "Navigation")
+                            if (!popped) {
+                                com.example.LogKeeper.log("No backstack entry to pop — finishing Activity", "Navigation")
+                                (context as? android.app.Activity)?.finish()
+                            }
                         }
                     } else {
                         com.example.LogKeeper.log("onNavigateBack called again for same session, ignoring", "Navigation")
@@ -272,11 +295,19 @@ fun AppNavigation(
             com.example.ui.screens.PhotoEditorScreen(
                 uriString = decodedUri,
                 onNavigateBack = { 
-                    val popped = navController.popBackStack()
-                    com.example.LogKeeper.log("popBackStack() returned $popped, current backstack size: ${navController.currentBackStack.value.size}", "Navigation")
-                    if (!popped || (initialUris.isNotEmpty() && navController.currentDestination?.route == "main")) {
-                        com.example.LogKeeper.log("No backstack entry to pop or launched via intent — finishing Activity", "Navigation")
+                    try {
+                        (context as? android.app.Activity)?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                    } catch (e: Exception) {}
+                    if (isExternalLaunch) {
+                        com.example.LogKeeper.log("External launch session ended in photo editor — finishing Activity", "Navigation")
                         (context as? android.app.Activity)?.finish()
+                    } else {
+                        val popped = navController.popBackStack()
+                        com.example.LogKeeper.log("popBackStack() returned $popped, current backstack size: ${navController.currentBackStack.value.size}", "Navigation")
+                        if (!popped) {
+                            com.example.LogKeeper.log("No backstack entry to pop — finishing Activity", "Navigation")
+                            (context as? android.app.Activity)?.finish()
+                        }
                     }
                 }
             )
@@ -292,11 +323,19 @@ fun AppNavigation(
             com.example.ui.screens.AudioTrimmerScreen(
                 uriString = decodedUri,
                 onNavigateBack = { 
-                    val popped = navController.popBackStack()
-                    com.example.LogKeeper.log("popBackStack() returned $popped, current backstack size: ${navController.currentBackStack.value.size}", "Navigation")
-                    if (!popped || (initialUris.isNotEmpty() && navController.currentDestination?.route == "main")) {
-                        com.example.LogKeeper.log("No backstack entry to pop or launched via intent — finishing Activity", "Navigation")
+                    try {
+                        (context as? android.app.Activity)?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                    } catch (e: Exception) {}
+                    if (isExternalLaunch) {
+                        com.example.LogKeeper.log("External launch session ended in audio trimmer — finishing Activity", "Navigation")
                         (context as? android.app.Activity)?.finish()
+                    } else {
+                        val popped = navController.popBackStack()
+                        com.example.LogKeeper.log("popBackStack() returned $popped, current backstack size: ${navController.currentBackStack.value.size}", "Navigation")
+                        if (!popped) {
+                            com.example.LogKeeper.log("No backstack entry to pop — finishing Activity", "Navigation")
+                            (context as? android.app.Activity)?.finish()
+                        }
                     }
                 }
             )
@@ -315,11 +354,19 @@ fun AppNavigation(
                 initialJoinUris = effectiveJoinUris,
                 onNavigateBack = { 
                     inAppJoinUris = emptyList()
-                    val popped = navController.popBackStack()
-                    com.example.LogKeeper.log("popBackStack() returned $popped, current backstack size: ${navController.currentBackStack.value.size}", "Navigation")
-                    if (!popped || (initialUris.isNotEmpty() && navController.currentDestination?.route == "main")) {
-                        com.example.LogKeeper.log("No backstack entry to pop or launched via intent — finishing Activity", "Navigation")
+                    try {
+                        (context as? android.app.Activity)?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                    } catch (e: Exception) {}
+                    if (isExternalLaunch) {
+                        com.example.LogKeeper.log("External launch session ended in video editor — finishing Activity", "Navigation")
                         (context as? android.app.Activity)?.finish()
+                    } else {
+                        val popped = navController.popBackStack()
+                        com.example.LogKeeper.log("popBackStack() returned $popped, current backstack size: ${navController.currentBackStack.value.size}", "Navigation")
+                        if (!popped) {
+                            com.example.LogKeeper.log("No backstack entry to pop — finishing Activity", "Navigation")
+                            (context as? android.app.Activity)?.finish()
+                        }
                     }
                 }
             )

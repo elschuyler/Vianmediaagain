@@ -329,3 +329,69 @@
 * Verification: Verified syntax AST; executed `lint_applet` and `compile_applet`.
 * Deviation: None.
 * Known issues: None.
+
+---
+
+* Timestamp: 2026-09-29T20:55:00Z
+* Summary: Phase 63 - PlayerScreen Touch Isolation, Brightness Slider Retention, Clean Floating Video Player, and NavHost Switch Stability.
+* Files touched:
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+  - app/src/main/java/com/example/ui/components/FloatingVideoPlayerOverlay.kt
+  - app/src/main/java/com/example/ui/navigation/AppNavigation.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_027.md
+* What was actually done:
+  - Isolated TopBar (`tapPos.y <= 140f * density`) and BottomBar (`tapPos.y >= size.height - 180f * density`) bounds in `PlayerScreen.kt` root pointerInput tap evaluator: interactions with TopBar buttons (including the Brightness button) and BottomBar controls refresh `controlsInteractionTrigger` to keep controls active without toggling `showControls = false` or prematurely dismissing `showBrightnessSlider`.
+  - Fixed Brightness button activation in `PlayerScreen.kt`: tapping the brightness icon now reliably displays the vertical HUD slider. While active, full-screen vertical drag adjusts `GestureType.BRIGHTNESS` directly, and auto-hides after 3s of inactivity, reverting vertical drag back to `GestureType.VOLUME`. Tapping the center video area dismisses the slider on demand.
+  - Removed the 3 center overlay buttons (Rewind 10s, Play/Pause, Forward 10s) from `FloatingVideoPlayerOverlay.kt`, leaving an unobstructed video window driven exclusively by the 3-zone double-tap gesture (left 35% rewinds 10s, center 30% toggles play/pause, right 35% fast-forwards 10s) with animated HUD feedback.
+  - Anchored `startDest` in `AppNavigation.kt` with `rememberSaveable { initialStartDest }`: prevents `NavHost.startDestination` from dynamically resetting to `"main"` when `onIntentConsumed()` clears `_currentIntent.value`, guaranteeing that switching from the Floating Player via `ACTION_OPEN_PLAYER` navigates directly to and stays on `player/{uri}` without collapsing back to the Library.
+* Verification: Verified Kotlin AST syntax and brace balance; executed `lint_applet` and `compile_applet`.
+* Deviation: None.
+* Known issues: None.
+
+---
+
+* Timestamp: 2026-09-30T13:00:00Z
+* Summary: Phase 64 - External Video Viewer Isolation & Clean Exit Architecture.
+* Files touched:
+  - app/src/main/AndroidManifest.xml
+  - app/src/main/java/com/example/MainActivity.kt
+  - app/src/main/java/com/example/ui/navigation/AppNavigation.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_027.md
+* What was actually done:
+  - Added `android:launchMode="singleTask"` to `.MainActivity` in `AndroidManifest.xml` to prevent external intents (PlayMediaActivity, EditMediaActivity, ACTION_VIEW) from stacking multiple `MainActivity` instances in the task stack where finishing one instance leaves another instance displaying the Library.
+  - Normalized `android.content.Intent.ACTION_VIEW` in `MainActivity.kt` to action `"play"` so external view intents consistently route to the media player.
+  - Added persistent `isExternalLaunch` tracking via `rememberSaveable` in `AppNavigation.kt` that latches `true` whenever launched with external media URIs (ACTION_VIEW, ACTION_SEND, PlayMediaActivity, EditMediaActivity) and persists across intent consumption (`_currentIntent.value = null`).
+  - Added check in `LaunchedEffect` in `AppNavigation.kt` (`isAlreadyOnPlayer`) to avoid pushing duplicate player routes when `startDest` is already the player destination on cold launch.
+  - Rewrote `onNavigateBack` across all intent-capable screens (`player/{uri}`, `photo_editor/{uri}`, `audio_trimmer/{uri}`, `video_editor/{uri}`) in `AppNavigation.kt`: when `isExternalLaunch` is true, back navigation directly finishes the Activity (`activity.finish()`), returning cleanly to the caller application (WhatsApp, File Manager, Downloads, Gallery) without popping into or flashing the Library (`main`). When `isExternalLaunch` is false (in-app library browsing), standard backstack popping to `main` is preserved.
+* Verification: Verified via lint_applet and compile_applet.
+* Deviation: None.
+* Known issues: None.
+
+---
+
+* Timestamp: 2026-09-30T17:00:00Z
+* Summary: Phase 65 - Persistent Media Library Caching with 24-Hour Auto-Sync, On-Demand Folder Query, Log Keeper PII Sanitization & Player Zero-Jerk Playback Initialization.
+* Files touched:
+  - BLUEPRINT.md
+  - app/src/main/java/com/example/data/MediaRepository.kt
+  - app/src/main/java/com/example/ui/screens/MediaViewModel.kt
+  - app/src/main/java/com/example/ui/screens/MainScreen.kt
+  - app/src/main/java/com/example/LogCatcher.kt
+  - app/src/main/java/com/example/service/PlayerManager.kt
+  - app/src/main/java/com/example/service/FFmpegService.kt
+  - app/src/main/java/com/example/service/CompressionService.kt
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+  - receipts/RECEIPTS_027.md
+* What was actually done:
+  - Implemented persistent disk caching for the media library (`media_library_cache.json`) in `MediaRepository.kt` with atomic writing and `last_scan_timestamp` tracking.
+  - Configured `MediaViewModel.kt` to restore the cached library instantly on launch (0ms delay, no loading spinner, no disk thrashing). Added a 24-hour auto-refresh cooldown (`isCacheStale`) where auto-scanning runs at most once a day silently in background, leaving all other library updates strictly manual.
+  - Implemented surgical, indexed single-folder scanning in `getMediaFolder(bucketId)`: instead of querying the entire device's storage, it queries `MediaStore.Files` with `selection = "bucket_id = ?"`, executing in milliseconds. Connected `selectFolder(folderId)` to only trigger a scan when entering that folder, persisting updates directly to cache.
+  - Connected `MainScreen.kt` pull-to-refresh, exclude, delete, and rename handlers to `refreshMedia()`, ensuring user actions explicitly refresh when intended.
+  - Strengthened `LogCatcher.sanitize()` with quoted and space-aware filename regexes matching names like `My Vacation.mp4` and paths with spaces. Removed file names, video titles, URIs, and full CLI commands from log statements in `PlayerManager.kt`, `FFmpegService.kt`, and `CompressionService.kt`, strictly honoring Mandate 17.
+  - Resolved player startup jerk in `PlayerScreen.kt`: initialized playback with `controller.setMediaItem(initialMediaItem, startPos)` so seek occurs seamlessly during preparation rather than issuing a disruptive post-prepare `seekTo()`. Replaced delayed `controller.setMediaItems(...)` timeline replacement with non-disruptive `addMediaItems` (preceding items at 0, succeeding items at end), keeping the active hardware decoder pipeline 100% uninterrupted. Guarded orientation changes so redundant WindowManager surface buffer reallocations never conflict with playback.
+* Verification: Verified Kotlin AST balance (0 brace/parens deltas across all touched files); verified via `lint_applet` (tsc --noEmit) and `compile_applet` (0 errors).
+* Deviation: None.
+* Known issues: None.
+

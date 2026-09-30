@@ -78,9 +78,10 @@ object LogCatcher {
 
     private val URL_REGEX = Regex("""(?i)\b(?:https?|ftp|rtsp|smb|file)://[^\s"'<>]+""")
     private val CONTENT_URI_REGEX = Regex("""(?i)\bcontent://[^\s"'<>]+""")
-    private val STORAGE_PATH_REGEX = Regex("""(?i)(?:/storage/emulated/\d+|/data/user/\d+|/data/data/[a-zA-Z0-9_.]+|/sdcard)/[^\s"'<>]+""")
-    private val UNIX_PATH_REGEX = Regex("""(?i)/(?:[\w.\-]+/)+[\w.\-]+\.(?:mp4|mkv|mov|avi|webm|flv|wmv|3gp|ts|m4s|mp3|m4a|aac|wav|flac|ogg|opus|wma|jpg|jpeg|png|webp|gif|bmp|svg|srt|vtt|ass|sub|txt|json|pdf|log)\b""")
-    private val FILE_NAME_REGEX = Regex("""(?i)\b[\w\-.]+\.(?:mp4|mkv|mov|avi|webm|flv|wmv|3gp|ts|m4s|mp3|m4a|aac|wav|flac|ogg|opus|wma|jpg|jpeg|png|webp|gif|bmp|svg|srt|vtt|ass|sub|txt|json|pdf|log)\b""")
+    private val STORAGE_PATH_REGEX = Regex("""(?i)(?:/storage/[^\s"'<>]+|/data/[^\s"'<>]+|/sdcard/[^\s"'<>]+)""")
+    private val QUOTED_FILE_REGEX = Regex("""(?i)(?:['"])[^'"]+?\.(?:mp4|mkv|mov|avi|webm|flv|wmv|3gp|ts|m4s|mp3|m4a|aac|wav|flac|ogg|opus|wma|jpg|jpeg|png|webp|gif|bmp|svg|srt|vtt|ass|sub|txt|json|pdf|log)(?:['"])""")
+    private val UNIX_PATH_REGEX = Regex("""(?i)/(?:[^\s"'<>\/]+/)+[^\s"'<>\/]+?\.(?:mp4|mkv|mov|avi|webm|flv|wmv|3gp|ts|m4s|mp3|m4a|aac|wav|flac|ogg|opus|wma|jpg|jpeg|png|webp|gif|bmp|svg|srt|vtt|ass|sub|txt|json|pdf|log)\b""")
+    private val FILE_NAME_REGEX = Regex("""(?i)\b[^\\/:*?"<>|\r\n\t]+?\.(?:mp4|mkv|mov|avi|webm|flv|wmv|3gp|ts|m4s|mp3|m4a|aac|wav|flac|ogg|opus|wma|jpg|jpeg|png|webp|gif|bmp|svg|srt|vtt|ass|sub|txt|json|pdf|log)\b""")
 
     fun sanitize(message: String?): String {
         if (message.isNullOrEmpty()) return ""
@@ -88,6 +89,7 @@ object LogCatcher {
         result = URL_REGEX.replace(result, "[REDACTED_URL]")
         result = CONTENT_URI_REGEX.replace(result, "[REDACTED_URI]")
         result = STORAGE_PATH_REGEX.replace(result, "[REDACTED_PATH]")
+        result = QUOTED_FILE_REGEX.replace(result, "[REDACTED_FILE]")
         result = UNIX_PATH_REGEX.replace(result, "[REDACTED_PATH]")
         result = FILE_NAME_REGEX.replace(result, "[REDACTED_FILE]")
         return result

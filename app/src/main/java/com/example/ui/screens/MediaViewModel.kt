@@ -81,7 +81,15 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     private var isSuspended = false
 
     init {
-        loadMedia()
+        val cached = repository.getCachedMediaFolders()
+        if (!cached.isNullOrEmpty()) {
+            _mediaFolders.value = cached
+            _isLoading.value = false
+        }
+        // Auto-refresh once a day (24h cooldown), otherwise preserve cached library
+        if (repository.isCacheStale()) {
+            loadMedia(forceRefresh = true, silent = !cached.isNullOrEmpty())
+        }
     }
 
     fun selectTab(tab: LibraryTab) {
@@ -90,6 +98,10 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun selectFolder(folderId: String?) {
         _selectedFolderId.value = folderId
+        if (folderId != null) {
+            // Targeted scan: when entering folder then only
+            scanFolder(folderId)
+        }
     }
 
     fun setSortOrder(order: SortOrder) {
@@ -107,19 +119,28 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         if (isSuspended) {
             isSuspended = false
             if (_mediaFolders.value.isEmpty()) {
-                loadMedia()
+                val cached = repository.getCachedMediaFolders()
+                if (!cached.isNullOrEmpty()) {
+                    _mediaFolders.value = cached
+                } else {
+                    loadMedia(forceRefresh = true)
+                }
             }
         }
     }
 
-    fun loadMedia() {
+    fun refreshMedia() {
+        loadMedia(forceRefresh = true, silent = false)
+    }
+
+    fun loadMedia(forceRefresh: Boolean = false, silent: Boolean = false) {
         if (isSuspended) return
         loadJob?.cancel()
         loadJob = viewModelScope.launch(Dispatchers.IO) {
-            _isLoading.value = true
-            val folders = repository.getMediaFolders()
+            if (!silent) _isLoading.value = true
+            val folders = repository.getMediaFolders(forceRefresh = forceRefresh)
             _mediaFolders.value = folders
-            _isLoading.value = false
+            if (!silent) _isLoading.value = false
         }
     }
 
@@ -160,6 +181,11 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                     currentFolders.removeAt(index)
                 }
                 _mediaFolders.value = currentFolders
+                repository.saveCachedMediaFolders(currentFolders)
+            } else if (updatedFolder != null && updatedFolder.mediaItems.isNotEmpty()) {
+                currentFolders.add(updatedFolder)
+                _mediaFolders.value = currentFolders
+                repository.saveCachedMediaFolders(currentFolders)
             }
         }
     }

@@ -447,7 +447,11 @@ class MainActivity : ComponentActivity() {
                   if (className.contains("PlayMediaActivity")) "play"
                   else if (className.contains("EditMediaActivity")) "edit"
                   else null
-              } ?: currentIntent?.action
+              } ?: when (currentIntent?.action) {
+                  android.content.Intent.ACTION_VIEW -> "play"
+                  "edit" -> "edit"
+                  else -> currentIntent?.action
+              }
 
               AppNavigation(
                   initialUris = initialUris, 

@@ -471,7 +471,7 @@ object PlayerManager {
 
             if (pos > 0L) {
                 com.example.data.SettingsManager.getInstance(ctx).savePlaybackState(uriStr, pos, dur, title)
-                com.example.LogKeeper.log("PlayerManager: Flushed progress to storage ($pos ms) for $title", "PlayerManager")
+                com.example.LogKeeper.log("PlayerManager: Flushed progress to storage ($pos ms)", "PlayerManager")
             }
         } catch (e: Exception) {
             com.example.LogKeeper.logError("PlayerManager", "Failed to flush progress to storage", e)

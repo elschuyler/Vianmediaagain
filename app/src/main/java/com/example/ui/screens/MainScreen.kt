@@ -171,7 +171,7 @@ fun MainScreen(
                 imageLoader.memoryCache?.remove(coil.memory.MemoryCache.Key(uriStr))
                 settings.removePlaybackState(uriStr)
             }
-            selectedFolderId?.let { viewModel.scanFolder(it) } ?: viewModel.loadMedia()
+            selectedFolderId?.let { viewModel.scanFolder(it) } ?: viewModel.refreshMedia()
             selectedMediaItems.clear()
             showDeleteConfirmDialog = false
         }
@@ -198,7 +198,7 @@ fun MainScreen(
                             com.example.LogKeeper.logError("MainScreen", "Error renaming file after permission", e)
                         }
                     }
-                    selectedFolderId?.let { viewModel.scanFolder(it) } ?: viewModel.loadMedia()
+                    selectedFolderId?.let { viewModel.scanFolder(it) } ?: viewModel.refreshMedia()
                     selectedMediaItems.clear()
                     showRenameDialog = false
                     pendingRenameUri = null
@@ -462,7 +462,7 @@ fun MainScreen(
             } else {
                 PullToRefreshBox(
                     isRefreshing = isLoading,
-                    onRefresh = { viewModel.loadMedia() },
+                    onRefresh = { viewModel.refreshMedia() },
                     modifier = Modifier.fillMaxSize()
                 ) {
                     if (selectedFolder == null && !isSearchActive && selectedTab == LibraryTab.PLAYLISTS) {
@@ -617,7 +617,7 @@ fun MainScreen(
                                         onClick = { viewModel.selectFolder(folder.id) },
                                         onExclude = {
                                             settingsManager.addExcludedFolder(folder.id)
-                                            viewModel.loadMedia()
+                                            viewModel.refreshMedia()
                                         }
                                     )
                                 }
@@ -1129,11 +1129,11 @@ fun MainScreen(
                                     }
                                 }
                             }
-                            selectedFolderId?.let { viewModel.scanFolder(it) } ?: viewModel.loadMedia()
+                            selectedFolderId?.let { viewModel.scanFolder(it) } ?: viewModel.refreshMedia()
                             selectedMediaItems.clear()
                             showDeleteConfirmDialog = false
                         } else {
-                            selectedFolderId?.let { viewModel.scanFolder(it) } ?: viewModel.loadMedia()
+                            selectedFolderId?.let { viewModel.scanFolder(it) } ?: viewModel.refreshMedia()
                             selectedMediaItems.clear()
                             showDeleteConfirmDialog = false
                         }
@@ -1207,7 +1207,7 @@ fun MainScreen(
                                 com.example.LogKeeper.logError("MainScreen", "Error renaming file", e)
                             }
                         }
-                        selectedFolderId?.let { viewModel.scanFolder(it) } ?: viewModel.loadMedia()
+                        selectedFolderId?.let { viewModel.scanFolder(it) } ?: viewModel.refreshMedia()
                         selectedMediaItems.clear()
                         showRenameDialog = false
                     }

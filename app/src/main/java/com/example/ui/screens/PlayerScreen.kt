@@ -503,15 +503,13 @@ fun PlayerScreen(
                 .setMediaMetadata(mediaMetadataBuilder.build())
                 .build()
 
-            controller.setMediaItem(initialMediaItem)
-            controller.prepare()
-            
             settingsManager.markAsOpened(decodedUriString, fileName)
             
             val lastPos = settingsManager.getPlaybackPosition(decodedUriString, fileName)
-            if (lastPos > 0 && !settingsManager.isFinished(decodedUriString, fileName)) {
-                controller.seekTo(lastPos)
-            }
+            val startPos = if (lastPos > 0 && !settingsManager.isFinished(decodedUriString, fileName)) lastPos else 0L
+
+            controller.setMediaItem(initialMediaItem, startPos)
+            controller.prepare()
             controller.play()
             
             // Load playlist in background with resource awareness
@@ -525,8 +523,9 @@ fun PlayerScreen(
                     return@launch
                 }
 
+                // Check cached media folders first to avoid freezing I/O during active playback
                 val repository = com.example.data.MediaRepository(context.applicationContext as android.app.Application)
-                val folders = repository.getMediaFolders()
+                val folders = repository.getCachedMediaFolders() ?: repository.getMediaFolders()
                 var playlistItems = emptyList<MediaItem>()
                 var startIndex = 0
                 var found = false
@@ -554,12 +553,15 @@ fun PlayerScreen(
                 
                 if (found && playlistItems.size > 1) {
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                        if (controller.currentMediaItem?.mediaId == decodedUri.toString()) {
-                            val currentPos = controller.currentPosition
-                            val isPlaying = controller.isPlaying
-                            controller.setMediaItems(playlistItems, startIndex, currentPos)
-                            if (isPlaying) {
-                                controller.play()
+                        // Only populate if controller is still playing this item and has single item loaded
+                        if (controller.currentMediaItem?.mediaId == decodedUri.toString() && controller.mediaItemCount == 1) {
+                            val precedingItems = playlistItems.subList(0, startIndex)
+                            val succeedingItems = playlistItems.subList(startIndex + 1, playlistItems.size)
+                            if (precedingItems.isNotEmpty()) {
+                                controller.addMediaItems(0, precedingItems)
+                            }
+                            if (succeedingItems.isNotEmpty()) {
+                                controller.addMediaItems(controller.mediaItemCount, succeedingItems)
                             }
                             com.example.service.PlayerManager.isImplicitFolderQueue = true
                         }
@@ -652,10 +654,14 @@ fun PlayerScreen(
                             lastKnownIsPortrait = isVideoPortrait
                             com.example.LogKeeper.log("Lightweight check: rot=$rot w=$w h=$h isPortrait=$isVideoPortrait", "PlayerScreen")
                             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                context.findActivity()?.requestedOrientation = if (isVideoPortrait) {
+                                val act = context.findActivity()
+                                val targetOrientation = if (isVideoPortrait) {
                                     android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
                                 } else {
                                     android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                                }
+                                if (act != null && act.requestedOrientation != targetOrientation) {
+                                    act.requestedOrientation = targetOrientation
                                 }
                             }
                         }
@@ -685,11 +691,14 @@ fun PlayerScreen(
                 val h = if (videoSize.unappliedRotationDegrees % 180 == 0) videoSize.height else videoSize.width
                 val isPortrait = h > w
                 lastKnownIsPortrait = isPortrait
-                com.example.LogKeeper.log("updateOrientation called with videoSize: ${videoSize.width}x${videoSize.height} rot=${videoSize.unappliedRotationDegrees}. isPortrait=$isPortrait", "PlayerScreen")
-                act.requestedOrientation = if (isPortrait) {
+                val targetOrientation = if (isPortrait) {
                     android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
                 } else {
                     android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                }
+                if (act.requestedOrientation != targetOrientation) {
+                    com.example.LogKeeper.log("updateOrientation called with videoSize: ${videoSize.width}x${videoSize.height} rot=${videoSize.unappliedRotationDegrees}. isPortrait=$isPortrait", "PlayerScreen")
+                    act.requestedOrientation = targetOrientation
                 }
             }
         }
@@ -1189,7 +1198,12 @@ fun PlayerScreen(
                     }
                 } else if (currentGesture == GestureType.NONE && kotlin.math.abs(dragDistanceX) <= 20f && kotlin.math.abs(dragDistanceY) <= 20f) {
                     val tapPos = down.position
-                    if (showBrightnessSlider) {
+                    val inTopBar = showControls && (tapPos.y <= 140f * density)
+                    val inBottomBar = showControls && (tapPos.y >= size.height - 180f * density)
+
+                    if (inTopBar || inBottomBar) {
+                        controlsInteractionTrigger = System.currentTimeMillis()
+                    } else if (showBrightnessSlider) {
                         pendingSingleTapJob?.cancel()
                         showBrightnessSlider = false
                         lastTapTime = 0L

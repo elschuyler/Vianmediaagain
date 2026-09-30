@@ -207,12 +207,12 @@ class CompressionService : Service() {
                     }
                 }
             } catch (oom: OutOfMemoryError) {
-                LogKeeper.logError("CompressionService", "OOM error compressing $uriStr", oom)
+                LogKeeper.logError("CompressionService", "OOM error compressing item", oom)
                 System.gc()
                 isCancelled = true
                 break
             } catch (e: Exception) {
-                LogKeeper.logError("CompressionService", "Failed to compress $uriStr", e)
+                LogKeeper.logError("CompressionService", "Failed to compress item", e)
             } finally {
                 if (outBitmap != null && outBitmap != sourceBitmap && !outBitmap!!.isRecycled) {
                     outBitmap?.recycle()

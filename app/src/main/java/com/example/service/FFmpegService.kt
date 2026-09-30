@@ -235,7 +235,7 @@ class FFmpegService : Service() {
                 .replace("-i %INPUT%", inputArg)
                 .replace("%OUTPUT%", "'${tempOutFile.absolutePath}'")
 
-            LogKeeper.log("Executing FFmpeg: $cmd", "FFmpegService")
+            LogKeeper.log("Executing FFmpeg command", "FFmpegService")
 
             FFmpegKitConfig.enableStatisticsCallback { statistics ->
                 val timeSec = statistics.time / 1000
@@ -292,7 +292,7 @@ class FFmpegService : Service() {
                             }
                         }
                     }
-                    LogKeeper.log("Saved to output folder: $fileName", "FFmpegService")
+                    LogKeeper.log("Saved to output folder", "FFmpegService")
                     FFmpegStatus.lastOutputUri = finalUri?.toString()
                 } catch (e: Exception) {
                     LogKeeper.logError("FFmpegService", "Failed to copy output file to SAF", e)

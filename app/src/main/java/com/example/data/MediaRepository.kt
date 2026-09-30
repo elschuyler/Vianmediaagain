@@ -4,6 +4,9 @@ import android.content.Context
 import android.net.Uri
 import android.util.Log
 import android.provider.DocumentsContract
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.File
 
 import com.example.LogKeeper
 
@@ -41,12 +44,267 @@ enum class MediaType {
 
 class MediaRepository(private val context: Context) {
     
-    fun getMediaFolder(bucketId: String): MediaFolder? {
-        val foldersMap = getMediaFolders()
-        return foldersMap.find { it.id == bucketId }
+    companion object {
+        private const val CACHE_FILE_NAME = "media_library_cache.json"
+        private const val PREFS_NAME = "media_repo_prefs"
+        private const val KEY_LAST_SCAN_TS = "last_scan_timestamp"
+        const val DAILY_COOLDOWN_MS = 24L * 60 * 60 * 1000L
     }
 
-    fun getMediaFolders(): List<MediaFolder> {
+    fun getLastScanTimestamp(): Long {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getLong(KEY_LAST_SCAN_TS, 0L)
+    }
+
+    fun setLastScanTimestamp(ts: Long) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putLong(KEY_LAST_SCAN_TS, ts).apply()
+    }
+
+    fun isCacheStale(cooldownMs: Long = DAILY_COOLDOWN_MS): Boolean {
+        val lastScan = getLastScanTimestamp()
+        if (lastScan <= 0L) return true
+        val cacheFile = File(context.filesDir, CACHE_FILE_NAME)
+        if (!cacheFile.exists() || cacheFile.length() == 0L) return true
+        return (System.currentTimeMillis() - lastScan) > cooldownMs
+    }
+
+    @Synchronized
+    fun getCachedMediaFolders(): List<MediaFolder>? {
+        return try {
+            val file = File(context.filesDir, CACHE_FILE_NAME)
+            if (!file.exists() || file.length() == 0L) return null
+            val jsonStr = file.readText(Charsets.UTF_8)
+            val jsonArray = JSONArray(jsonStr)
+            val folders = ArrayList<MediaFolder>(jsonArray.length())
+            for (i in 0 until jsonArray.length()) {
+                val fObj = jsonArray.getJSONObject(i)
+                val id = fObj.getString("id")
+                val name = fObj.getString("name")
+                val path = fObj.optString("path", "")
+                val dateModified = fObj.optLong("dateModified", 0L)
+                val totalSize = fObj.optLong("totalSize", 0L)
+                val itemsArray = fObj.getJSONArray("items")
+                val items = ArrayList<MediaItem>(itemsArray.length())
+                for (j in 0 until itemsArray.length()) {
+                    val iObj = itemsArray.getJSONObject(j)
+                    val itemId = iObj.getLong("id")
+                    val uriStr = iObj.getString("uri")
+                    val itemName = iObj.getString("name")
+                    val duration = iObj.optLong("duration", 0L)
+                    val dateAdded = iObj.optLong("dateAdded", 0L)
+                    val typeStr = iObj.optString("mediaType", "VIDEO")
+                    val mediaType = try { MediaType.valueOf(typeStr) } catch (e: Exception) { MediaType.VIDEO }
+                    val hasSubtitle = iObj.optBoolean("hasSubtitle", false)
+                    val tagStr = iObj.optString("tag", "NEW")
+                    val tag = try { PlaybackTag.valueOf(tagStr) } catch (e: Exception) { PlaybackTag.NEW }
+                    val size = iObj.optLong("size", 0L)
+                    items.add(
+                        MediaItem(
+                            id = itemId,
+                            uri = Uri.parse(uriStr),
+                            name = itemName,
+                            duration = duration,
+                            dateAdded = dateAdded,
+                            mediaType = mediaType,
+                            hasSubtitle = hasSubtitle,
+                            tag = tag,
+                            size = size
+                        )
+                    )
+                }
+                folders.add(
+                    MediaFolder(
+                        id = id,
+                        name = name,
+                        path = path,
+                        dateModified = dateModified,
+                        totalSize = totalSize,
+                        mediaItems = items
+                    )
+                )
+            }
+            folders
+        } catch (e: Exception) {
+            LogKeeper.logError("MediaRepository", "Failed loading cached media folders", e)
+            null
+        }
+    }
+
+    @Synchronized
+    fun saveCachedMediaFolders(folders: List<MediaFolder>) {
+        try {
+            val jsonArray = JSONArray()
+            for (folder in folders) {
+                val fObj = JSONObject()
+                fObj.put("id", folder.id)
+                fObj.put("name", folder.name)
+                fObj.put("path", folder.path)
+                fObj.put("dateModified", folder.dateModified)
+                fObj.put("totalSize", folder.totalSize)
+                val itemsArray = JSONArray()
+                for (item in folder.mediaItems) {
+                    val iObj = JSONObject()
+                    iObj.put("id", item.id)
+                    iObj.put("uri", item.uri.toString())
+                    iObj.put("name", item.name)
+                    iObj.put("duration", item.duration)
+                    iObj.put("dateAdded", item.dateAdded)
+                    iObj.put("mediaType", item.mediaType.name)
+                    iObj.put("hasSubtitle", item.hasSubtitle)
+                    iObj.put("tag", item.tag.name)
+                    iObj.put("size", item.size)
+                    itemsArray.put(iObj)
+                }
+                fObj.put("items", itemsArray)
+                jsonArray.put(fObj)
+            }
+            val file = File(context.filesDir, CACHE_FILE_NAME)
+            val tempFile = File(context.filesDir, "$CACHE_FILE_NAME.tmp")
+            tempFile.writeText(jsonArray.toString(), Charsets.UTF_8)
+            if (!tempFile.renameTo(file)) {
+                file.writeText(jsonArray.toString(), Charsets.UTF_8)
+                tempFile.delete()
+            }
+            setLastScanTimestamp(System.currentTimeMillis())
+        } catch (e: Exception) {
+            LogKeeper.logError("MediaRepository", "Failed saving media cache", e)
+        }
+    }
+
+    fun getMediaFolder(bucketId: String): MediaFolder? {
+        val cached = getCachedMediaFolders()?.find { it.id == bucketId }
+        
+        // Targeted single-folder query targeting strictly BUCKET_ID = ?
+        try {
+            val settings = SettingsManager.getInstance(context)
+            val exts = settings.extensions.value
+            val projection = arrayOf(
+                android.provider.MediaStore.MediaColumns._ID,
+                android.provider.MediaStore.MediaColumns.DISPLAY_NAME,
+                android.provider.MediaStore.MediaColumns.DURATION,
+                android.provider.MediaStore.MediaColumns.DATE_MODIFIED,
+                android.provider.MediaStore.MediaColumns.BUCKET_ID,
+                android.provider.MediaStore.MediaColumns.BUCKET_DISPLAY_NAME,
+                android.provider.MediaStore.MediaColumns.DATA,
+                android.provider.MediaStore.MediaColumns.SIZE,
+                android.provider.MediaStore.MediaColumns.MIME_TYPE
+            )
+            val selection = "${android.provider.MediaStore.MediaColumns.BUCKET_ID} = ?"
+            val selectionArgs = arrayOf(bucketId)
+            val items = mutableListOf<MediaItem>()
+            var folderName = cached?.name ?: ""
+            var folderPath = cached?.path ?: ""
+            var latestDate = cached?.dateModified ?: 0L
+            var totalSize = 0L
+
+            context.contentResolver.query(
+                android.provider.MediaStore.Files.getContentUri("external"),
+                projection, selection, selectionArgs, "${android.provider.MediaStore.MediaColumns.DATE_MODIFIED} DESC"
+            )?.use { cursor ->
+                val idCol = cursor.getColumnIndex(android.provider.MediaStore.MediaColumns._ID)
+                val nameCol = cursor.getColumnIndex(android.provider.MediaStore.MediaColumns.DISPLAY_NAME)
+                val durCol = cursor.getColumnIndex(android.provider.MediaStore.MediaColumns.DURATION)
+                val dateCol = cursor.getColumnIndex(android.provider.MediaStore.MediaColumns.DATE_MODIFIED)
+                val bucketNameCol = cursor.getColumnIndex(android.provider.MediaStore.MediaColumns.BUCKET_DISPLAY_NAME)
+                val dataCol = cursor.getColumnIndex(android.provider.MediaStore.MediaColumns.DATA)
+                val sizeCol = cursor.getColumnIndex(android.provider.MediaStore.MediaColumns.SIZE)
+                val mimeCol = cursor.getColumnIndex(android.provider.MediaStore.MediaColumns.MIME_TYPE)
+
+                val currentTime = System.currentTimeMillis()
+                val fifteenDaysMs = 15L * 24 * 60 * 60 * 1000
+
+                while (cursor.moveToNext()) {
+                    val id = if (idCol != -1) cursor.getLong(idCol) else -1L
+                    if (id == -1L) continue
+                    val name = if (nameCol != -1) cursor.getString(nameCol) ?: "" else ""
+                    val dur = if (durCol != -1) cursor.getLong(durCol) else 0L
+                    val dateSec = if (dateCol != -1) cursor.getLong(dateCol) else 0L
+                    val dateMs = dateSec * 1000
+                    val bName = if (bucketNameCol != -1) cursor.getString(bucketNameCol) ?: "" else ""
+                    val dataPath = if (dataCol != -1) cursor.getString(dataCol) ?: "" else ""
+                    val itemSize = if (sizeCol != -1) cursor.getLong(sizeCol) else 0L
+                    val mime = if (mimeCol != -1) cursor.getString(mimeCol) ?: "" else ""
+
+                    if (folderName.isEmpty() && bName.isNotEmpty()) folderName = bName
+                    if (folderPath.isEmpty() && dataPath.isNotEmpty()) {
+                        folderPath = java.io.File(dataPath).parent ?: ""
+                    }
+                    if (dateMs > latestDate) latestDate = dateMs
+                    totalSize += itemSize
+
+                    val ext = name.substringAfterLast('.', "").lowercase()
+                    val isExcludedExt = exts.isNotEmpty() && !exts.contains(ext)
+                    if (isExcludedExt) continue
+
+                    val isVideo = mime.startsWith("video/") || ext in listOf("mp4", "mkv", "webm", "avi", "3gp", "mov", "flv", "wmv", "m4v", "m4s", "m3u8", "ts")
+                    val isImage = mime.startsWith("image/") || ext in listOf("jpg", "jpeg", "png", "webp", "heic")
+                    val mediaType = when {
+                        isVideo -> MediaType.VIDEO
+                        isImage -> MediaType.IMAGE
+                        else -> MediaType.AUDIO
+                    }
+
+                    val baseUri = when (mediaType) {
+                        MediaType.VIDEO -> android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+                        MediaType.IMAGE -> android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+                        MediaType.AUDIO -> android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+                    }
+                    val uri = android.content.ContentUris.withAppendedId(baseUri, id)
+                    val uriStr = uri.toString()
+
+                    val isFinished = settings.isFinished(uriStr, name)
+                    val playbackPos = settings.getPlaybackPosition(uriStr, name)
+                    val lastPlayedTime = settings.getLastPlayedTime(uriStr, name)
+
+                    val tag = if (isFinished) {
+                        PlaybackTag.SEEN
+                    } else if (playbackPos > 0L) {
+                        PlaybackTag.PLAYING
+                    } else if (lastPlayedTime > 0L) {
+                        PlaybackTag.UNSEEN
+                    } else {
+                        if (currentTime - dateMs < fifteenDaysMs) PlaybackTag.NEW else PlaybackTag.UNSEEN
+                    }
+
+                    items.add(
+                        MediaItem(
+                            id = id,
+                            uri = uri,
+                            name = name,
+                            duration = dur,
+                            dateAdded = dateMs,
+                            mediaType = mediaType,
+                            hasSubtitle = false,
+                            tag = tag,
+                            size = itemSize
+                        )
+                    )
+                }
+            }
+            if (items.isNotEmpty()) {
+                return MediaFolder(
+                    id = bucketId,
+                    name = if (folderName.isNotEmpty()) folderName else (cached?.name ?: "Folder"),
+                    path = folderPath,
+                    dateModified = latestDate,
+                    totalSize = totalSize,
+                    mediaItems = items.sortedByDescending { it.dateAdded }
+                )
+            }
+        } catch (e: Exception) {
+            LogKeeper.logError("MediaRepository", "Error targeted query for bucket: $bucketId", e)
+        }
+        return cached
+    }
+
+    fun getMediaFolders(forceRefresh: Boolean = false): List<MediaFolder> {
+        if (!forceRefresh) {
+            val cached = getCachedMediaFolders()
+            if (!cached.isNullOrEmpty()) {
+                return cached
+            }
+        }
         val foldersMap = mutableMapOf<String, MutableList<MediaItem>>()
         val folderNames = mutableMapOf<String, String>()
         val folderPaths = mutableMapOf<String, String>()
@@ -209,7 +467,7 @@ class MediaRepository(private val context: Context) {
             LogKeeper.logError("MediaRepository", "Error fetching from MediaStore: ${e.message}", e)
         }
 
-        return foldersMap.map { (bucketId, items) ->
+        val result = foldersMap.map { (bucketId, items) ->
             MediaFolder(
                 id = bucketId,
                 name = folderNames[bucketId] ?: "Unknown",
@@ -219,6 +477,8 @@ class MediaRepository(private val context: Context) {
                 mediaItems = items.sortedByDescending { it.dateAdded }
             )
         }.sortedBy { it.name.lowercase() }
+        saveCachedMediaFolders(result)
+        return result
     }
 
     private fun scanDirectoryForFolders(
