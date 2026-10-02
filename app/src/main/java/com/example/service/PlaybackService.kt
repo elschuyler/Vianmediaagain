@@ -92,6 +92,10 @@ private var sessionIsMinimized: Boolean
     get() = PlayerManager.floatingSession.isMinimized
     set(value) { PlayerManager.floatingSession.isMinimized = value }
 
+private var sessionIsAspectRatioBroken: Boolean
+    get() = PlayerManager.floatingSession.isAspectRatioBroken
+    set(value) { PlayerManager.floatingSession.isAspectRatioBroken = value }
+
 fun resetSessionFloatingState() {
     PlayerManager.floatingSession.reset()
 }
@@ -539,6 +543,7 @@ cv.setContent {
 var isMinimized by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(sessionIsMinimized) }
 var isVideoMode by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(startInVideoMode) }
 var videoAspectRatio by androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(16f / 9f) }
+var isAspectRatioBroken by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(sessionIsAspectRatioBroken) }
 
 val handleMinimizeToggle: (Boolean) -> Unit = { minimized ->
     if (isMinimized != minimized) {
@@ -596,7 +601,11 @@ val handleMinimizeToggle: (Boolean) -> Unit = { minimized ->
 
                 if (isVideoMode) {
                     targetWidth = (sessionWindowWidth ?: (300 * metrics.density).toInt()).coerceIn(minWidth, maxWidth)
-                    targetHeight = sessionWindowHeight ?: (((targetWidth) / aspect).toInt() + topBarHeightPx)
+                    targetHeight = if (sessionIsAspectRatioBroken) {
+                        sessionWindowHeight ?: (((targetWidth) / aspect).toInt() + topBarHeightPx)
+                    } else {
+                        (((targetWidth) / aspect).toInt() + topBarHeightPx)
+                    }
                 } else {
                     targetWidth = (sessionAudioWindowWidth ?: sessionWindowWidth ?: (300 * metrics.density).toInt()).coerceIn(minWidth, maxWidth)
                     targetHeight = (sessionAudioWindowHeight ?: sessionWindowHeight ?: (200 * metrics.density).toInt()).coerceIn((120 * metrics.density).toInt(), maxHeight)
@@ -631,6 +640,10 @@ val updateWindowForAspectRatio: (Float) -> Unit = { aspect ->
         val lp = layoutParams
         val currentCv = composeView
         if (lp != null && currentCv != null && isVideoMode && !isMinimized) {
+            if (isAspectRatioBroken && sessionWindowWidth != null && sessionWindowHeight != null) {
+                // User broke aspect ratio: preserve custom dimensions
+                return@updateWindowForAspectRatio
+            }
             val metrics = resources.displayMetrics
             val topBarHeightPx = (32 * metrics.density).toInt()
             val minWidth = (200 * metrics.density).toInt()
@@ -684,6 +697,14 @@ isMinimizedExternal = isMinimized,
 onMinimizeChange = { minimized ->
     handleMinimizeToggle(minimized)
 },
+isAspectRatioBroken = isAspectRatioBroken,
+onToggleBreakAspectRatio = { broken ->
+    isAspectRatioBroken = broken
+    sessionIsAspectRatioBroken = broken
+    if (!broken) {
+        updateWindowForAspectRatio(videoAspectRatio)
+    }
+},
 onDrag = { dx, dy ->
 val lp = layoutParams
 if (lp != null) {
@@ -711,18 +732,26 @@ if (lp != null && !isMinimized) {
     val metrics = resources.displayMetrics
     val topBarHeightPx = (32 * metrics.density).toInt()
     val minWidth = (200 * metrics.density).toInt()
+    val minHeight = (120 * metrics.density).toInt()
     val maxWidth = (metrics.widthPixels * 0.95f).toInt()
     val maxHeight = (metrics.heightPixels * 0.7f).toInt()
 
-    val aspect = videoAspectRatio.coerceIn(0.4f, 2.5f)
-    val newWidth = (lp.width + dw.toInt()).coerceIn(minWidth, maxWidth)
-    var newHeight = ((newWidth) / aspect).toInt() + topBarHeightPx
-    if (newHeight > maxHeight) {
-        newHeight = maxHeight
+    if (isAspectRatioBroken) {
+        val newWidth = (lp.width + dw.toInt()).coerceIn(minWidth, maxWidth)
+        val newHeight = (lp.height + dh.toInt()).coerceIn(minHeight, maxHeight)
+        lp.width = newWidth
+        lp.height = newHeight
+    } else {
+        val aspect = videoAspectRatio.coerceIn(0.4f, 2.5f)
+        val newWidth = (lp.width + dw.toInt()).coerceIn(minWidth, maxWidth)
+        var newHeight = ((newWidth) / aspect).toInt() + topBarHeightPx
+        if (newHeight > maxHeight) {
+            newHeight = maxHeight
+        }
+        lp.width = newWidth
+        lp.height = newHeight
     }
 
-    lp.width = newWidth
-    lp.height = newHeight
     lp.x = lp.x.coerceIn(0, (metrics.widthPixels - lp.width).coerceAtLeast(0))
     lp.y = lp.y.coerceIn(0, (metrics.heightPixels - lp.height).coerceAtLeast(0))
 

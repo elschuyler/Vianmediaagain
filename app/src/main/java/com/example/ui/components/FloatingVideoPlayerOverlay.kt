@@ -42,7 +42,9 @@ fun FloatingVideoPlayerOverlay(
     onSwitchToMiniPlayer: () -> Unit,
     onAspectRatioChanged: (Float) -> Unit = {},
     isMinimizedExternal: Boolean = false,
-    onMinimizeChange: (Boolean) -> Unit = {}
+    onMinimizeChange: (Boolean) -> Unit = {},
+    isAspectRatioBroken: Boolean = false,
+    onToggleBreakAspectRatio: (Boolean) -> Unit = {}
 ) {
     androidx.compose.runtime.LaunchedEffect(isMinimizedExternal) {
         if (isMinimizedExternal) {
@@ -112,6 +114,8 @@ fun FloatingVideoPlayerOverlay(
     var currentSpeed by remember { mutableFloatStateOf(playerSnapshot.playbackSpeed) }
     val playlist = remember { mutableStateListOf<MediaItem>() }
     var currentIndex by remember { mutableIntStateOf(playerSnapshot.currentIndex.coerceAtLeast(0)) }
+    var gestureFeedbackText by remember { mutableStateOf("") }
+    var showGestureFeedback by remember { mutableStateOf(false) }
 
 
     val refreshPlaylist: () -> Unit = {
@@ -234,6 +238,22 @@ fun FloatingVideoPlayerOverlay(
                 )
                 IconButton(
                     onClick = {
+                        val newBroken = !isAspectRatioBroken
+                        onToggleBreakAspectRatio(newBroken)
+                        gestureFeedbackText = if (newBroken) "Freeform" else "Locked Aspect"
+                        showGestureFeedback = true
+                    },
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isAspectRatioBroken) Icons.Filled.CropFree else Icons.Filled.AspectRatio,
+                        contentDescription = if (isAspectRatioBroken) "Locked Aspect Ratio" else "Break Aspect Ratio (Freeform)",
+                        tint = if (isAspectRatioBroken) Color(0xFF2196F3) else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                IconButton(
+                    onClick = {
                         com.example.service.PlayerManager.flushProgressToStorage()
                         com.example.service.PlayerManager.isFloatingVideoActive = false
                         onSwitchToMiniPlayer()
@@ -274,8 +294,6 @@ fun FloatingVideoPlayerOverlay(
             ) {
                 var showControls by remember { mutableStateOf(false) }
                 var lastInteractionTime by remember { mutableLongStateOf(0L) }
-                var gestureFeedbackText by remember { mutableStateOf("") }
-                var showGestureFeedback by remember { mutableStateOf(false) }
 
                 LaunchedEffect(showGestureFeedback, gestureFeedbackText) {
                     if (showGestureFeedback) {
@@ -621,12 +639,14 @@ fun FloatingVideoPlayerOverlay(
                                     val icon = when (gestureFeedbackText) {
                                         "-10s" -> Icons.Filled.FastRewind
                                         "+10s" -> Icons.Filled.FastForward
+                                        "Freeform" -> Icons.Filled.CropFree
+                                        "Locked Aspect" -> Icons.Filled.AspectRatio
                                         else -> Icons.Filled.PlayArrow
                                     }
                                     Icon(
                                         imageVector = icon,
                                         contentDescription = null,
-                                        tint = Color.White,
+                                        tint = if (gestureFeedbackText == "Freeform") Color(0xFF2196F3) else Color.White,
                                         modifier = Modifier.size(18.dp)
                                     )
                                     Text(

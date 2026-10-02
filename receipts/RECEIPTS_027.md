@@ -437,3 +437,22 @@
 * Deviation: None.
 * Known issues: None.
 
+---
+
+* Timestamp: 2026-10-02T10:48:00Z
+* Summary: Phase 68 - Floating Player Break Aspect Ratio TopBar Button & Freeform 2D Window Resizing.
+* Files touched:
+  - BLUEPRINT.md
+  - app/src/main/java/com/example/ui/components/FloatingVideoPlayerOverlay.kt
+  - app/src/main/java/com/example/service/PlaybackService.kt
+  - receipts/RECEIPTS_027.md
+* What was actually done:
+  - Added new "Break Aspect Ratio" / "Locked Aspect" toggle button to `FloatingVideoPlayerOverlay.kt` TopBar with responsive visual icon states (`Icons.Filled.AspectRatio` for locked aspect ratio and `Icons.Filled.CropFree` in accent color `#2196F3` for broken/freeform mode).
+  - Lifted gesture feedback HUD state to overlay level in `FloatingVideoPlayerOverlay.kt`, enabling immediate on-screen HUD badge confirmation ("Freeform" or "Locked Aspect") upon toggling.
+  - Added `isAspectRatioBroken` and `onToggleBreakAspectRatio` parameters to `FloatingVideoPlayerOverlay.kt` wired to `PlaybackService.kt`.
+  - Configured 2D independent width and height window resizing in `PlaybackService.kt` (`onResize`) when aspect ratio is broken, freeing resize adjustments from original video aspect ratio constraints while enforcing screen boundary limits.
+  - Synchronized aspect ratio re-locking in `PlaybackService.kt`: toggling back to locked mode immediately snaps the floating window back to `videoAspectRatio`, and expanding from folded bubble restores custom freeform dimensions if broken or recalculates exact video aspect ratio if locked.
+* Verification: Verified Kotlin AST brace/paren balance (0 deltas across all modified files); verified via `lint_applet` (tsc --noEmit) and `compile_applet` (0 errors).
+* Deviation: None.
+* Known issues: None.
+

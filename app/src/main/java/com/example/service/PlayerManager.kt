@@ -44,7 +44,8 @@ data class FloatingPlayerSessionState(
     var audioWindowHeight: Int? = null,
     var bubbleX: Int? = null,
     var bubbleY: Int? = null,
-    var isMinimized: Boolean = false
+    var isMinimized: Boolean = false,
+    var isAspectRatioBroken: Boolean = false
 ) {
     fun reset() {
         windowX = null
@@ -56,6 +57,7 @@ data class FloatingPlayerSessionState(
         bubbleX = null
         bubbleY = null
         isMinimized = false
+        isAspectRatioBroken = false
     }
 }
 
