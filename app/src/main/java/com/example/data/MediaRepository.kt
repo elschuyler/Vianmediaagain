@@ -42,6 +42,39 @@ enum class MediaType {
     AUDIO, VIDEO, IMAGE
 }
 
+val COMMON_VIDEO_EXTENSIONS: Set<String> = setOf(
+    "mp4", "m4v", "mkv", "webm",
+    "avi", "mov", "qt",
+    "3gp", "3gpp", "3g2", "3gpp2",
+    "flv", "f4v",
+    "wmv", "asf",
+    "ts", "m2ts", "mts", "tp", "trp",
+    "vob", "ifo",
+    "ogv", "ogg",
+    "mpg", "mpeg", "m1v", "m2v", "mp2",
+    "m4s", "m3u8", "m3u",
+    "divx", "xvid",
+    "rm", "rmvb",
+    "wtv", "dvr-ms",
+    "h264", "h265", "hevc", "264", "265", "avc",
+    "av1", "ivf",
+    "vp8", "vp9",
+    "y4m", "dat", "mod", "tod", "dv"
+)
+
+val COMMON_IMAGE_EXTENSIONS: Set<String> = setOf(
+    "jpg", "jpeg", "png", "webp", "heic", "heif", "gif", "bmp"
+)
+
+val COMMON_AUDIO_EXTENSIONS: Set<String> = setOf(
+    "mp3", "aac", "wav", "flac", "opus", "m4a", "ogg", "oga", "wma", "m4p", "m4b",
+    "alac", "aiff", "aif", "ape", "mid", "midi", "amr", "awb", "dts", "ac3", "eac3", "ec3"
+)
+
+val COMMON_SUBTITLE_EXTENSIONS: Set<String> = setOf(
+    "srt", "vtt", "ass", "ssa", "sub", "idx", "smi", "ttml"
+)
+
 class MediaRepository(private val context: Context) {
     
     companion object {
@@ -237,8 +270,8 @@ class MediaRepository(private val context: Context) {
                     val isExcludedExt = exts.isNotEmpty() && !exts.contains(ext)
                     if (isExcludedExt) continue
 
-                    val isVideo = mime.startsWith("video/") || ext in listOf("mp4", "mkv", "webm", "avi", "3gp", "mov", "flv", "wmv", "m4v", "m4s", "m3u8", "ts")
-                    val isImage = mime.startsWith("image/") || ext in listOf("jpg", "jpeg", "png", "webp", "heic")
+                    val isVideo = mime.startsWith("video/") || ext in COMMON_VIDEO_EXTENSIONS
+                    val isImage = mime.startsWith("image/") || ext in COMMON_IMAGE_EXTENSIONS
                     val mediaType = when {
                         isVideo -> MediaType.VIDEO
                         isImage -> MediaType.IMAGE
@@ -412,8 +445,8 @@ class MediaRepository(private val context: Context) {
                     val mimeType = if (mimeCol != -1) cursor.getString(mimeCol) ?: "" else ""
 
                     val mediaType = when {
-                        mimeType.startsWith("video/") || ext in listOf("mp4", "mkv", "webm", "avi", "3gp", "mov", "flv", "wmv", "m4v", "m4s", "m3u8", "ts") -> MediaType.VIDEO
-                        mimeType.startsWith("image/") || ext in listOf("jpg", "jpeg", "png", "webp", "heic") -> MediaType.IMAGE
+                        mimeType.startsWith("video/") || ext in COMMON_VIDEO_EXTENSIONS -> MediaType.VIDEO
+                        mimeType.startsWith("image/") || ext in COMMON_IMAGE_EXTENSIONS -> MediaType.IMAGE
                         else -> MediaType.AUDIO
                     }
 
@@ -536,12 +569,12 @@ class MediaRepository(private val context: Context) {
                         if (extensions.contains(ext) || (ext.isEmpty() && mimeType.startsWith("video/"))) {
                             val uri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
                             val mediaType = when {
-                                mimeType.startsWith("video/") || ext in listOf("mp4", "mkv", "webm", "avi", "3gp", "mov", "flv", "wmv", "m4v", "m4s", "m3u8", "ts") -> MediaType.VIDEO
-                                mimeType.startsWith("image/") || ext in listOf("jpg", "jpeg", "png", "webp", "heic") -> MediaType.IMAGE
+                                mimeType.startsWith("video/") || ext in COMMON_VIDEO_EXTENSIONS -> MediaType.VIDEO
+                                mimeType.startsWith("image/") || ext in COMMON_IMAGE_EXTENSIONS -> MediaType.IMAGE
                                 else -> MediaType.AUDIO
                             }
                             mediaItems.add(MediaItem(id = docId.hashCode().toLong(), uri = uri, name = name, duration = 0L, dateAdded = date, mediaType = mediaType, hasSubtitle = false, size = size))
-                        } else if (ext in listOf("srt", "vtt", "ass", "sub")) {
+                        } else if (ext in COMMON_SUBTITLE_EXTENSIONS) {
                             subtitleFiles.add(name.substringBeforeLast('.').lowercase())
                         }
                     }

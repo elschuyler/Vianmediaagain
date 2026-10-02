@@ -49,12 +49,12 @@ class SettingsManager private constructor(context: Context) {
         _fontPreference.value = prefs.getString("font_preference", "Default") ?: "Default"
 
 
-        val defaultExts = setOf("mp4", "mkv", "mp3", "webm", "3gp", "avi", "mov", "flv", "wmv", "m4v", "aac", "wav", "flac", "opus", "m4a")
+        val defaultExts = (COMMON_VIDEO_EXTENSIONS + COMMON_AUDIO_EXTENSIONS)
         val savedExts = prefs.getStringSet("extensions", null)
         
-        val imageExts = setOf("jpg", "jpeg", "png", "webp", "heic")
+        val imageExts = COMMON_IMAGE_EXTENSIONS
         val exts = if (savedExts != null) {
-            (savedExts.filterNot { it in imageExts } + setOf("opus", "m4a")).distinct()
+            (savedExts.filterNot { it in imageExts } + defaultExts).distinct()
         } else {
             defaultExts.toList()
         }

@@ -250,6 +250,7 @@ fun PlayerScreen(
 
     // Dismiss any remote mini/floating overlay to enforce main player exclusivity
     LaunchedEffect(Unit) {
+        com.example.service.PlayerManager.isFloatingVideoActive = false
         com.example.service.PlaybackService.hideOverlay(context)
     }
 
@@ -333,7 +334,9 @@ fun PlayerScreen(
             } catch (e: Exception) {}
         } else {
             try { playerViewRef.value?.player = null } catch (e: Exception) {}
-            com.example.service.PlayerManager.detachVideoSurface()
+            if (!com.example.service.PlayerManager.isFloatingVideoActive) {
+                com.example.service.PlayerManager.detachVideoSurface()
+            }
         }
         onNavigateBack()
     }
@@ -1005,9 +1008,13 @@ fun PlayerScreen(
                 val activity = context.findActivity()
                 val isPip = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) activity?.isInPictureInPictureMode == true else false
                 if (!isPip && (backgroundPlayEnabledRef.value || forceBackgroundPlay.get())) {
-                    com.example.LogKeeper.log("PlayerScreen ON_STOP: Detaching video surface for background audio playback", "PlayerScreen")
-                    try { playerViewRef.value?.player = null } catch (e: Exception) {}
-                    com.example.service.PlayerManager.detachVideoSurface()
+                    if (!com.example.service.PlayerManager.isFloatingVideoActive) {
+                        com.example.LogKeeper.log("PlayerScreen ON_STOP: Detaching video surface for background audio playback", "PlayerScreen")
+                        try { playerViewRef.value?.player = null } catch (e: Exception) {}
+                        com.example.service.PlayerManager.detachVideoSurface()
+                    } else {
+                        com.example.LogKeeper.log("PlayerScreen ON_STOP: Preserving video surface for floating video overlay", "PlayerScreen")
+                    }
                 }
             }
         }
@@ -1107,7 +1114,8 @@ fun PlayerScreen(
                             dragDistanceY += posChange.y
                             
                             if (currentGesture == GestureType.NONE) {
-                                if (kotlin.math.abs(dragDistanceX) > 20f || kotlin.math.abs(dragDistanceY) > 20f) {
+                                val touchSlop = viewConfiguration.touchSlop
+                                if (kotlin.math.hypot(dragDistanceX, dragDistanceY) > touchSlop) {
                                     if (kotlin.math.abs(dragDistanceX) > kotlin.math.abs(dragDistanceY)) {
                                         currentGesture = GestureType.SEEK
                                         wasPlayingBeforeSeek = mediaController?.isPlaying == true
@@ -1188,6 +1196,7 @@ fun PlayerScreen(
                     }
                 } while (event.changes.any { it.pressed })
                 
+                val touchSlop = viewConfiguration.touchSlop
                 if (currentGesture == GestureType.SEEK) {
                     val currentDuration = mediaController?.duration?.coerceAtLeast(1L) ?: 1L
                     val seekOffsetMs = (dragDistanceX / size.width) * 120_000
@@ -1196,15 +1205,16 @@ fun PlayerScreen(
                     if (wasPlayingBeforeSeek) {
                         mediaController?.play()
                     }
-                } else if (currentGesture == GestureType.NONE && kotlin.math.abs(dragDistanceX) <= 20f && kotlin.math.abs(dragDistanceY) <= 20f) {
+                } else if (currentGesture == GestureType.NONE && kotlin.math.hypot(dragDistanceX, dragDistanceY) <= touchSlop) {
                     val tapPos = down.position
-                    val inTopBar = showControls && (tapPos.y <= 140f * density)
-                    val inBottomBar = showControls && (tapPos.y >= size.height - 180f * density)
+                    val inTopBar = showControls && (tapPos.y <= 64f * density)
+                    val inBottomBar = showControls && (tapPos.y >= size.height - 84f * density)
 
                     if (inTopBar || inBottomBar) {
                         controlsInteractionTrigger = System.currentTimeMillis()
                     } else if (showBrightnessSlider) {
                         pendingSingleTapJob?.cancel()
+                        pendingSingleTapJob = null
                         showBrightnessSlider = false
                         lastTapTime = 0L
                     } else {
@@ -1212,9 +1222,10 @@ fun PlayerScreen(
                         val timeDiff = now - lastTapTime
                         val dist = (tapPos - lastTapPosition).getDistance()
                         
-                        if (timeDiff in 40L..400L && dist < 120f * density) {
+                        if (timeDiff in 40L..350L && dist < 100f * density) {
                             // Double tap: Only pause (play/pause toggle)
                             pendingSingleTapJob?.cancel()
+                            pendingSingleTapJob = null
                             lastTapTime = 0L
                             
                             mediaController?.let { controller ->
@@ -1247,11 +1258,12 @@ fun PlayerScreen(
                             lastTapPosition = tapPos
                             pendingSingleTapJob?.cancel()
                             pendingSingleTapJob = coroutineScope.launch {
-                                kotlinx.coroutines.delay(260L)
+                                kotlinx.coroutines.delay(300L)
                                 showControls = !showControls
                                 if (showControls) {
                                     controlsInteractionTrigger = System.currentTimeMillis()
                                 }
+                                pendingSingleTapJob = null
                             }
                         }
                     }
@@ -1996,6 +2008,7 @@ fun PlayerScreen(
                                 }
                                 IconButton(modifier = Modifier.size(36.dp), onClick = {
                                     if (android.provider.Settings.canDrawOverlays(context)) {
+                                        com.example.service.PlayerManager.isFloatingVideoActive = true
                                         val overlayIntent = android.content.Intent("com.example.ACTION_WIDGET_COMMAND")
                                         overlayIntent.putExtra("command", "ACTION_VIDEO_OVERLAY")
                                         overlayIntent.setPackage(context.packageName)

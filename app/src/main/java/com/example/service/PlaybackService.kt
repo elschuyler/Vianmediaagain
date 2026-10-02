@@ -224,6 +224,19 @@ override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
     val player = PlayerManager.exoPlayer
     if (player != null && (error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DECODING_FAILED ||
         error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DECODER_INIT_FAILED)) {
+        
+        val decoderEx = error.cause as? androidx.media3.exoplayer.mediacodec.MediaCodecDecoderException
+        val videoEx = error.cause as? androidx.media3.exoplayer.video.MediaCodecVideoDecoderException
+        val failedCodecName = decoderEx?.codecInfo?.name 
+            ?: videoEx?.codecInfo?.name 
+            ?: if (error.message?.contains("Decoder failed:") == true) {
+                error.message?.substringAfter("Decoder failed:")?.trim()?.substringBefore(' ')
+            } else null
+
+        if (!failedCodecName.isNullOrEmpty()) {
+            PlayerManager.blacklistDecoder(failedCodecName)
+        }
+
         if (decoderServiceRetryCount < 2) {
             decoderServiceRetryCount++
             val currentPos = player.currentPosition
@@ -510,6 +523,9 @@ return mediaSession
 
 @SuppressLint("ClickableViewAccessibility")
 private fun showOverlay(startInVideoMode: Boolean = false) {
+if (startInVideoMode) {
+    com.example.service.PlayerManager.isFloatingVideoActive = true
+}
 if (composeView != null) return
 val cv = ComposeView(this)
 composeView = cv
@@ -886,6 +902,7 @@ lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
 }
 
 fun hideOverlay() {
+com.example.service.PlayerManager.isFloatingVideoActive = false
 composeView?.let {
 lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
 lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_STOP)

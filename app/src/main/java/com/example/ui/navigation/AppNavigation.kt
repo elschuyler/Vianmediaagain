@@ -46,9 +46,9 @@ fun AppNavigation(
             val ext = uriStr.substringAfterLast('.', "").substringBefore('?').lowercase()
             
             val isAnimatedImage = mimeType == "image/gif" || mimeType == "image/webp" || ext == "gif" || ext == "webp"
-            val isImage = mimeType?.startsWith("image/") == true || ext in listOf("jpg", "jpeg", "png", "heic") || isAnimatedImage
-            val isAudio = mimeType?.startsWith("audio/") == true || ext in listOf("mp3", "wav", "ogg", "m4a", "flac", "aac")
-            val isVideo = mimeType?.startsWith("video/") == true || ext in listOf("mp4", "mkv", "webm", "avi", "3gp", "mov", "flv", "wmv", "m4v", "m4s", "m3u8", "ts")
+            val isImage = mimeType?.startsWith("image/") == true || ext in com.example.data.COMMON_IMAGE_EXTENSIONS || isAnimatedImage
+            val isAudio = mimeType?.startsWith("audio/") == true || ext in com.example.data.COMMON_AUDIO_EXTENSIONS
+            val isVideo = mimeType?.startsWith("video/") == true || ext in com.example.data.COMMON_VIDEO_EXTENSIONS
             
             val base64Flags = android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING
             if (forceAction == "mini" || forceAction == "pip" || forceAction == "none") {

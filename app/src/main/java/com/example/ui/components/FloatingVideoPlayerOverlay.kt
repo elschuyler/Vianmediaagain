@@ -46,7 +46,10 @@ fun FloatingVideoPlayerOverlay(
 ) {
     androidx.compose.runtime.LaunchedEffect(isMinimizedExternal) {
         if (isMinimizedExternal) {
+            com.example.service.PlayerManager.isFloatingVideoActive = false
             com.example.service.PlayerManager.detachVideoSurface()
+        } else {
+            com.example.service.PlayerManager.isFloatingVideoActive = true
         }
     }
 
@@ -232,6 +235,7 @@ fun FloatingVideoPlayerOverlay(
                 IconButton(
                     onClick = {
                         com.example.service.PlayerManager.flushProgressToStorage()
+                        com.example.service.PlayerManager.isFloatingVideoActive = false
                         onSwitchToMiniPlayer()
                     },
                     modifier = Modifier.size(28.dp)
@@ -246,6 +250,7 @@ fun FloatingVideoPlayerOverlay(
                 IconButton(
                     onClick = {
                         com.example.service.PlayerManager.flushProgressToStorage()
+                        com.example.service.PlayerManager.isFloatingVideoActive = false
                         onOpenMainPlayer()
                     },
                     modifier = Modifier.size(28.dp)
@@ -289,7 +294,7 @@ fun FloatingVideoPlayerOverlay(
                 if (player != null) {
                     AndroidView(
                         factory = { ctx ->
-                            PlayerView(ctx).apply {
+                            (android.view.LayoutInflater.from(ctx).inflate(com.example.R.layout.player_view_texture, null) as PlayerView).apply {
                                 this.player = player
                                 useController = false
                                 resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
@@ -542,7 +547,10 @@ fun FloatingVideoPlayerOverlay(
                                         horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.End)
                                     ) {
                                         // Exit (Close) button
-                                        IconButton(onClick = onClose, modifier = Modifier.size(32.dp)) {
+                                        IconButton(onClick = {
+                                            com.example.service.PlayerManager.isFloatingVideoActive = false
+                                            onClose()
+                                        }, modifier = Modifier.size(32.dp)) {
                                             Icon(Icons.Filled.Close, "Exit", tint = Color.White, modifier = Modifier.size(18.dp))
                                         }
                                         // Minimize button
@@ -587,33 +595,47 @@ fun FloatingVideoPlayerOverlay(
                         exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.scaleOut(targetScale = 0.85f),
                         modifier = Modifier.align(Alignment.Center)
                     ) {
+                        val isPlayPause = gestureFeedbackText == "Play" || gestureFeedbackText == "Pause"
                         Box(
                             modifier = Modifier
-                                .background(Color.Black.copy(alpha = 0.75f), RoundedCornerShape(14.dp))
-                                .padding(horizontal = 14.dp, vertical = 8.dp)
+                                .background(
+                                    Color.Black.copy(alpha = 0.75f),
+                                    if (isPlayPause) CircleShape else RoundedCornerShape(14.dp)
+                                )
+                                .padding(if (isPlayPause) 14.dp else 10.dp),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                val icon = when (gestureFeedbackText) {
-                                    "-10s" -> Icons.Filled.FastRewind
-                                    "+10s" -> Icons.Filled.FastForward
-                                    "Pause" -> Icons.Filled.Pause
-                                    else -> Icons.Filled.PlayArrow
-                                }
+                            if (isPlayPause) {
+                                val icon = if (gestureFeedbackText == "Pause") Icons.Filled.Pause else Icons.Filled.PlayArrow
                                 Icon(
                                     imageVector = icon,
-                                    contentDescription = null,
+                                    contentDescription = gestureFeedbackText,
                                     tint = Color.White,
-                                    modifier = Modifier.size(18.dp)
+                                    modifier = Modifier.size(30.dp)
                                 )
-                                Text(
-                                    text = gestureFeedbackText,
-                                    color = Color.White,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                            } else {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    val icon = when (gestureFeedbackText) {
+                                        "-10s" -> Icons.Filled.FastRewind
+                                        "+10s" -> Icons.Filled.FastForward
+                                        else -> Icons.Filled.PlayArrow
+                                    }
+                                    Icon(
+                                        imageVector = icon,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Text(
+                                        text = gestureFeedbackText,
+                                        color = Color.White,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
                         }
                     }

@@ -67,6 +67,21 @@ object PlayerManager {
     val centerChannelProcessor = CenterChannelAudioProcessor()
     val floatingSession = FloatingPlayerSessionState()
     var isImplicitFolderQueue: Boolean = false
+    @Volatile
+    var isFloatingVideoActive: Boolean = false
+
+    private val blacklistedDecoders = java.util.Collections.synchronizedSet(mutableSetOf<String>())
+
+    fun blacklistDecoder(name: String) {
+        if (name.isNotEmpty()) {
+            blacklistedDecoders.add(name)
+            com.example.LogKeeper.log("Blacklisted failing decoder: $name", "PlayerManager")
+        }
+    }
+
+    fun clearBlacklistedDecoders() {
+        blacklistedDecoders.clear()
+    }
 
     private val _playbackState = MutableStateFlow(PlayerSnapshot())
     val playbackState: StateFlow<PlayerSnapshot> = _playbackState.asStateFlow()
@@ -97,38 +112,16 @@ object PlayerManager {
 
         val settings = com.example.data.SettingsManager.getInstance(context.applicationContext)
         val customMediaCodecSelector = androidx.media3.exoplayer.mediacodec.MediaCodecSelector { mimeType, requiresSecure, requiresTunneling ->
-            val decoders = androidx.media3.exoplayer.mediacodec.MediaCodecUtil.getDecoderInfos(
+            val decoders = androidx.media3.exoplayer.mediacodec.MediaCodecSelector.DEFAULT.getDecoderInfos(
                 mimeType,
                 requiresSecure,
                 requiresTunneling
             )
-            val result = ArrayList<androidx.media3.exoplayer.mediacodec.MediaCodecInfo>(decoders)
-
-            try {
-                // Ensure software decoders (like c2.android.* and OMX.google.*) are always available in the fallback list
-                val swDecoders = androidx.media3.exoplayer.mediacodec.MediaCodecUtil.getDecoderInfos(
-                    mimeType,
-                    /* requiresSecure= */ false,
-                    /* requiresTunneling= */ false
-                ).filter { it.softwareOnly || !it.hardwareAccelerated }
-
-                for (sw in swDecoders) {
-                    if (result.none { it.name == sw.name }) {
-                        result.add(sw)
-                    }
-                }
-            } catch (e: Exception) {
-                com.example.LogKeeper.logError("PlayerManager", "Failed to query swDecoders", e)
+            if (blacklistedDecoders.isNotEmpty()) {
+                decoders.filter { it.name !in blacklistedDecoders }
+            } else {
+                decoders
             }
-
-            // On known problematic hardware chipsets (e.g. Unisoc c2.unisoc.*) or when user selects SW preference,
-            // place software decoders ahead of failing hardware decoders to avoid fatal native buffer crashes
-            val isProblematicHw = result.any { it.name.contains("unisoc", ignoreCase = true) || it.name.contains("sprd", ignoreCase = true) }
-            if (settings.decoderPriority == 2 || (isProblematicHw && (mimeType.contains("vp9", ignoreCase = true) || mimeType.contains("opus", ignoreCase = true)))) {
-                result.sortByDescending { it.softwareOnly || !it.hardwareAccelerated }
-            }
-
-            result
         }
 
         val renderersFactory = object : androidx.media3.exoplayer.DefaultRenderersFactory(context.applicationContext) {
@@ -383,10 +376,18 @@ object PlayerManager {
     }
 
     fun detachVideoSurface() {
+        if (isFloatingVideoActive) {
+            com.example.LogKeeper.log("detachVideoSurface ignored: floating video overlay is active", "PlayerManager")
+            return
+        }
         val player = exoPlayer ?: return
         try {
             val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
             mainHandler.post {
+                if (isFloatingVideoActive) {
+                    com.example.LogKeeper.log("detachVideoSurface skipped: floating video overlay became active", "PlayerManager")
+                    return@post
+                }
                 try {
                     player.clearVideoSurface()
                     com.example.LogKeeper.log("Video surface successfully cleared for audio-only remote operation", "PlayerManager")

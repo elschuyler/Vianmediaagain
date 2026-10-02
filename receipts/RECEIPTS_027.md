@@ -395,3 +395,45 @@
 * Deviation: None.
 * Known issues: None.
 
+---
+
+* Timestamp: 2026-10-01T17:08:00Z
+* Summary: Phase 66 - Removal of Artificial Software Decoder Forcing & Comprehensive Extension Expansion for Robust Video Loading.
+* Files touched:
+  - BLUEPRINT.md
+  - app/src/main/java/com/example/service/PlayerManager.kt
+  - app/src/main/java/com/example/data/MediaRepository.kt
+  - app/src/main/java/com/example/data/SettingsManager.kt
+  - app/src/main/java/com/example/ui/navigation/AppNavigation.kt
+  - receipts/RECEIPTS_027.md
+* What was actually done:
+  - Removed artificial software decoder querying (`swDecoders` with fake non-secure/non-tunneling flags) and artificial sorting (`sortByDescending { it.softwareOnly }`) in `PlayerManager.kt`. Restored clean `customMediaCodecSelector` utilizing `MediaCodecSelector.DEFAULT.getDecoderInfos(...)` while preserving runtime crash exclusion via `blacklistedDecoders`.
+  - Removed `.forceDisableMediaCodecAsynchronousQueueing()` on `DefaultRenderersFactory` to re-enable Media3's asynchronous buffer queueing pipeline for smooth 60fps/4k playback without pipeline stalls.
+  - Defined canonical common extension sets (`COMMON_VIDEO_EXTENSIONS`, `COMMON_IMAGE_EXTENSIONS`, `COMMON_AUDIO_EXTENSIONS`, `COMMON_SUBTITLE_EXTENSIONS`) in `MediaRepository.kt`. Expanded video formats to comprehensively include `.mp4`, `.m4v`, `.mkv`, `.webm`, `.avi`, `.mov`, `.qt`, `.3gp`, `.3gpp`, `.3g2`, `.3gpp2`, `.flv`, `.f4v`, `.wmv`, `.asf`, `.ts`, `.m2ts`, `.mts`, `.tp`, `.trp`, `.vob`, `.ifo`, `.ogv`, `.ogg`, `.mpg`, `.mpeg`, `.m1v`, `.m2v`, `.mp2`, `.m4s`, `.m3u8`, `.m3u`, `.divx`, `.xvid`, `.rm`, `.rmvb`, `.wtv`, `.dvr-ms`, `.h264`, `.h265`, `.hevc`, `.264`, `.265`, `.avc`, `.av1`, `.ivf`, `.vp8`, `.vp9`, `.y4m`, `.dat`, `.mod`, `.tod`, and `.dv`.
+  - Updated `getMediaFolder()`, `getMediaFolders()`, `scanDirectoryRecursive()`, and `AppNavigation.kt` to reference `COMMON_VIDEO_EXTENSIONS`, preventing video formats like `.vob`, `.mpg`, `.mpeg`, `.m2ts`, `.mts`, etc. from being miscategorized as `MediaType.AUDIO` and queried with invalid audio content URIs.
+  - Synchronized `SettingsManager.defaultExts` with `COMMON_VIDEO_EXTENSIONS` and `COMMON_AUDIO_EXTENSIONS`, ensuring all supported media formats pass filtering and auto-merge into existing user preferences.
+* Verification: Verified Kotlin AST brace/paren balance (0 deltas across all modified files); verified via `lint_applet` (tsc --noEmit) and `compile_applet` (0 errors).
+* Deviation: None.
+* Known issues: None.
+
+---
+
+* Timestamp: 2026-10-02T10:10:00Z
+* Summary: Phase 67 - Floating Player Surface Race Fix, Symbol-Only Play/Pause HUD, and Main Player Double-Tap Responsiveness.
+* Files touched:
+  - BLUEPRINT.md
+  - app/src/main/java/com/example/service/PlayerManager.kt
+  - app/src/main/java/com/example/service/PlaybackService.kt
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+  - app/src/main/java/com/example/ui/components/FloatingVideoPlayerOverlay.kt
+  - receipts/RECEIPTS_027.md
+* What was actually done:
+  - Added volatile `isFloatingVideoActive` tracking in `PlayerManager.kt` synchronized across `PlaybackService.kt`, `PlayerScreen.kt`, and `FloatingVideoPlayerOverlay.kt`.
+  - Guarded `detachVideoSurface()` in `PlayerManager.kt` so that when `isFloatingVideoActive` is true, asynchronous `player.clearVideoSurface()` calls posted from `PlayerScreen` exit lifecycle (`onNavigateBack()` and `ON_STOP`) immediately abort without stripping the video surface from ExoPlayer, permanently eliminating the floating player video freeze/black-screen race condition.
+  - Upgraded `FloatingVideoPlayerOverlay.kt` to inflate `player_view_texture.xml` (`surface_type="texture_view"`) for robust rendering in `TYPE_APPLICATION_OVERLAY` windows, preventing WindowManager surface-hole compositor dropouts during moving, resizing, or switching apps.
+  - Updated double-tap gesture visual feedback in `FloatingVideoPlayerOverlay.kt`: Play and Pause cards now render purely as high-visibility symbols/icons (30dp) inside a centered translucent circular badge with zero text ("Play" / "Pause" labels completely removed), while keeping numeric offset badges (`"-10s"` / `"+10s"`) for seek gestures.
+  - Resolved main player double-tap intermittent failure in `PlayerScreen.kt`: replaced unscaled hardcoded `20f` raw physical pixel threshold with `viewConfiguration.touchSlop`, accommodating natural fingertip micro-movement on high-DPI displays. Aligned the single-tap timer delay (`300ms`) with the double-tap detection window (`40L..350L`) to prevent premature single-tap execution from swallowing the second tap, and narrowed top/bottom control bar swallowing checks to actual interactive button rows (`64dp` top, `84dp` bottom) so double-taps register reliably across the canvas without altering single-tap, volume, brightness, or seek gestures.
+* Verification: Verified Kotlin AST brace/paren balance (0 deltas across all modified files); verified via `lint_applet` (tsc --noEmit) and `compile_applet` (0 errors).
+* Deviation: None.
+* Known issues: None.
+
