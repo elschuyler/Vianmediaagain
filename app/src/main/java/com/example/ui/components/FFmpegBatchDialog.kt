@@ -98,7 +98,9 @@ fun FFmpegBatchDialog(
                     val parts = res.split("x")
                     val targetW = parts[0].toInt()
                     val targetH = parts[1].toInt()
-                    "-vf \"scale=w='if(gte(iw,ih),$targetW,$targetH)':h='if(gte(iw,ih),$targetH,$targetW)':force_original_aspect_ratio=decrease,pad='if(gte(iw,ih),$targetW,$targetH)':'if(gte(iw,ih),$targetH,$targetW)':(ow-iw)/2:(oh-ih)/2\""
+                    val maxDim = maxOf(targetW, targetH)
+                    val minDim = minOf(targetW, targetH)
+                    "-vf \"scale=w='if(gte(iw,ih),$maxDim,$minDim)':h='if(gte(iw,ih),$minDim,$maxDim)':force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2\""
                 }
                 
                 val cmd = when(format) {

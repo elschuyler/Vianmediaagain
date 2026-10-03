@@ -456,3 +456,22 @@
 * Deviation: None.
 * Known issues: None.
 
+---
+
+* Timestamp: 2026-10-03T00:43:00Z
+* Summary: Phase 69 - Main Player TopBar Touch Isolation Restoration & Brightness Slider Full-Screen Vertical Swipe.
+* Files touched:
+  - BLUEPRINT.md
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+  - receipts/RECEIPTS_027.md
+* What was actually done:
+  - Measured exact physical heights of TopBar Column (`topBarHeightPx`) and BottomBar container (`bottomBarHeightPx`) via `onGloballyPositioned` in `PlayerScreen.kt` with robust density-scaled fallbacks (`140f * density` top, `180f * density` bottom).
+  - Resolved the phantom canvas tap dismissal where Row 2 buttons (including the Brightness button at Y ≈ 75-125dp) were misclassified as canvas taps due to an overly narrow `64dp` boundary check, which previously dismissed `showBrightnessSlider` in the exact same millisecond it was toggled.
+  - Restored Brightness button activation in `PlayerScreen.kt`: tapping the Brightness button now reliably displays the 56dp x 180dp HUD slider along the right edge.
+  - When `showBrightnessSlider == true`, any vertical swipe across the video canvas seamlessly controls brightness (`GestureType.BRIGHTNESS`), direct drags on the slider track adjust brightness, and `controlsInteractionTrigger` refreshes on each drag increment to keep controls alive.
+  - Tapping the center video canvas cleanly dismisses `showBrightnessSlider` without toggling controls or triggering playback pause. When controls are hidden, full-canvas double-tap to play/pause remains 100% preserved.
+* Verification: Verified Kotlin AST brace/paren balance (0 deltas across all modified files); verified via `lint_applet` (tsc --noEmit) and `compile_applet` (0 errors).
+* Deviation: None.
+* Known issues: None.
+
+

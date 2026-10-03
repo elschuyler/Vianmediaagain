@@ -803,6 +803,7 @@ fun MainScreen(
         var createNew = playlists.isEmpty()
         var newPlaylistName by rememberSaveable { mutableStateOf("") }
         var selectedPlaylistId by rememberSaveable { mutableStateOf<Int?>(playlists.firstOrNull()?.id) }
+        var includeCurrentPlaying by rememberSaveable { mutableStateOf(true) }
         
         val hasActiveQueue = com.example.service.PlayerManager.exoPlayer != null && (com.example.service.PlayerManager.exoPlayer?.mediaItemCount ?: 0) > 0
         // 0: Existing, 1: New, 2: Temp (Current Queue)
@@ -858,6 +859,12 @@ fun MainScreen(
                             Text("Current Queue (Temp)", modifier = Modifier.clickable { targetType = 2 })
                         }
                     }
+                    if (hasActiveQueue && (targetType == 0 || targetType == 1)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 16.dp, top = 8.dp)) {
+                            Checkbox(checked = includeCurrentPlaying, onCheckedChange = { includeCurrentPlaying = it })
+                            Text("Include currently playing item", modifier = Modifier.clickable { includeCurrentPlaying = !includeCurrentPlaying })
+                        }
+                    }
                 }
             },
             confirmButton = {
@@ -889,10 +896,21 @@ fun MainScreen(
                                 } else {
                                     selectedPlaylistId ?: return@launch
                                 }
+                                val urisToInsert = mutableListOf<String>()
+                                val currentPlayingUri = com.example.service.PlayerManager.exoPlayer?.currentMediaItem?.mediaId
+                                if (includeCurrentPlaying && !currentPlayingUri.isNullOrEmpty()) {
+                                    urisToInsert.add(currentPlayingUri)
+                                }
                                 selectedMediaItems.forEach { item ->
+                                    val u = item.uri.toString()
+                                    if (!urisToInsert.contains(u)) {
+                                        urisToInsert.add(u)
+                                    }
+                                }
+                                urisToInsert.forEach { uriStr ->
                                     val playlistItem = com.example.data.PlaylistItem(
                                         playlistId = playlistId,
-                                        mediaUri = item.uri.toString()
+                                        mediaUri = uriStr
                                     )
                                     repository.insertPlaylistItem(playlistItem)
                                 }

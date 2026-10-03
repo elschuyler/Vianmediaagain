@@ -28,6 +28,7 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.graphics.graphicsLayer
@@ -235,6 +236,8 @@ fun PlayerScreen(
     var resizeMode by remember { androidx.compose.runtime.mutableIntStateOf(AspectRatioFrameLayout.RESIZE_MODE_FIT) }
     var videoWidth by remember { androidx.compose.runtime.mutableIntStateOf(0) }
     var videoHeight by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    var topBarHeightPx by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    var bottomBarHeightPx by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
     var showBrightnessSlider by remember { mutableStateOf(false) }
     var brightnessInteractionTime by remember { mutableLongStateOf(0L) }
     var currentBrightness by remember { mutableFloatStateOf(context.findActivity()?.window?.attributes?.screenBrightness.takeIf { it != -1f } ?: 0.5f) }
@@ -456,7 +459,7 @@ fun PlayerScreen(
     LaunchedEffect(mediaController) {
         mediaController?.let {
             repeatMode = it.repeatMode
-            it.pauseAtEndOfMediaItems = (it.repeatMode == androidx.media3.common.Player.REPEAT_MODE_OFF)
+            it.pauseAtEndOfMediaItems = false
         }
     }
 
@@ -514,6 +517,7 @@ fun PlayerScreen(
             controller.setMediaItem(initialMediaItem, startPos)
             controller.prepare()
             controller.play()
+            com.example.service.PlayerManager.isImplicitFolderQueue = true
             
             // Load playlist in background with resource awareness
             kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
@@ -534,7 +538,9 @@ fun PlayerScreen(
                 var found = false
                 
                 for (folder in folders) {
-                    val index = folder.mediaItems.indexOfFirst { it.uri == decodedUri }
+                    val index = folder.mediaItems.indexOfFirst {
+                        it.uri == decodedUri || it.uri.toString() == decodedUriString || it.uri.path == decodedUri.path
+                    }
                     if (index != -1) {
                         playlistItems = folder.mediaItems.map { item ->
                             val meta = androidx.media3.common.MediaMetadata.Builder()
@@ -557,7 +563,8 @@ fun PlayerScreen(
                 if (found && playlistItems.size > 1) {
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                         // Only populate if controller is still playing this item and has single item loaded
-                        if (controller.currentMediaItem?.mediaId == decodedUri.toString() && controller.mediaItemCount == 1) {
+                        val currentId = controller.currentMediaItem?.mediaId
+                        if ((currentId == decodedUri.toString() || currentId == decodedUriString) && controller.mediaItemCount == 1) {
                             val precedingItems = playlistItems.subList(0, startIndex)
                             val succeedingItems = playlistItems.subList(startIndex + 1, playlistItems.size)
                             if (precedingItems.isNotEmpty()) {
@@ -822,14 +829,14 @@ fun PlayerScreen(
             override fun onRepeatModeChanged(mode: Int) {
                 com.example.LogKeeper.log("PlayerScreen: onRepeatModeChanged = $mode", "PlayerScreen")
                 repeatMode = mode
-                controller.pauseAtEndOfMediaItems = (mode == androidx.media3.common.Player.REPEAT_MODE_OFF)
+                controller.pauseAtEndOfMediaItems = false
             }
 
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
                 com.example.LogKeeper.log("PlayerScreen: onPlayWhenReadyChanged = $playWhenReady, reason = $reason", "PlayerScreen")
                 if (reason == androidx.media3.common.Player.PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM) {
-                    if (controller.repeatMode == androidx.media3.common.Player.REPEAT_MODE_OFF) {
-                        com.example.LogKeeper.log("End of media item reached with repeatMode OFF -> navigating back", "PlayerScreen")
+                    if (controller.repeatMode == androidx.media3.common.Player.REPEAT_MODE_OFF && controller.hasNextMediaItem() == false) {
+                        com.example.LogKeeper.log("End of media item reached with repeatMode OFF and no next item -> navigating back", "PlayerScreen")
                         onNavigateBack()
                     }
                 }
@@ -1153,6 +1160,7 @@ fun PlayerScreen(
                                             window.attributes = layoutParams
                                         }
                                         brightnessInteractionTime = System.currentTimeMillis()
+                                        controlsInteractionTrigger = System.currentTimeMillis()
                                     }
                                     
                                     gestureVolumeRatio = newBrightness
@@ -1207,8 +1215,8 @@ fun PlayerScreen(
                     }
                 } else if (currentGesture == GestureType.NONE && kotlin.math.hypot(dragDistanceX, dragDistanceY) <= touchSlop) {
                     val tapPos = down.position
-                    val inTopBar = showControls && (tapPos.y <= 64f * density)
-                    val inBottomBar = showControls && (tapPos.y >= size.height - 84f * density)
+                    val inTopBar = showControls && (tapPos.y <= (if (topBarHeightPx > 0f) topBarHeightPx else 140f * density))
+                    val inBottomBar = showControls && (tapPos.y >= size.height - (if (bottomBarHeightPx > 0f) bottomBarHeightPx else 180f * density))
 
                     if (inTopBar || inBottomBar) {
                         controlsInteractionTrigger = System.currentTimeMillis()
@@ -1521,6 +1529,9 @@ fun PlayerScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .align(Alignment.TopCenter)
+                            .onGloballyPositioned { coordinates ->
+                                topBarHeightPx = coordinates.size.height.toFloat()
+                            }
                             .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.systemBarsIgnoringVisibility.union(androidx.compose.foundation.layout.WindowInsets.displayCutout).only(androidx.compose.foundation.layout.WindowInsetsSides.Horizontal + androidx.compose.foundation.layout.WindowInsetsSides.Top))
                     ) {
                         Row(
@@ -1814,6 +1825,9 @@ fun PlayerScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .align(Alignment.BottomCenter)
+                            .onGloballyPositioned { coordinates ->
+                                bottomBarHeightPx = coordinates.size.height.toFloat()
+                            }
                             .pointerInput(Unit) {
                                 awaitEachGesture {
                                     awaitFirstDown(requireUnconsumed = false)

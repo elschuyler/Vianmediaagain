@@ -207,7 +207,7 @@ override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?,
 }
 override fun onRepeatModeChanged(repeatMode: Int) {
     com.example.LogKeeper.log("PlaybackService: onRepeatModeChanged = $repeatMode", "PlaybackService")
-    PlayerManager.exoPlayer?.pauseAtEndOfMediaItems = (repeatMode == Player.REPEAT_MODE_OFF)
+    PlayerManager.exoPlayer?.pauseAtEndOfMediaItems = false
     updateWidgetUI()
 }
 override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
@@ -299,8 +299,8 @@ override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
     com.example.LogKeeper.log("PlaybackService: onPlayWhenReadyChanged = $playWhenReady, reason = $reason", "PlaybackService")
     if (reason == Player.PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM) {
         val player = PlayerManager.exoPlayer
-        if (player?.repeatMode == Player.REPEAT_MODE_OFF) {
-            com.example.LogKeeper.log("End of media item reached with repeatMode OFF -> stopping player", "PlaybackService")
+        if (player?.repeatMode == Player.REPEAT_MODE_OFF && player.hasNextMediaItem() == false) {
+            com.example.LogKeeper.log("End of media item reached with repeatMode OFF and no next item -> stopping player", "PlaybackService")
             try {
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
                     stopForeground(STOP_FOREGROUND_REMOVE)
@@ -324,7 +324,31 @@ val pendingIntent = android.app.PendingIntent.getActivity(
 this, 0, intent,
 android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT
 )
-mediaSession = MediaSession.Builder(this, PlayerManager.exoPlayer!!)
+
+val rawPlayer = PlayerManager.exoPlayer!!
+val forwardingPlayer = object : androidx.media3.common.ForwardingPlayer(rawPlayer) {
+    override fun getAvailableCommands(): androidx.media3.common.Player.Commands {
+        return super.getAvailableCommands().buildUpon()
+            .add(androidx.media3.common.Player.COMMAND_SEEK_TO_NEXT)
+            .add(androidx.media3.common.Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
+            .add(androidx.media3.common.Player.COMMAND_SEEK_TO_PREVIOUS)
+            .add(androidx.media3.common.Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
+            .build()
+    }
+
+    override fun isCommandAvailable(command: Int): Boolean {
+        if (command == androidx.media3.common.Player.COMMAND_SEEK_TO_NEXT ||
+            command == androidx.media3.common.Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM ||
+            command == androidx.media3.common.Player.COMMAND_SEEK_TO_PREVIOUS ||
+            command == androidx.media3.common.Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM
+        ) {
+            return true
+        }
+        return super.isCommandAvailable(command)
+    }
+}
+
+mediaSession = MediaSession.Builder(this, forwardingPlayer)
 .setSessionActivity(pendingIntent)
 .setBitmapLoader(com.example.MyBitmapLoader(this))
 .setCallback(object : MediaSession.Callback {
