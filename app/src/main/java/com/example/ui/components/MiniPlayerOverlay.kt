@@ -285,7 +285,19 @@ fun MiniPlayerOverlay(
                         Icon(Icons.Filled.FastRewind, "-5s", tint = MaterialTheme.colorScheme.onSurface)
                     }
                     IconButton(onClick = {
-                        if (isPlaying) player?.pause() else player?.play()
+                        player?.let { p ->
+                            if (p.isPlaying) {
+                                p.pause()
+                            } else {
+                                if (p.playbackState == androidx.media3.common.Player.STATE_IDLE) {
+                                    p.prepare()
+                                } else if (p.playbackState == androidx.media3.common.Player.STATE_ENDED) {
+                                    p.seekTo(0)
+                                    p.prepare()
+                                }
+                                p.play()
+                            }
+                        }
                     }) {
                         Icon(if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, "Play/Pause", tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(36.dp))
                     }

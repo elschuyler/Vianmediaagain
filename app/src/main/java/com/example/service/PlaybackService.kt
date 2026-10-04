@@ -664,39 +664,37 @@ val updateWindowForAspectRatio: (Float) -> Unit = { aspect ->
         val lp = layoutParams
         val currentCv = composeView
         if (lp != null && currentCv != null && isVideoMode && !isMinimized) {
-            if (isAspectRatioBroken && sessionWindowWidth != null && sessionWindowHeight != null) {
-                // User broke aspect ratio: preserve custom dimensions
-                return@updateWindowForAspectRatio
-            }
-            val metrics = resources.displayMetrics
-            val topBarHeightPx = (32 * metrics.density).toInt()
-            val minWidth = (200 * metrics.density).toInt()
-            val maxWidth = (metrics.widthPixels * 0.95f).toInt()
-            val maxHeight = (metrics.heightPixels * 0.7f).toInt()
+            if (!isAspectRatioBroken || sessionWindowWidth == null || sessionWindowHeight == null) {
+                val metrics = resources.displayMetrics
+                val topBarHeightPx = (32 * metrics.density).toInt()
+                val minWidth = (200 * metrics.density).toInt()
+                val maxWidth = (metrics.widthPixels * 0.95f).toInt()
+                val maxHeight = (metrics.heightPixels * 0.7f).toInt()
 
-            var targetWidth = (sessionWindowWidth ?: lp.width).coerceIn(minWidth, maxWidth)
-            var targetHeight = ((targetWidth) / aspect).toInt() + topBarHeightPx
+                var targetWidth = (sessionWindowWidth ?: lp.width).coerceIn(minWidth, maxWidth)
+                var targetHeight = ((targetWidth) / aspect).toInt() + topBarHeightPx
 
-            if (targetHeight > maxHeight) {
-                targetHeight = maxHeight
-                targetWidth = (((targetHeight - topBarHeightPx) * aspect).toInt()).coerceIn(minWidth, maxWidth)
-            }
+                if (targetHeight > maxHeight) {
+                    targetHeight = maxHeight
+                    targetWidth = (((targetHeight - topBarHeightPx) * aspect).toInt()).coerceIn(minWidth, maxWidth)
+                }
 
-            lp.width = targetWidth
-            lp.height = targetHeight
+                lp.width = targetWidth
+                lp.height = targetHeight
 
-            lp.x = lp.x.coerceIn(0, (metrics.widthPixels - targetWidth).coerceAtLeast(0))
-            lp.y = lp.y.coerceIn(0, (metrics.heightPixels - targetHeight).coerceAtLeast(0))
+                lp.x = lp.x.coerceIn(0, (metrics.widthPixels - targetWidth).coerceAtLeast(0))
+                lp.y = lp.y.coerceIn(0, (metrics.heightPixels - targetHeight).coerceAtLeast(0))
 
-            sessionWindowWidth = targetWidth
-            sessionWindowHeight = targetHeight
-            sessionWindowX = lp.x
-            sessionWindowY = lp.y
+                sessionWindowWidth = targetWidth
+                sessionWindowHeight = targetHeight
+                sessionWindowX = lp.x
+                sessionWindowY = lp.y
 
-            try {
-                windowManager.updateViewLayout(currentCv, lp)
-            } catch (e: Exception) {
-                com.example.LogKeeper.logError("PlaybackService", "Error updating floating window aspect ratio", e)
+                try {
+                    windowManager.updateViewLayout(currentCv, lp)
+                } catch (e: Exception) {
+                    com.example.LogKeeper.logError("PlaybackService", "Error updating floating window aspect ratio", e)
+                }
             }
         }
     }
