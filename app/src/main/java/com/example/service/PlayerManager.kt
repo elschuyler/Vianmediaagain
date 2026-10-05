@@ -491,16 +491,23 @@ object PlayerManager {
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default).launch {
             try {
                 player?.let { p ->
+                    val hasError = (p.playerError != null)
                     try { p.stop() } catch (e: Exception) {}
-                    try { p.clearVideoSurface() } catch (e: Exception) {}
-                    try { p.clearMediaItems() } catch (e: Exception) {}
+                    if (!hasError) {
+                        try { p.clearVideoSurface() } catch (e: Exception) {}
+                        try { p.clearMediaItems() } catch (e: Exception) {}
+                    }
                     val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
                     mainHandler.post {
-                        try { p.release() } catch (e: Exception) {}
+                        try { 
+                            p.release() 
+                        } catch (e: Exception) {
+                            com.example.LogKeeper.log("PlayerManager: Handled player release (${e.message})", "PlayerManager")
+                        }
                     }
                 }
             } catch (e: Exception) {
-                com.example.LogKeeper.logError("PlayerManager", "Error releasing ExoPlayer", e)
+                com.example.LogKeeper.log("PlayerManager: Handled ExoPlayer release background job", "PlayerManager")
             }
         }
         try {

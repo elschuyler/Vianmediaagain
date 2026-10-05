@@ -219,12 +219,23 @@ override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason
     updateWidgetUI()
 }
 override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-    val cause = error.cause?.message ?: "Unknown"
-    com.example.LogKeeper.logError("PlaybackService", "Error: ${error.errorCodeName} - ${error.message} - Cause: $cause", error)
     if (error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_TIMEOUT) {
         com.example.LogKeeper.log("PlaybackService: Timeout caught during surface detachment or release - ignored gracefully", "PlaybackService")
         return
     }
+    val rootCause = error.cause
+    if (rootCause is SecurityException || error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NO_PERMISSION) {
+        com.example.LogKeeper.log("PlaybackService: Permission denied reading media URI - skipping item gracefully: ${rootCause?.message}", "PlaybackService")
+        val player = PlayerManager.exoPlayer
+        if (player != null && player.hasNextMediaItem()) {
+            player.seekToNextMediaItem()
+        } else {
+            player?.stop()
+        }
+        return
+    }
+    val cause = error.cause?.message ?: "Unknown"
+    com.example.LogKeeper.logError("PlaybackService", "Error: ${error.errorCodeName} - ${error.message} - Cause: $cause", error)
     val player = PlayerManager.exoPlayer
     if (player != null && (error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DECODING_FAILED ||
         error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DECODER_INIT_FAILED)) {

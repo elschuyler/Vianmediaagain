@@ -328,8 +328,10 @@ fun PlayerScreen(
             }
             try { playerViewRef.value?.player = null } catch (e: Exception) {}
             mediaController?.let { controller ->
-                try { controller.clearVideoSurface() } catch (e: Exception) {}
-                try { controller.clearMediaItems() } catch (e: Exception) {}
+                if (controller.playerError == null) {
+                    try { controller.clearVideoSurface() } catch (e: Exception) {}
+                    try { controller.clearMediaItems() } catch (e: Exception) {}
+                }
             }
             try {
                 val stopIntent = android.content.Intent(context, com.example.service.PlaybackService::class.java)
@@ -843,11 +845,24 @@ fun PlayerScreen(
             }
 
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                com.example.LogKeeper.logError("PlayerScreen", "ExoPlayer Error: ${error.message}", error)
                 if (error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_TIMEOUT) {
                     com.example.LogKeeper.log("PlayerScreen: Timeout caught during surface detachment or release - ignored gracefully", "PlayerScreen")
                     return
                 }
+                val rootCause = error.cause
+                if (rootCause is SecurityException || error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NO_PERMISSION) {
+                    com.example.LogKeeper.log("PlayerScreen: Permission denied reading media URI - skipping item gracefully: ${rootCause?.message}", "PlayerScreen")
+                    try {
+                        android.widget.Toast.makeText(context, "Cannot read file: Permission denied", android.widget.Toast.LENGTH_SHORT).show()
+                    } catch (e: Exception) {}
+                    if (controller.hasNextMediaItem()) {
+                        controller.seekToNextMediaItem()
+                    } else {
+                        controller.pause()
+                    }
+                    return
+                }
+                com.example.LogKeeper.logError("PlayerScreen", "ExoPlayer Error: ${error.message}", error)
                 val currentPos = controller.currentPosition
                 if (error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DECODING_FAILED ||
                     error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DECODER_INIT_FAILED) {

@@ -15,19 +15,20 @@ class CenterChannelAudioProcessor : AudioProcessor {
 
     override fun configure(inputAudioFormat: AudioFormat): AudioFormat {
         if (inputAudioFormat.encoding != androidx.media3.common.C.ENCODING_PCM_16BIT || inputAudioFormat.channelCount != 2) {
+            pendingFormat = AudioFormat.NOT_SET
             return AudioFormat.NOT_SET
         }
         pendingFormat = inputAudioFormat
         return inputAudioFormat
     }
 
-    override fun isActive(): Boolean = enabled && pendingFormat != AudioFormat.NOT_SET
+    override fun isActive(): Boolean = pendingFormat != AudioFormat.NOT_SET
 
     override fun queueInput(inputBuffer: ByteBuffer) {
         val position = inputBuffer.position()
         val limit = inputBuffer.limit()
-        val frameCount = (limit - position) / 4 
-        val capacity = frameCount * 4
+        val capacity = limit - position
+        if (capacity <= 0) return
         
         if (buffer.capacity() < capacity) {
             buffer = ByteBuffer.allocateDirect(capacity).order(ByteOrder.nativeOrder())
@@ -35,20 +36,25 @@ class CenterChannelAudioProcessor : AudioProcessor {
             buffer.clear()
         }
         
-        while (inputBuffer.position() < limit) {
-            val left = inputBuffer.short.toInt()
-            val right = inputBuffer.short.toInt()
-            
-            // "Reverse Karaoke" trick: isolate the center by extracting common elements
-            // Standard Mid/Side processing: Mid = (L+R)/2
-            // Panning Mid to both L and R removes all stereo width, enhancing the center (vocals)
-            val mid = ((left + right) / 2).toShort()
-            
-            buffer.putShort(mid)
-            buffer.putShort(mid)
+        if (!enabled) {
+            // Clean stereo passthrough when center channel enhancement is toggled off
+            buffer.put(inputBuffer)
+        } else {
+            while (inputBuffer.position() < limit) {
+                val left = inputBuffer.short.toInt()
+                val right = inputBuffer.short.toInt()
+                
+                // "Reverse Karaoke" trick: isolate the center by extracting common elements
+                // Standard Mid/Side processing: Mid = (L+R)/2
+                // Panning Mid to both L and R removes all stereo width, enhancing the center (vocals)
+                val mid = ((left + right) / 2).toShort()
+                
+                buffer.putShort(mid)
+                buffer.putShort(mid)
+            }
+            inputBuffer.position(limit)
         }
         
-        inputBuffer.position(limit)
         buffer.flip()
         outputBuffer = buffer
     }

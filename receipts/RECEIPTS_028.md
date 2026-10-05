@@ -20,17 +20,22 @@
 
 ---
 
-* Timestamp: 2026-10-04T00:46:00Z
-* Summary: Phase 71 - Resolved Kotlin Compiler Unresolved Label in PlaybackService Floating Window Resizing.
+* Timestamp: 2026-10-05T10:25:00Z
+* Summary: Phase 72 - Resolved Media3 AudioProcessingPipeline Assertion Failure, SAF SecurityException Interception & Teardown Deadlock Elimination.
 * Files touched:
+  - app/src/main/java/com/example/service/CenterChannelAudioProcessor.kt
   - app/src/main/java/com/example/service/PlaybackService.kt
+  - app/src/main/java/com/example/service/PlayerManager.kt
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
   - BLUEPRINT.md
   - receipts/RECEIPTS_028.md
 * What was actually done:
-  - Removed invalid label return `return@updateWindowForAspectRatio` in `PlaybackService.kt:669` that caused GitHub Actions CI task `:app:compileDebugKotlin` to fail with "Unresolved label".
-  - Wrapped window dimension recalculation inside `if (!isAspectRatioBroken || sessionWindowWidth == null || sessionWindowHeight == null)` block, preserving custom user window sizing in freeform mode without requiring a label jump.
-  - Verified Kotlin AST balance (0 deltas for braces, parens, brackets).
-* Verification: Verified Kotlin AST syntax and brace balance; verified TypeScript compilation and lint via `lint_applet` and `compile_applet` (0 errors).
+  - Fixed `CenterChannelAudioProcessor.kt` to explicitly reset `pendingFormat = AudioFormat.NOT_SET` and return `AudioFormat.NOT_SET` whenever audio format is non-stereo or non-16-bit PCM. Bound `isActive()` to `pendingFormat != AudioFormat.NOT_SET`, and implemented clean stereo byte passthrough when `enabled == false`. Completely prevents `AudioProcessingPipeline.java:138` assertion failure (`IllegalStateException`) on 5.1/7.1 surround or mono tracks.
+  - Intercepted `SecurityException` and `ERROR_CODE_IO_NO_PERMISSION` in `PlaybackService.kt` and `PlayerScreen.kt` `onPlayerError()`. Prevents 15+ rapid loader retries when permissions are denied, skips or pauses cleanly, and notifies user via Toast.
+  - Guarded `clearVideoSurface()` in `PlayerScreen.kt` BackHandler and `PlayerManager.kt` `release()` against executing on faulted players (`playerError != null`), preventing 500ms synchronous looper timeouts on halted playback threads.
+  - Reordered `ERROR_CODE_TIMEOUT` handling above error logging in `PlaybackService.kt` and `PlayerScreen.kt` to silence benign lifecycle detachment traces.
+* Verification: Verified Kotlin AST bracket and brace balance (0 deltas across all modified files); verified TypeScript compilation and lint via `lint_applet` (tsc --noEmit) and `compile_applet` (0 errors).
 * Deviation: None.
 * Known issues: None.
+
 
