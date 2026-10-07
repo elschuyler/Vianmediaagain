@@ -215,7 +215,7 @@ fun MiniPlayerOverlay(
                             ?: com.example.service.PlayerManager.playbackState.value.playlist.getOrNull(
                                 com.example.service.PlayerManager.playbackState.value.currentIndex
                             )?.mediaId
-                        val intent = android.content.Intent(context, com.example.MainActivity::class.java).apply {
+                        val intent = android.content.Intent(context, com.example.ui.PlayerActivity::class.java).apply {
                             action = "com.example.ACTION_OPEN_PLAYER"
                             if (!currentMedia.isNullOrEmpty()) {
                                 putExtra("uri", currentMedia)

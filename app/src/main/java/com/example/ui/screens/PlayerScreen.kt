@@ -165,27 +165,8 @@ fun formatTime(ms: Long): String {
 enum class GestureType { NONE, SEEK, BRIGHTNESS, VOLUME, ZOOM_PAN }
 
 fun getDisplayNameFromUri(context: android.content.Context, uri: Uri): String {
-    if (uri.scheme == "content") {
-        try {
-            context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-                if (cursor.moveToFirst()) {
-                    val displayIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-                    if (displayIndex != -1) {
-                        val name = cursor.getString(displayIndex)
-                        if (!name.isNullOrBlank()) return name.substringBeforeLast('.')
-                    }
-                    val titleIndex = cursor.getColumnIndex(android.provider.MediaStore.MediaColumns.TITLE)
-                    if (titleIndex != -1) {
-                        val title = cursor.getString(titleIndex)
-                        if (!title.isNullOrBlank()) return title
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            // Ignore
-        }
-    }
-    return uri.lastPathSegment?.substringBeforeLast('.') ?: "Unknown"
+    val segment = uri.lastPathSegment?.substringBeforeLast('.')
+    return if (!segment.isNullOrBlank()) segment else "Video"
 }
 
 @Composable
@@ -487,23 +468,14 @@ fun PlayerScreen(
         val settingsManager = com.example.data.SettingsManager.getInstance(context)
         
         if (controller.currentMediaItem?.mediaId != decodedUri.toString()) {
-            val mediaMetadataBuilder = androidx.media3.common.MediaMetadata.Builder()
-            var fileName = decodedUri.lastPathSegment ?: "Unknown"
+            var fileName = decodedUri.lastPathSegment ?: "Video"
             if (decodedUri.scheme == "file") {
                 try { fileName = java.io.File(decodedUri.path!!).name } catch (e: Exception) {}
-            } else if (decodedUri.scheme == "content") {
-                try {
-                    context.contentResolver.query(decodedUri, null, null, null, null)?.use { cursor ->
-                        if (cursor.moveToFirst()) {
-                            val nameCol = cursor.getColumnIndex(android.provider.MediaStore.MediaColumns.DISPLAY_NAME)
-                            if (nameCol != -1) cursor.getString(nameCol)?.let { fileName = it }
-                        }
-                    }
-                } catch (e: Exception) {}
             }
-            mediaMetadataBuilder.setTitle(fileName)
-            mediaMetadataBuilder.setDisplayTitle(fileName)
-            mediaMetadataBuilder.setArtworkUri(decodedUri)
+            val mediaMetadataBuilder = androidx.media3.common.MediaMetadata.Builder()
+                .setTitle(fileName)
+                .setDisplayTitle(fileName)
+                .setArtworkUri(decodedUri)
 
             val initialMediaItem = MediaItem.Builder()
                 .setUri(decodedUri)
@@ -511,8 +483,6 @@ fun PlayerScreen(
                 .setMediaMetadata(mediaMetadataBuilder.build())
                 .build()
 
-            settingsManager.markAsOpened(decodedUriString, fileName)
-            
             val lastPos = settingsManager.getPlaybackPosition(decodedUriString, fileName)
             val startPos = if (lastPos > 0 && !settingsManager.isFinished(decodedUriString, fileName)) lastPos else 0L
 
@@ -520,6 +490,35 @@ fun PlayerScreen(
             controller.prepare()
             controller.play()
             com.example.service.PlayerManager.isImplicitFolderQueue = true
+            settingsManager.markAsOpened(decodedUriString, fileName)
+
+            // Resolve full display name asynchronously on IO dispatcher without delaying video decode
+            if (decodedUri.scheme == "content") {
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                    try {
+                        context.contentResolver.query(decodedUri, arrayOf(android.provider.MediaStore.MediaColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                            if (cursor.moveToFirst()) {
+                                val nameCol = cursor.getColumnIndex(android.provider.MediaStore.MediaColumns.DISPLAY_NAME)
+                                if (nameCol != -1) {
+                                    val resolvedName = cursor.getString(nameCol)
+                                    if (!resolvedName.isNullOrEmpty() && resolvedName != fileName) {
+                                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                            if (controller.currentMediaItem?.mediaId == decodedUri.toString()) {
+                                                val updatedMeta = controller.mediaMetadata.buildUpon()
+                                                    .setTitle(resolvedName)
+                                                    .setDisplayTitle(resolvedName)
+                                                    .build()
+                                                val updatedItem = initialMediaItem.buildUpon().setMediaMetadata(updatedMeta).build()
+                                                controller.replaceMediaItem(controller.currentMediaItemIndex, updatedItem)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {}
+                }
+            }
             
             // Load playlist in background with resource awareness
             kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {

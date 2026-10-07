@@ -305,8 +305,18 @@ class MainActivity : ComponentActivity() {
       if (handleFloatingOrMiniIntent(intent)) {
           return
       }
-      if (intent.action == "com.example.ACTION_OPEN_PLAYER") {
+      if (intent.action == "com.example.ACTION_OPEN_PLAYER" ||
+          intent.action == android.content.Intent.ACTION_VIEW ||
+          intent.component?.className?.contains("PlayMediaActivity") == true) {
           com.example.service.PlaybackService.hideOverlay(this)
+          val playerIntent = android.content.Intent(this, com.example.ui.PlayerActivity::class.java).apply {
+              action = intent.action
+              data = intent.data
+              intent.extras?.let { putExtras(it) }
+              addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP)
+          }
+          startActivity(playerIntent)
+          return
       }
       _currentIntent.value = intent
   }
@@ -319,8 +329,19 @@ class MainActivity : ComponentActivity() {
         if (handleFloatingOrMiniIntent(intent)) {
             return
         }
-        if (intent?.action == "com.example.ACTION_OPEN_PLAYER") {
+        if (intent?.action == "com.example.ACTION_OPEN_PLAYER" ||
+            intent?.action == android.content.Intent.ACTION_VIEW ||
+            intent?.component?.className?.contains("PlayMediaActivity") == true) {
             com.example.service.PlaybackService.hideOverlay(this)
+            val playerIntent = android.content.Intent(this, com.example.ui.PlayerActivity::class.java).apply {
+                action = intent?.action
+                data = intent?.data
+                intent?.extras?.let { putExtras(it) }
+                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            }
+            startActivity(playerIntent)
+            finish()
+            return
         }
     } catch (e: Exception) {
         LogKeeper.logError("MainActivity", "Error handling startup intent", e)

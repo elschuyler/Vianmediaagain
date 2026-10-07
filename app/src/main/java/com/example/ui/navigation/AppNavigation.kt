@@ -134,17 +134,12 @@ fun AppNavigation(
                 )?.mediaId
 
             if (!targetUri.isNullOrEmpty()) {
-                val base64Flags = android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING
-                val encodedUri = android.util.Base64.encodeToString(targetUri.toByteArray(), base64Flags)
-                val currentRoute = navController.currentDestination?.route
-                val currentUriArg = navController.currentBackStackEntry?.arguments?.getString("uri")
-                val isAlreadyOnPlayer = (currentRoute == "player/{uri}" && currentUriArg == encodedUri) ||
-                    (startDest == "player/$encodedUri" && currentRoute == null)
-                if (!isAlreadyOnPlayer) {
-                    navController.navigate("player/$encodedUri") {
-                        launchSingleTop = true
-                    }
+                val intent = android.content.Intent(context, com.example.ui.PlayerActivity::class.java).apply {
+                    putExtra("uri", targetUri)
+                    data = android.net.Uri.parse(targetUri)
+                    action = forceAction
                 }
+                context.startActivity(intent)
                 onIntentConsumed()
             }
         }
@@ -179,8 +174,11 @@ fun AppNavigation(
         composable("main") {
             MainScreen(
                 onNavigateToPlayer = { uri ->
-                    val encodedUri = android.util.Base64.encodeToString(uri.toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
-                    navController.navigate("player/$encodedUri")
+                    val intent = android.content.Intent(context, com.example.ui.PlayerActivity::class.java).apply {
+                        putExtra("uri", uri)
+                        data = android.net.Uri.parse(uri)
+                    }
+                    context.startActivity(intent)
                 },
                 onNavigateToPhotoEditor = { uri ->
                     val encodedUri = android.util.Base64.encodeToString(uri.toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
@@ -240,8 +238,11 @@ fun AppNavigation(
                     }
                 },
                 onNavigateToPlayer = { uri ->
-                    val encodedUri = android.util.Base64.encodeToString(uri.toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
-                    navController.navigate("player/$encodedUri")
+                    val intent = android.content.Intent(context, com.example.ui.PlayerActivity::class.java).apply {
+                        putExtra("uri", uri)
+                        data = android.net.Uri.parse(uri)
+                    }
+                    context.startActivity(intent)
                 }
             )
         }
@@ -250,39 +251,19 @@ fun AppNavigation(
             arguments = listOf(navArgument("uri") { type = NavType.StringType })
         ) { backStackEntry ->
             val uriString = backStackEntry.arguments?.getString("uri") ?: ""
-            var hasNavigatedBackOnce by remember(uriString) { mutableStateOf(false) }
-            PlayerScreen(
-                uriString = uriString,
-                onNavigateBack = { 
-                    if (!hasNavigatedBackOnce) {
-                        hasNavigatedBackOnce = true
-                        try {
-                            (context as? android.app.Activity)?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-                        } catch (e: Exception) {}
-                        if (isExternalLaunch) {
-                            com.example.LogKeeper.log("External launch session ended — finishing Activity", "Navigation")
-                            (context as? android.app.Activity)?.finish()
-                        } else {
-                            val popped = navController.popBackStack()
-                            com.example.LogKeeper.log("popBackStack() returned $popped, current backstack size: ${navController.currentBackStack.value.size}", "Navigation")
-                            if (!popped) {
-                                com.example.LogKeeper.log("No backstack entry to pop — finishing Activity", "Navigation")
-                                (context as? android.app.Activity)?.finish()
-                            }
-                        }
-                    } else {
-                        com.example.LogKeeper.log("onNavigateBack called again for same session, ignoring", "Navigation")
+            val decodedUri = try {
+                String(android.util.Base64.decode(uriString, android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP))
+            } catch (e: Exception) { uriString }
+            LaunchedEffect(uriString) {
+                if (decodedUri.isNotEmpty()) {
+                    val intent = android.content.Intent(context, com.example.ui.PlayerActivity::class.java).apply {
+                        putExtra("uri", decodedUri)
+                        data = android.net.Uri.parse(decodedUri)
                     }
-                },
-                onNavigateToEdit = { editUri ->
-                    val encodedUri = android.util.Base64.encodeToString(editUri.toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
-                    // If video -> photo_editor (which should ideally be video editor but prompt says "edit(for audio and video(placeholder))"
-                    // If audio -> audio_trimmer
-                    // Need to find out mimeType or assume we can check in PlayerScreen and emit "audio_trimmer/..." or "photo_editor/..." route to AppNavigation
-                    // Actually, let's just make onNavigateToEdit emit the full route!
-                    navController.navigate(editUri)
+                    context.startActivity(intent)
                 }
-            )
+                navController.popBackStack()
+            }
         }
         composable(
             route = "photo_editor/{uri}",

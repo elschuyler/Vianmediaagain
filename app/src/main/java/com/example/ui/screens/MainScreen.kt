@@ -113,21 +113,33 @@ fun MainScreen(
         initialFirstVisibleItemScrollOffset = viewModel.playlistsScrollOffset
     )
 
-    LaunchedEffect(folderListState.firstVisibleItemIndex, folderListState.firstVisibleItemScrollOffset) {
-        viewModel.foldersScrollIndex = folderListState.firstVisibleItemIndex
-        viewModel.foldersScrollOffset = folderListState.firstVisibleItemScrollOffset
+    LaunchedEffect(folderListState) {
+        snapshotFlow { folderListState.firstVisibleItemIndex to folderListState.firstVisibleItemScrollOffset }
+            .collect { (idx, off) ->
+                viewModel.foldersScrollIndex = idx
+                viewModel.foldersScrollOffset = off
+            }
     }
-    LaunchedEffect(videoListState.firstVisibleItemIndex, videoListState.firstVisibleItemScrollOffset) {
-        viewModel.videosScrollIndex = videoListState.firstVisibleItemIndex
-        viewModel.videosScrollOffset = videoListState.firstVisibleItemScrollOffset
+    LaunchedEffect(videoListState) {
+        snapshotFlow { videoListState.firstVisibleItemIndex to videoListState.firstVisibleItemScrollOffset }
+            .collect { (idx, off) ->
+                viewModel.videosScrollIndex = idx
+                viewModel.videosScrollOffset = off
+            }
     }
-    LaunchedEffect(mediaListState.firstVisibleItemIndex, mediaListState.firstVisibleItemScrollOffset) {
-        viewModel.folderDetailScrollIndex = mediaListState.firstVisibleItemIndex
-        viewModel.folderDetailScrollOffset = mediaListState.firstVisibleItemScrollOffset
+    LaunchedEffect(mediaListState) {
+        snapshotFlow { mediaListState.firstVisibleItemIndex to mediaListState.firstVisibleItemScrollOffset }
+            .collect { (idx, off) ->
+                viewModel.folderDetailScrollIndex = idx
+                viewModel.folderDetailScrollOffset = off
+            }
     }
-    LaunchedEffect(playlistListState.firstVisibleItemIndex, playlistListState.firstVisibleItemScrollOffset) {
-        viewModel.playlistsScrollIndex = playlistListState.firstVisibleItemIndex
-        viewModel.playlistsScrollOffset = playlistListState.firstVisibleItemScrollOffset
+    LaunchedEffect(playlistListState) {
+        snapshotFlow { playlistListState.firstVisibleItemIndex to playlistListState.firstVisibleItemScrollOffset }
+            .collect { (idx, off) ->
+                viewModel.playlistsScrollIndex = idx
+                viewModel.playlistsScrollOffset = off
+            }
     }
 
     val selectedMediaItems = remember { mutableStateListOf<MediaItem>() }
@@ -601,17 +613,19 @@ fun MainScreen(
                                 )
                             }
                         } else if (selectedFolder == null && !isSearchActive && selectedTab == LibraryTab.FOLDERS) {
+                            val sortedFolders = remember(mediaFolders, sortOrder) {
+                                when (sortOrder) {
+                                    SortOrder.NAME -> mediaFolders.sortedBy { it.name.lowercase() }
+                                    SortOrder.DATE -> mediaFolders.sortedByDescending { it.dateModified }
+                                }
+                            }
+                            val settingsManager = remember { SettingsManager.getInstance(context) }
                             LazyColumn(
                                 state = folderListState,
                                 modifier = Modifier.fillMaxSize(),
                                 contentPadding = PaddingValues(16.dp)
                             ) {
-                                val sortedFolders = when (sortOrder) {
-                                    SortOrder.NAME -> mediaFolders.sortedBy { it.name.lowercase() }
-                                    SortOrder.DATE -> mediaFolders.sortedByDescending { it.dateModified }
-                                }
-                                val settingsManager = SettingsManager.getInstance(context)
-                                items(sortedFolders, key = { it.id }) { folder ->
+                                items(sortedFolders, key = { it.id }, contentType = { "folder_card" }) { folder ->
                                     FolderCard(
                                         folder = folder,
                                         onClick = { viewModel.selectFolder(folder.id) },
@@ -1312,7 +1326,7 @@ fun FolderCard(folder: MediaFolder, onClick: () -> Unit, onExclude: () -> Unit) 
                     modifier = Modifier.size(64.dp),
                     tint = MaterialTheme.colorScheme.primary
                 )
-                if (folder.mediaItems.any { it.tag == com.example.data.PlaybackTag.NEW }) {
+                if (folder.hasNew) {
                     Box(modifier = Modifier.align(Alignment.TopStart).padding(8.dp).background(Color(0xFFE53935), RoundedCornerShape(4.dp))) {
                         Text("NEW", style = MaterialTheme.typography.labelSmall, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 8.sp, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
                     }
@@ -1337,8 +1351,8 @@ fun FolderCard(folder: MediaFolder, onClick: () -> Unit, onExclude: () -> Unit) 
                     Spacer(modifier = Modifier.height(4.dp))
                 }
                 Row {
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant,
                         shape = RoundedCornerShape(4.dp)
                     ) {
                         Text(
@@ -1350,12 +1364,14 @@ fun FolderCard(folder: MediaFolder, onClick: () -> Unit, onExclude: () -> Unit) 
                     }
                     if (folder.totalSize > 0) {
                         Spacer(modifier = Modifier.width(8.dp))
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        val sizeStr = remember(folder.totalSize) {
+                            val sizeMb = folder.totalSize / (1024 * 1024)
+                            if (sizeMb > 1024) String.format(java.util.Locale.US, "%.2f GB", sizeMb / 1024f) else "$sizeMb MB"
+                        }
+                        Surface(
+                            color = MaterialTheme.colorScheme.surfaceVariant,
                             shape = RoundedCornerShape(4.dp)
                         ) {
-                            val sizeMb = folder.totalSize / (1024 * 1024)
-                            val sizeStr = if (sizeMb > 1024) String.format(java.util.Locale.US, "%.2f GB", sizeMb / 1024f) else "$sizeMb MB"
                             Text(
                                 text = sizeStr,
                                 style = MaterialTheme.typography.labelSmall,
@@ -1371,14 +1387,16 @@ fun FolderCard(folder: MediaFolder, onClick: () -> Unit, onExclude: () -> Unit) 
                 IconButton(onClick = { expanded = true }) {
                     Icon(Icons.Filled.MoreVert, contentDescription = "More Options")
                 }
-                DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                    DropdownMenuItem(
-                        text = { Text("Exclude Folder") },
-                        onClick = {
-                            expanded = false
-                            onExclude()
-                        }
-                    )
+                if (expanded) {
+                    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                        DropdownMenuItem(
+                            text = { Text("Exclude Folder") },
+                            onClick = {
+                                expanded = false
+                                onExclude()
+                            }
+                        )
+                    }
                 }
             }
         }

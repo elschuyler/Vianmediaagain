@@ -166,7 +166,12 @@ data class VideoEditState(
     val joinAtEnd: Boolean = true,
     val joinFitMode: String = "Fit",
     val joinClipFitModes: Map<String, String> = emptyMap(),
-    val joinAspectPreset: String = "Match Main"
+    val joinAspectPreset: String = "Match Main",
+    val addedAudioUri: String? = null,
+    val addedAudioName: String? = null,
+    val addedAudioVolume: Float = 1.0f,
+    val isAudioReplaceMode: Boolean = false,
+    val loopAddedAudio: Boolean = true
 )
 
 enum class VideoEditorTool {
@@ -224,6 +229,24 @@ fun VideoEditorScreen(
                 editState = editState.copy(
                     joinVideoUris = combined,
                     joinVideoUri = combined.firstOrNull()
+                )
+            }
+        }
+    )
+    val audioPickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
+        onResult = { uri ->
+            if (uri != null) {
+                try {
+                    context.contentResolver.takePersistableUriPermission(
+                        uri,
+                        android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                } catch (e: Exception) {}
+                val name = getDisplayNameFromUri(context, uri)
+                editState = editState.copy(
+                    addedAudioUri = uri.toString(),
+                    addedAudioName = name
                 )
             }
         }
@@ -555,12 +578,37 @@ fun VideoEditorScreen(
             })
         }
     }
+    val bgAudioPlayer = remember(editState.addedAudioUri) {
+        val uriStr = editState.addedAudioUri
+        if (uriStr.isNullOrBlank()) null
+        else androidx.media3.exoplayer.ExoPlayer.Builder(context).build().apply {
+            setMediaItem(androidx.media3.common.MediaItem.fromUri(android.net.Uri.parse(uriStr)))
+            repeatMode = if (editState.loopAddedAudio) androidx.media3.common.Player.REPEAT_MODE_ALL else androidx.media3.common.Player.REPEAT_MODE_OFF
+            prepare()
+        }
+    }
+    if (bgAudioPlayer != null) {
+        DisposableEffect(bgAudioPlayer) {
+            onDispose {
+                try {
+                    bgAudioPlayer.stop()
+                    bgAudioPlayer.release()
+                } catch (e: Exception) {}
+            }
+        }
+    }
+
     if (exoPlayer != null) {
         DisposableEffect(exoPlayer) {
             LogKeeper.log("ExoPlayer initialized for video editor", "VideoEditor")
             val listener = object : Player.Listener {
                 override fun onIsPlayingChanged(playing: Boolean) {
                     isPlaying = playing
+                    if (playing) {
+                        try { bgAudioPlayer?.play() } catch (e: Exception) {}
+                    } else {
+                        try { bgAudioPlayer?.pause() } catch (e: Exception) {}
+                    }
                 }
                 override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                     LogKeeper.logError("VideoEditor", "Player error: ${error.message}", error)
@@ -591,9 +639,13 @@ fun VideoEditorScreen(
             exoPlayer?.setPlaybackSpeed(editState.speed)
         }
     }
-    LaunchedEffect(editState.volume) {
-        LogKeeper.log("Video playback volume adjusted to: ${editState.volume * 100}%", "VideoEditor")
-        exoPlayer?.volume = editState.volume
+    LaunchedEffect(editState.loopAddedAudio) {
+        bgAudioPlayer?.repeatMode = if (editState.loopAddedAudio) androidx.media3.common.Player.REPEAT_MODE_ALL else androidx.media3.common.Player.REPEAT_MODE_OFF
+    }
+    LaunchedEffect(editState.volume, editState.addedAudioVolume, editState.isAudioReplaceMode, editState.addedAudioUri) {
+        val effectiveVidVol = if (editState.isAudioReplaceMode && editState.addedAudioUri != null) 0f else editState.volume
+        exoPlayer?.volume = effectiveVidVol
+        bgAudioPlayer?.volume = editState.addedAudioVolume
     }
 
     // MediaItem is already set during ExoPlayer creation. No need to reset it on trim edits.
@@ -1114,6 +1166,21 @@ fun VideoEditorScreen(
                             val targetSpeed = getSpeedAtTime(currentEditState.speedCurvePoints, tFrac).coerceIn(0.2f, 5.0f)
                             if (Math.abs((exoPlayer?.playbackParameters?.speed ?: 1f) - targetSpeed) > 0.05f) {
                                 exoPlayer?.setPlaybackSpeed(targetSpeed)
+                            }
+                        }
+                        if (bgAudioPlayer != null) {
+                            if (exoPlayer?.isPlaying == true) {
+                                if (!bgAudioPlayer.isPlaying) {
+                                    try { bgAudioPlayer.play() } catch (e: Exception) {}
+                                }
+                                val diff = Math.abs(bgAudioPlayer.currentPosition - currentPositionMs)
+                                if (diff > 250L) {
+                                    try { bgAudioPlayer.seekTo(currentPositionMs) } catch (e: Exception) {}
+                                }
+                            } else {
+                                if (bgAudioPlayer.isPlaying) {
+                                    try { bgAudioPlayer.pause() } catch (e: Exception) {}
+                                }
                             }
                         }
                         kotlinx.coroutines.delay(if (exoPlayer?.isPlaying == true) 50L else 250L)
@@ -1910,53 +1977,263 @@ fun VideoEditorScreen(
                                 }
                             }
                             VideoEditorTool.AUDIO -> {
-                                Column(modifier = Modifier.fillMaxWidth()) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(max = 340.dp)
+                                        .verticalScroll(rememberScrollState())
+                                ) {
+                                    // --- 1. Original Video Audio Section ---
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Text("Volume", style = MaterialTheme.typography.titleSmall)
-                                        Text(
-                                            text = "${(editState.volume * 100).toInt()}%",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
+                                        Text("Original Audio", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                                        if (videoHasAudio) {
+                                            val volDisplay = if (editState.isAudioReplaceMode && editState.addedAudioUri != null) "Muted (Replaced)" else "${(editState.volume * 100).toInt()}%"
+                                            Text(
+                                                text = volDisplay,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = if (editState.isAudioReplaceMode && editState.addedAudioUri != null) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.primary
+                                            )
+                                        }
                                     }
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Slider(
-                                        value = editState.volume,
-                                        onValueChange = { editState = editState.copy(volume = it) },
-                                        valueRange = 0f..3f,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Row(
+                                    if (!videoHasAudio) {
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            "No original audio stream detected in this video",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.outline
+                                        )
+                                    } else {
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Slider(
+                                            value = editState.volume,
+                                            onValueChange = { editState = editState.copy(volume = it) },
+                                            valueRange = 0f..3f,
+                                            enabled = !(editState.isAudioReplaceMode && editState.addedAudioUri != null),
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .horizontalScroll(rememberScrollState()),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            FilterChip(
+                                                selected = editState.volume == 0f,
+                                                onClick = { editState = editState.copy(volume = 0f) },
+                                                enabled = !(editState.isAudioReplaceMode && editState.addedAudioUri != null),
+                                                label = { Text("Mute") }
+                                            )
+                                            FilterChip(
+                                                selected = editState.volume == 1f,
+                                                onClick = { editState = editState.copy(volume = 1f) },
+                                                enabled = !(editState.isAudioReplaceMode && editState.addedAudioUri != null),
+                                                label = { Text("Normal (100%)") }
+                                            )
+                                            FilterChip(
+                                                selected = editState.volume == 2f,
+                                                onClick = { editState = editState.copy(volume = 2f) },
+                                                enabled = !(editState.isAudioReplaceMode && editState.addedAudioUri != null),
+                                                label = { Text("Boost (200%)") }
+                                            )
+                                            FilterChip(
+                                                selected = editState.volume == 3f,
+                                                onClick = { editState = editState.copy(volume = 3f) },
+                                                enabled = !(editState.isAudioReplaceMode && editState.addedAudioUri != null),
+                                                label = { Text("Max (300%)") }
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(14.dp))
+                                    Box(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .horizontalScroll(rememberScrollState()),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            .height(1.dp)
+                                            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                                    )
+                                    Spacer(modifier = Modifier.height(12.dp))
+
+                                    // --- 2. Custom Audio Track Section ---
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        FilterChip(
-                                            selected = editState.volume == 0f,
-                                            onClick = { editState = editState.copy(volume = 0f) },
-                                            label = { Text("Mute") }
+                                        Text("Custom Audio Track", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                                        if (editState.addedAudioUri != null) {
+                                            Text(
+                                                text = "${(editState.addedAudioVolume * 100).toInt()}%",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    if (editState.addedAudioUri == null) {
+                                        Button(
+                                            onClick = {
+                                                try {
+                                                    audioPickerLauncher.launch(arrayOf("audio/*"))
+                                                } catch (e: Exception) {
+                                                    LogKeeper.logError("VideoEditor", "Could not launch audio picker: ${e.message}", e)
+                                                }
+                                            },
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Icon(Icons.Filled.Audiotrack, contentDescription = null)
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text("Add Audio File")
+                                        }
+                                    } else {
+                                        // Selected Audio Track Card
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    modifier = Modifier.weight(1f)
+                                                ) {
+                                                    Icon(
+                                                        Icons.Filled.Audiotrack,
+                                                        contentDescription = null,
+                                                        tint = MaterialTheme.colorScheme.primary,
+                                                        modifier = Modifier.size(24.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(10.dp))
+                                                    Text(
+                                                        text = editState.addedAudioName ?: "Selected Audio",
+                                                        style = MaterialTheme.typography.bodyMedium,
+                                                        fontWeight = FontWeight.Medium,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                }
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    IconButton(
+                                                        onClick = {
+                                                            try {
+                                                                audioPickerLauncher.launch(arrayOf("audio/*"))
+                                                            } catch (e: Exception) {}
+                                                        }
+                                                    ) {
+                                                        Icon(Icons.Filled.FolderOpen, contentDescription = "Change Audio", tint = MaterialTheme.colorScheme.primary)
+                                                    }
+                                                    IconButton(
+                                                        onClick = {
+                                                            editState = editState.copy(
+                                                                addedAudioUri = null,
+                                                                addedAudioName = null
+                                                            )
+                                                        }
+                                                    ) {
+                                                        Icon(Icons.Filled.Delete, contentDescription = "Remove Audio", tint = MaterialTheme.colorScheme.error)
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(10.dp))
+
+                                        // Mode Selector: Background (Mix) vs Main (Replace)
+                                        Text("Audio Mode", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            FilterChip(
+                                                selected = !editState.isAudioReplaceMode,
+                                                onClick = { editState = editState.copy(isAudioReplaceMode = false) },
+                                                label = { Text("Background (Mix)") },
+                                                leadingIcon = if (!editState.isAudioReplaceMode) {
+                                                    { Icon(Icons.Filled.Layers, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                                                } else null
+                                            )
+                                            FilterChip(
+                                                selected = editState.isAudioReplaceMode,
+                                                onClick = { editState = editState.copy(isAudioReplaceMode = true) },
+                                                label = { Text("Main (Replace)") },
+                                                leadingIcon = if (editState.isAudioReplaceMode) {
+                                                    { Icon(Icons.Filled.SwapHoriz, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                                                } else null
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.height(10.dp))
+
+                                        // Volume Slider for Added Audio
+                                        Text("Custom Track Volume", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Slider(
+                                            value = editState.addedAudioVolume,
+                                            onValueChange = { editState = editState.copy(addedAudioVolume = it) },
+                                            valueRange = 0f..2f,
+                                            modifier = Modifier.fillMaxWidth()
                                         )
-                                        FilterChip(
-                                            selected = editState.volume == 1f,
-                                            onClick = { editState = editState.copy(volume = 1f) },
-                                            label = { Text("Normal") }
-                                        )
-                                        FilterChip(
-                                            selected = editState.volume == 2f,
-                                            onClick = { editState = editState.copy(volume = 2f) },
-                                            label = { Text("Boost (200%)") }
-                                        )
-                                        FilterChip(
-                                            selected = editState.volume == 3f,
-                                            onClick = { editState = editState.copy(volume = 3f) },
-                                            label = { Text("Max (300%)") }
-                                        )
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .horizontalScroll(rememberScrollState()),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            FilterChip(
+                                                selected = editState.addedAudioVolume == 0f,
+                                                onClick = { editState = editState.copy(addedAudioVolume = 0f) },
+                                                label = { Text("0%") }
+                                            )
+                                            FilterChip(
+                                                selected = editState.addedAudioVolume == 0.5f,
+                                                onClick = { editState = editState.copy(addedAudioVolume = 0.5f) },
+                                                label = { Text("50%") }
+                                            )
+                                            FilterChip(
+                                                selected = editState.addedAudioVolume == 1f,
+                                                onClick = { editState = editState.copy(addedAudioVolume = 1f) },
+                                                label = { Text("100%") }
+                                            )
+                                            FilterChip(
+                                                selected = editState.addedAudioVolume == 1.5f,
+                                                onClick = { editState = editState.copy(addedAudioVolume = 1.5f) },
+                                                label = { Text("150%") }
+                                            )
+                                            FilterChip(
+                                                selected = editState.addedAudioVolume == 2f,
+                                                onClick = { editState = editState.copy(addedAudioVolume = 2f) },
+                                                label = { Text("200%") }
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.height(10.dp))
+
+                                        // Loop Toggle Row
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text("Loop Audio Track", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                                                Text("Repeat track if video is longer", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+                                            }
+                                            Switch(
+                                                checked = editState.loopAddedAudio,
+                                                onCheckedChange = { editState = editState.copy(loopAddedAudio = it) }
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -2618,6 +2895,26 @@ fun VideoEditorScreen(
                                 e.printStackTrace()
                             }
                         }
+
+                        var addedAudioPath: String? = null
+                        if (editState.addedAudioUri != null) {
+                            try {
+                                val aUri = android.net.Uri.parse(editState.addedAudioUri)
+                                val ext = aUri.lastPathSegment?.substringAfterLast('.', "")?.takeIf { it.isNotBlank() } ?: "mp3"
+                                val tempAudioFile = java.io.File(context.cacheDir, "audio_add_${System.currentTimeMillis()}.$ext")
+                                sessionTempFiles.add(tempAudioFile)
+                                context.contentResolver.openInputStream(aUri)?.use { input ->
+                                    tempAudioFile.outputStream().use { output ->
+                                        input.copyTo(output)
+                                    }
+                                }
+                                if (tempAudioFile.exists() && tempAudioFile.length() > 0) {
+                                    addedAudioPath = tempAudioFile.absolutePath
+                                }
+                            } catch (e: Exception) {
+                                LogKeeper.logError("VideoEditor", "Failed to cache added audio for export: ${e.message}", e)
+                            }
+                        }
                         
                         val originalW = videoWidth
                         val originalH = videoHeight
@@ -2863,23 +3160,43 @@ fun VideoEditorScreen(
 
                             val curveFilterComplex = sb.toString().trimEnd(';')
 
-                            cmd = when (format) {
-                                "mp4" -> {
-                                    if (hasAudio) {
-                                        "-y $trimArgs -i %INPUT% -filter_complex \"$curveFilterComplex\" -map \"[v_out]\" -map \"[a_out]\" -r $fps -vcodec libx264 -crf $crf -preset $presetArg -metadata:s:v:0 rotate=0 %OUTPUT%"
-                                    } else {
-                                        "-y $trimArgs -i %INPUT% -filter_complex \"$curveFilterComplex\" -map \"[v_out]\" -r $fps -vcodec libx264 -crf $crf -preset $presetArg -metadata:s:v:0 rotate=0 %OUTPUT%"
-                                    }
+                            if (addedAudioPath != null) {
+                                val loopArg = if (editState.loopAddedAudio) "-stream_loop -1 " else ""
+                                val audioInputArg = "$loopArg-i '$addedAudioPath'"
+                                val sbAudio = StringBuilder(curveFilterComplex)
+                                if (editState.isAudioReplaceMode || !hasAudio) {
+                                    sbAudio.append(";[1:a]volume=${editState.addedAudioVolume},aresample=48000,aformat=channel_layouts=stereo[a_out]")
+                                } else {
+                                    sbAudio.append(";[1:a]volume=${editState.addedAudioVolume},aresample=48000,aformat=channel_layouts=stereo[a_custom]")
+                                    sbAudio.append(";[a_out][a_custom]amix=inputs=2:duration=first:dropout_transition=2[a_mixed]")
                                 }
-                                "mp3" -> {
-                                    if (hasAudio) {
-                                        "-y $trimArgs -i %INPUT% -filter_complex \"$curveFilterComplex\" -vn -map \"[a_out]\" -acodec libmp3lame -q:a 2 %OUTPUT%"
-                                    } else {
-                                        "-y $trimArgs -i %INPUT% -vn -acodec libmp3lame -q:a 2 %OUTPUT%"
-                                    }
+                                val finalFilter = sbAudio.toString()
+                                val audioMapTag = if (!editState.isAudioReplaceMode && hasAudio) "[a_mixed]" else "[a_out]"
+                                cmd = when (format) {
+                                    "mp4" -> "-y $trimArgs -i %INPUT% $audioInputArg -filter_complex \"$finalFilter\" -map \"[v_out]\" -map \"$audioMapTag\" -shortest -r $fps -vcodec libx264 -crf $crf -preset $presetArg -acodec aac -b:a 192k -metadata:s:v:0 rotate=0 %OUTPUT%"
+                                    "mp3" -> "-y $trimArgs -i %INPUT% $audioInputArg -filter_complex \"$finalFilter\" -vn -map \"$audioMapTag\" -shortest -acodec libmp3lame -q:a 2 %OUTPUT%"
+                                    "gif" -> "-y $trimArgs -i %INPUT% -filter_complex \"$curveFilterComplex\" -map \"[v_out]\" -loop 0 %OUTPUT%"
+                                    else -> "-y -i %INPUT% %OUTPUT%"
                                 }
-                                "gif" -> "-y $trimArgs -i %INPUT% -filter_complex \"$curveFilterComplex\" -map \"[v_out]\" -loop 0 %OUTPUT%"
-                                else -> "-y -i %INPUT% %OUTPUT%"
+                            } else {
+                                cmd = when (format) {
+                                    "mp4" -> {
+                                        if (hasAudio) {
+                                            "-y $trimArgs -i %INPUT% -filter_complex \"$curveFilterComplex\" -map \"[v_out]\" -map \"[a_out]\" -r $fps -vcodec libx264 -crf $crf -preset $presetArg -metadata:s:v:0 rotate=0 %OUTPUT%"
+                                        } else {
+                                            "-y $trimArgs -i %INPUT% -filter_complex \"$curveFilterComplex\" -map \"[v_out]\" -r $fps -vcodec libx264 -crf $crf -preset $presetArg -metadata:s:v:0 rotate=0 %OUTPUT%"
+                                        }
+                                    }
+                                    "mp3" -> {
+                                        if (hasAudio) {
+                                            "-y $trimArgs -i %INPUT% -filter_complex \"$curveFilterComplex\" -vn -map \"[a_out]\" -acodec libmp3lame -q:a 2 %OUTPUT%"
+                                        } else {
+                                            "-y $trimArgs -i %INPUT% -vn -acodec libmp3lame -q:a 2 %OUTPUT%"
+                                        }
+                                    }
+                                    "gif" -> "-y $trimArgs -i %INPUT% -filter_complex \"$curveFilterComplex\" -map \"[v_out]\" -loop 0 %OUTPUT%"
+                                    else -> "-y -i %INPUT% %OUTPUT%"
+                                }
                             }
                         } else if (joinPaths.isNotEmpty() && format == "mp4") {
                             // Complex filter for multi-video joining with fit mode / dark box adjustment
@@ -2942,13 +3259,47 @@ fun VideoEditorScreen(
                             val safeFilterComplex = "$v0Safe$a0$joinFilterDefs$concat"
                             val joinInputsArg = joinPaths.joinToString(" ") { "-i '$it'" }
 
-                            cmd = "-y $trimArgs -i %INPUT% $joinInputsArg -filter_complex \"$safeFilterComplex\" -map \"[v]\" -map \"[a]\" -r $fps -vcodec libx264 -crf $crf -preset $presetArg -metadata:s:v:0 rotate=0 %OUTPUT%"
+                            if (addedAudioPath != null) {
+                                val audioInputIdx = 1 + joinPaths.size
+                                val loopArg = if (editState.loopAddedAudio) "-stream_loop -1 " else ""
+                                val audioInputArg = "$loopArg-i '$addedAudioPath'"
+                                if (editState.isAudioReplaceMode) {
+                                    val safeFilterWithAudio = "$safeFilterComplex;[$audioInputIdx:a]volume=${editState.addedAudioVolume},aresample=48000,aformat=channel_layouts=stereo[a_final]"
+                                    cmd = "-y $trimArgs -i %INPUT% $joinInputsArg $audioInputArg -filter_complex \"$safeFilterWithAudio\" -map \"[v]\" -map \"[a_final]\" -shortest -r $fps -vcodec libx264 -crf $crf -preset $presetArg -acodec aac -b:a 192k -metadata:s:v:0 rotate=0 %OUTPUT%"
+                                } else {
+                                    val safeFilterWithAudio = "$safeFilterComplex;[$audioInputIdx:a]volume=${editState.addedAudioVolume},aresample=48000,aformat=channel_layouts=stereo[a_custom];[a][a_custom]amix=inputs=2:duration=first:dropout_transition=2[a_final]"
+                                    cmd = "-y $trimArgs -i %INPUT% $joinInputsArg $audioInputArg -filter_complex \"$safeFilterWithAudio\" -map \"[v]\" -map \"[a_final]\" -shortest -r $fps -vcodec libx264 -crf $crf -preset $presetArg -acodec aac -b:a 192k -metadata:s:v:0 rotate=0 %OUTPUT%"
+                                }
+                            } else {
+                                cmd = "-y $trimArgs -i %INPUT% $joinInputsArg -filter_complex \"$safeFilterComplex\" -map \"[v]\" -map \"[a]\" -r $fps -vcodec libx264 -crf $crf -preset $presetArg -metadata:s:v:0 rotate=0 %OUTPUT%"
+                            }
                         } else {
-                            cmd = when (format) {
-                                "mp4" -> "-y $trimArgs -i %INPUT% $videoFilterArgs $audioFilterArgs -r $fps -vcodec libx264 -crf $crf -preset $presetArg -metadata:s:v:0 rotate=0 %OUTPUT%"
-                                "mp3" -> "-y $trimArgs -i %INPUT% -vn $audioFilterArgs -acodec libmp3lame -q:a 2 %OUTPUT%"
-                                "gif" -> "-y $trimArgs -i %INPUT% $gifFilterArgs -loop 0 %OUTPUT%"
-                                else -> "-y -i %INPUT% %OUTPUT%"
+                            if (addedAudioPath != null) {
+                                val loopArg = if (editState.loopAddedAudio) "-stream_loop -1 " else ""
+                                val audioInputArg = "$loopArg-i '$addedAudioPath'"
+                                val vFilterStr = if (filterList.isNotEmpty()) "[0:v]${filterList.joinToString(",")}[v_out];" else "[0:v]null[v_out];"
+                                val fullFilterComplex = if (editState.isAudioReplaceMode || !videoHasAudio) {
+                                    val aFilterStr = "[1:a]volume=${editState.addedAudioVolume},aresample=48000,aformat=channel_layouts=stereo[a_out]"
+                                    "$vFilterStr$aFilterStr"
+                                } else {
+                                    val a0FilterStr = if (audioFilterList.isNotEmpty()) "[0:a]${audioFilterList.joinToString(",")}[a0];" else "[0:a]anull[a0];"
+                                    val a1FilterStr = "[1:a]volume=${editState.addedAudioVolume},aresample=48000,aformat=channel_layouts=stereo[a1];"
+                                    val mixStr = "[a0][a1]amix=inputs=2:duration=first:dropout_transition=2[a_out]"
+                                    "$vFilterStr$a0FilterStr$a1FilterStr$mixStr"
+                                }
+                                cmd = when (format) {
+                                    "mp4" -> "-y $trimArgs -i %INPUT% $audioInputArg -filter_complex \"$fullFilterComplex\" -map \"[v_out]\" -map \"[a_out]\" -shortest -r $fps -vcodec libx264 -crf $crf -preset $presetArg -acodec aac -b:a 192k -metadata:s:v:0 rotate=0 %OUTPUT%"
+                                    "mp3" -> "-y $trimArgs -i %INPUT% $audioInputArg -filter_complex \"$fullFilterComplex\" -vn -map \"[a_out]\" -shortest -acodec libmp3lame -q:a 2 %OUTPUT%"
+                                    "gif" -> "-y $trimArgs -i %INPUT% $gifFilterArgs -loop 0 %OUTPUT%"
+                                    else -> "-y -i %INPUT% %OUTPUT%"
+                                }
+                            } else {
+                                cmd = when (format) {
+                                    "mp4" -> "-y $trimArgs -i %INPUT% $videoFilterArgs $audioFilterArgs -r $fps -vcodec libx264 -crf $crf -preset $presetArg -metadata:s:v:0 rotate=0 %OUTPUT%"
+                                    "mp3" -> "-y $trimArgs -i %INPUT% -vn $audioFilterArgs -acodec libmp3lame -q:a 2 %OUTPUT%"
+                                    "gif" -> "-y $trimArgs -i %INPUT% $gifFilterArgs -loop 0 %OUTPUT%"
+                                    else -> "-y -i %INPUT% %OUTPUT%"
+                                }
                             }
                         }
                         

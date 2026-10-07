@@ -57,13 +57,18 @@
             </intent-filter>
         </activity>
 
-        <activity-alias
-            android:name=".PlayMediaActivity"
-            android:targetActivity=".MainActivity"
+        <activity
+            android:name=".ui.PlayerActivity"
+            android:exported="true"
             android:label="Play"
             android:icon="@mipmap/ic_play_launcher"
             android:roundIcon="@mipmap/ic_play_launcher_round"
-            android:exported="true">
+            android:launchMode="singleTask"
+            android:taskAffinity="com.example.player"
+            android:supportsPictureInPicture="true"
+            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|uiMode|keyboard|keyboardHidden|colorMode|density"
+            android:theme="@style/Theme.MyApplication"
+            android:enableOnBackInvokedCallback="true">
             <intent-filter
                 android:label="Play"
                 android:icon="@mipmap/ic_play_launcher"
@@ -72,10 +77,66 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:mimeType="video/*" />
-                <data android:mimeType="audio/*" />
-                <data android:mimeType="image/*" />
-                <data android:scheme="file" />
                 <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+            </intent-filter>
+            <intent-filter
+                android:label="Play"
+                android:icon="@mipmap/ic_play_launcher"
+                android:roundIcon="@mipmap/ic_play_launcher_round">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="audio/*" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+            </intent-filter>
+            <intent-filter
+                android:label="Play"
+                android:icon="@mipmap/ic_play_launcher"
+                android:roundIcon="@mipmap/ic_play_launcher_round">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+                <data android:host="*" />
+                <data android:pathPattern=".*\\.mp4" />
+                <data android:pathPattern=".*\\.mkv" />
+                <data android:pathPattern=".*\\.webm" />
+                <data android:pathPattern=".*\\.avi" />
+                <data android:pathPattern=".*\\.mov" />
+                <data android:pathPattern=".*\\.flv" />
+                <data android:pathPattern=".*\\.ts" />
+                <data android:pathPattern=".*\\.3gp" />
+                <data android:pathPattern=".*\\.m4v" />
+                <data android:pathPattern=".*\\.MP4" />
+                <data android:pathPattern=".*\\.MKV" />
+                <data android:pathPattern=".*\\.WEBM" />
+                <data android:pathPattern=".*\\.mp3" />
+                <data android:pathPattern=".*\\.m4a" />
+                <data android:pathPattern=".*\\.flac" />
+                <data android:pathPattern=".*\\.wav" />
+                <data android:pathPattern=".*\\.ogg" />
+            </intent-filter>
+            <intent-filter
+                android:label="Play"
+                android:icon="@mipmap/ic_play_launcher"
+                android:roundIcon="@mipmap/ic_play_launcher_round">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="rtmp" />
+                <data android:scheme="rtmpe" />
+                <data android:scheme="rtmps" />
+                <data android:scheme="rtp" />
+                <data android:scheme="rtsp" />
             </intent-filter>
             <intent-filter
                 android:label="Play"
@@ -85,9 +146,20 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="video/*" />
                 <data android:mimeType="audio/*" />
-                <data android:mimeType="image/*" />
             </intent-filter>
-        </activity-alias>
+            <intent-filter>
+                <action android:name="com.example.ACTION_OPEN_PLAYER" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <activity-alias
+            android:name=".PlayMediaActivity"
+            android:targetActivity=".ui.PlayerActivity"
+            android:label="Play"
+            android:icon="@mipmap/ic_play_launcher"
+            android:roundIcon="@mipmap/ic_play_launcher_round"
+            android:exported="true" />
 
         <activity-alias
             android:name=".EditMediaActivity"

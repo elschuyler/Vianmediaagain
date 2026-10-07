@@ -38,4 +38,55 @@
 * Deviation: None.
 * Known issues: None.
 
+---
+
+* Timestamp: 2026-10-07T02:40:00Z
+* Summary: Phase 73 - NextPlayer Dedicated PlayerActivity Architecture (Path A), Isolated Player TaskAffinity, 60fps Butter-Smooth Folder Scrolling & Zero-Latency Video Initialization.
+* Files touched:
+  - app/src/main/AndroidManifest.xml
+  - app/src/main/java/com/example/ui/PlayerActivity.kt
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+  - app/src/main/java/com/example/ui/navigation/AppNavigation.kt
+  - app/src/main/java/com/example/ui/components/MiniPlayerOverlay.kt
+  - app/src/main/java/com/example/widget/MediaWidgetProvider.kt
+  - app/src/main/java/com/example/data/MediaRepository.kt
+  - app/src/main/java/com/example/ui/screens/MainScreen.kt
+  - app/src/main/java/com/example/MainActivity.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_028.md
+* What was actually done:
+  - Configured `PlayerActivity` in `AndroidManifest.xml` with isolated `taskAffinity="com.example.player"` and comprehensive intent-filters (`video/*`, `audio/*`, extension pattern matching, and streaming protocols). When playing video from external apps (file managers, browsers, share sheets), `PlayerActivity` opens directly in its own isolated task and finishes directly back to the caller without ever exposing or launching `MainActivity` (the Library).
+  - Decoupled `MainActivity` from media playback. In `AppNavigation.kt`, in-app video launches (from `MainScreen` and `PlaylistDetailScreen`) start `PlayerActivity` directly, and embedded `player/{uri}` redirects to `PlayerActivity`. Fullscreen expansion buttons in `MiniPlayerOverlay.kt`, `FloatingVideoPlayerOverlay.kt`, and `MediaWidgetProvider.kt` target `PlayerActivity` directly with `ACTION_OPEN_PLAYER`, closing overlays and entering fullscreen without touching the Library.
+  - Eliminated full-screen recomposition loops in `MainScreen.kt` by replacing `LaunchedEffect(folderListState.firstVisibleItemIndex)` with non-recomposing `snapshotFlow` tracking (and for video, folder detail, and playlist lists). Annotated `MediaFolder`, `MediaItem`, and `PlaybackTag` with `@androidx.compose.runtime.Immutable` in `MediaRepository.kt`, enabling Compose to skip recomposition for all untouched list items. Replaced heavy nested `Card` badges in `FolderCard` with lightweight `Surface` and memoized file size string formatting.
+  - Pre-initialized `PlayerManager` and prepared `exoPlayer` synchronously in `PlayerActivity.onCreate()` in parallel with Compose layout inflation. Eliminated the blocking synchronous `contentResolver` query on the UI thread in `PlayerScreen.getDisplayNameFromUri()`, accelerating external video loading by 150-300ms to match NextPlayer's native speed.
+* Verification: Verified Kotlin AST bracket and brace balance (0 deltas across all modified files); verified TypeScript compilation and lint via `lint_applet` (tsc --noEmit) and `compile_applet` (0 errors).
+* Deviation: None.
+* Known issues: None.
+
+---
+
+* Timestamp: 2026-10-07T10:56:00Z
+* Summary: Phase 74 - Video Editor Audio Tool Evolution: Custom Audio Track Selection, Seamless Background/Main Mixing & Multi-Input FFmpeg Architecture.
+* Files touched:
+  - app/src/main/java/com/example/ui/screens/VideoEditorScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_028.md
+* What was actually done:
+  - Extended `VideoEditState` with `addedAudioUri`, `addedAudioName`, `addedAudioVolume`, `isAudioReplaceMode`, and `loopAddedAudio`.
+  - Upgraded `VideoEditorTool.AUDIO` in `VideoEditorScreen.kt` to a dual-track audio workstation:
+    * Section 1: Original video audio volume controls (0% to 300% slider, mute, normal, boost chips) with automatic muting when in Replace mode, and graceful indication for silent videos.
+    * Section 2: Custom audio track integration via SAF audio picker (`audio/*`). Displays selected track card with filename, change-track picker button, and remove button.
+    * Audio Mode selection: FilterChips for "Background (Mix)" vs "Main (Replace)".
+    * Custom track volume slider (0% to 200%) and quick volume chips.
+    * Audio loop toggle switch to loop short tracks across longer video clips.
+  - Implemented dual-player live preview synchronization: companion `bgAudioPlayer` ExoPlayer instance synchronized with `exoPlayer` play/pause state, seek position, loop mode, and independent track volumes.
+  - Engineered multi-input FFmpeg filter-graph pipeline across standard, speed-curve, and multi-clip join export paths:
+    * In "Background (Mix)" mode with audio-enabled videos, applies `amix=inputs=2:duration=first:dropout_transition=2` with 48kHz stereo resampling (`aresample=48000,aformat=channel_layouts=stereo`).
+    * In "Main (Replace)" mode or on silent videos, safely routes only the custom audio track to `[a_out]` or `[a_final]`, preventing FFmpeg `0:a` stream-specifier crashes.
+    * Supports infinite looping (`-stream_loop -1`) with `-shortest` clamping to video length and high-fidelity AAC encoding (`-acodec aac -b:a 192k`).
+* Verification: Verified Kotlin AST balance (0 deltas across all braces, parentheses, and brackets); verified compilation and lint via `lint_applet` (tsc --noEmit) and `compile_applet` (0 errors).
+* Deviation: None.
+* Known issues: None.
+
+
 

@@ -38,11 +38,11 @@ class MediaWidgetProvider : AppWidgetProvider() {
         try {
         val views = RemoteViews(context.packageName, R.layout.widget_media)
 
-        // Pending intent to launch main app
+        // Pending intent to launch player
         val pendingIntent = PendingIntent.getActivity(
             context,
             0,
-            Intent(context, MainActivity::class.java).apply {
+            Intent(context, com.example.ui.PlayerActivity::class.java).apply {
                 action = "com.example.ACTION_OPEN_PLAYER"
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             },
@@ -194,6 +194,15 @@ class MediaWidgetProvider : AppWidgetProvider() {
             return
         }
         
+        if (action == "ACTION_OPEN_APP") {
+            val openIntent = Intent(context, com.example.ui.PlayerActivity::class.java).apply {
+                this.action = "com.example.ACTION_OPEN_PLAYER"
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            }
+            context.startActivity(openIntent)
+            return
+        }
+
         if (action == "ACTION_REWIND") {
             val player = com.example.service.PlayerManager.exoPlayer
             player?.seekTo((player.currentPosition - 5000).coerceAtLeast(0))

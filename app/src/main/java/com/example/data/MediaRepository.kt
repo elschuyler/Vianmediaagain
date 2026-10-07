@@ -9,11 +9,14 @@ import org.json.JSONObject
 import java.io.File
 
 import com.example.LogKeeper
+import androidx.compose.runtime.Immutable
 
+@Immutable
 enum class PlaybackTag {
     NEW, UNSEEN, SEEN, PLAYING
 }
 
+@Immutable
 data class MediaItem(
     val id: Long,
     val uri: Uri,
@@ -26,18 +29,21 @@ data class MediaItem(
     val size: Long = 0L
 )
 
+@Immutable
 data class MediaFolder(
     val id: String,
     val name: String,
     val path: String,
     val dateModified: Long,
     val totalSize: Long,
-    val mediaItems: List<MediaItem>
+    val mediaItems: List<MediaItem>,
+    val hasNew: Boolean = mediaItems.any { it.tag == PlaybackTag.NEW }
 ) {
     val videoCount: Int get() = mediaItems.size
     val totalDuration: Long get() = mediaItems.sumOf { it.duration }
 }
 
+@Immutable
 enum class MediaType {
     AUDIO, VIDEO, IMAGE
 }
