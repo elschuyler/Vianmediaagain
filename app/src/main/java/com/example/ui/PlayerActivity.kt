@@ -1,7 +1,6 @@
 package com.example.ui
 
 import android.content.Intent
-import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -13,7 +12,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.example.LogKeeper
 import com.example.service.PlayerManager
-import com.example.ui.screens.PipHelper
 import com.example.ui.screens.PlayerScreen
 import com.example.ui.theme.MyApplicationTheme
 
@@ -152,20 +150,6 @@ class PlayerActivity : ComponentActivity() {
                         finish()
                     }
                 )
-            }
-        }
-    }
-
-    override fun onUserLeaveHint() {
-        super.onUserLeaveHint()
-        val settings = com.example.data.SettingsManager.getInstance(this)
-        if (settings.pipEnabled && PlayerManager.exoPlayer?.isPlaying == true) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                try {
-                    enterPictureInPictureMode(PipHelper.buildPipParams(this, PlayerManager.exoPlayer))
-                } catch (e: Exception) {
-                    LogKeeper.logError("PlayerActivity", "Error entering PiP on user leave hint: ${e.message}", e)
-                }
             }
         }
     }

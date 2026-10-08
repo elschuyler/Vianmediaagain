@@ -107,6 +107,9 @@
   1. JDK 21 Environment Alignment: Updated `.github/workflows/build.yml` from JDK 17 to JDK 21 (`temurin`), natively matching Android Gradle Plugin (AGP) 9.1.1 runtime prerequisites and eliminating `Unsupported class file major version` JVM bytecode incompatibility.
   2. Cache Action Conflict Resolution: Removed redundant `cache: gradle` directive from `actions/setup-java@v4` in `.github/workflows/build.yml`. Entrusted caching exclusively to `gradle/actions/setup-gradle@v3`, preventing GitHub Actions runner lock contention and cache corruption.
   3. Redundant Kotlin LanguageSettings Purge: Removed deprecated and malformed top-level `kotlin { sourceSets.all { languageSettings ... } }` block from `app/build.gradle.kts`. Retained standard `tasks.withType<KotlinCompile>` compiler options with `-opt-in` compiler args, ensuring clean Gradle task execution and error-free Kotlin compilation during CI `assembleDebug`.
+- [x] Phase 76: PlayerActivity PiP Purge & Video Editor Compose Text Imports Stabilization:
+  1. Complete PlayerActivity PiP Purge: Removed hallucinated `onUserLeaveHint()` method that referenced non-existent `pipEnabled` on `SettingsManager` and invoked `PipHelper.buildPipParams()`. Purged unused `PipHelper` and `Build` imports from `PlayerActivity.kt`. Playback cleanly remains in `PlaybackService` background service or the dedicated floating overlay player (`TYPE_APPLICATION_OVERLAY`) upon leaving the activity.
+  2. Video Editor Compose Text Imports Restoration: Added missing `import androidx.compose.ui.text.font.FontWeight` and `import androidx.compose.ui.text.style.TextOverflow` imports to `VideoEditorScreen.kt`, resolving unresolved reference compilation errors on audio workstation UI text labels and ellipses formatting.
 
 
 

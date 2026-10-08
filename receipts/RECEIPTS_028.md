@@ -105,3 +105,19 @@
 * How it was verified: local syntax/AST parsing and git diff inspection; verified TypeScript/lint via `compile_applet` (0 errors); on-device APK testing pending next export and GitHub Actions run.
 * Deviation: None.
 * Known issues: None.
+
+---
+
+* Timestamp: 2026-10-08T17:03:00Z
+* Summary: Phase 76 - Purged hallucinated PiP leave hint from PlayerActivity and restored missing Compose text imports in VideoEditorScreen.
+* Files touched:
+  - app/src/main/java/com/example/ui/PlayerActivity.kt
+  - app/src/main/java/com/example/ui/screens/VideoEditorScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_028.md
+* What was actually done:
+  - Surgically removed `onUserLeaveHint()` override from `PlayerActivity.kt` which was referencing non-existent `settings.pipEnabled` and calling deprecated `PipHelper.buildPipParams()`. Purged now-unused `PipHelper` and `Build` imports from `PlayerActivity.kt`.
+  - Added missing `import androidx.compose.ui.text.font.FontWeight` and `import androidx.compose.ui.text.style.TextOverflow` imports to `VideoEditorScreen.kt`, resolving unresolved reference compilation errors on audio tool UI labels and ellipses formatting.
+* How it was verified: local syntax/AST bracket balance check (0 deltas across all brackets); verified compilation and lint via `lint_applet` and `compile_applet` (0 errors); on-device APK testing pending next export and GitHub Actions build.
+* Deviation: None.
+* Known issues: None.
