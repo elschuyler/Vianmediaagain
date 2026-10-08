@@ -138,14 +138,6 @@ dependencies {
   "ksp"(libs.androidx.room.compiler)
 }
 
-kotlin {
-    sourceSets.all {
-        languageSettings.optIn("androidx.compose.material3.ExperimentalMaterial3Api")
-        languageSettings.optIn("androidx.compose.foundation.layout.ExperimentalLayoutApi")
-    }
-}
-
-
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
     compilerOptions {
         freeCompilerArgs.add("-opt-in=androidx.compose.material3.ExperimentalMaterial3Api")

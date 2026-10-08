@@ -88,5 +88,20 @@
 * Deviation: None.
 * Known issues: None.
 
+---
 
-
+* Timestamp: 2026-10-08T14:17:00Z
+* Summary: Phase 75 - GitHub Actions APK Pipeline Stabilization: JDK 21 Alignment, Cache Conflict Elimination & Kotlin LanguageSettings Cleanup.
+* Files touched:
+  - .github/workflows/build.yml
+  - app/build.gradle.kts
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_028.md
+* What was actually done:
+  - Aligned CI JDK environment in `.github/workflows/build.yml` from JDK 17 to JDK 21 (`temurin`), natively matching Android Gradle Plugin 9.1.1 runtime bytecode requirements.
+  - Removed duplicate `cache: gradle` directive from `actions/setup-java@v4` in `.github/workflows/build.yml` to eliminate cache runner lock contention with `gradle/actions/setup-gradle@v3`.
+  - Purged deprecated top-level `kotlin { sourceSets.all { languageSettings ... } }` block from `app/build.gradle.kts`, retaining the standard `tasks.withType<KotlinCompile>` compilerOptions with `-opt-in` flags for Compose Material3 and Layout experimental APIs.
+  - Verified Kotlin source AST and bracket parity across the repository.
+* How it was verified: local syntax/AST parsing and git diff inspection; verified TypeScript/lint via `compile_applet` (0 errors); on-device APK testing pending next export and GitHub Actions run.
+* Deviation: None.
+* Known issues: None.
