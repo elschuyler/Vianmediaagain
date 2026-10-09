@@ -121,3 +121,25 @@
 * How it was verified: local syntax/AST bracket balance check (0 deltas across all brackets); verified compilation and lint via `lint_applet` and `compile_applet` (0 errors); on-device APK testing pending next export and GitHub Actions build.
 * Deviation: None.
 * Known issues: None.
+
+---
+
+* Timestamp: 2026-10-09T02:05:00Z
+* Summary: Phase 77 - Fullscreen Player Gestures, Topbar External Title Resolution, Mirrored Brightness Slider HUD & Media Notification Gap Resolution.
+* Files touched:
+  - app/src/main/java/com/example/ui/PlayerActivity.kt
+  - app/src/main/java/com/example/service/PlaybackService.kt
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_028.md
+* What was actually done:
+  - Implemented `resolveDisplayName()` in `PlayerActivity.kt` and updated `getDisplayNameFromUri()` in `PlayerScreen.kt` using `context.contentResolver.query()` for `OpenableColumns.DISPLAY_NAME` and `MediaStore.MediaColumns.DISPLAY_NAME` with decoded URI fallback, replacing raw content URI IDs with actual filenames in the player top bar.
+  - Refactored player tap handling: double-tap anywhere on the canvas strictly toggles Play/Pause regardless of whether controls are visible or hidden, flashes the center Play/Pause HUD, cancels single-tap toggle, and resets the controls auto-hide timeout without dismissing controls. Single-tap toggles controls or dismisses the brightness slider if visible.
+  - Standardized vertical swipe gesture: adjusted volume across the entire screen by default (showing left-aligned Volume HUD); when the brightness slider is actively visible, vertical swipe adjusts brightness instead of volume. Horizontal swipe handles scrubbing seek with time HUD delta preview.
+  - Re-aligned brightness slider composable to `Alignment.CenterEnd` with `padding(end = 24.dp)`, `height = 170.dp`, `width = 56.dp`, and `RoundedCornerShape(28.dp)`, mirroring the Volume HUD's vertical center position, dimensions, and visual styling on the right edge.
+  - Wired `controlsInteractionTrigger` across all transport buttons (Play, Pause, Prev, Next), tools (Repeat, Background play, Aspect ratio), Lock, A-B repeat, Sleep timer, Audio/Subtitle dialog triggers, and tools drawer button to reset the 4-second auto-hide timer on every interaction.
+  - Fixed notification player blank gap in floating/background/mini playback by removing transient video `content://` URI from `setArtworkUri()` in `PlayerActivity.kt` and restricting `DefaultMediaNotificationProvider` in `PlaybackService.kt` to return exactly 3 buttons when `showWhenCompact == true` (and 5 buttons when expanded).
+* How it was verified: local syntax/AST bracket balance check (0 deltas across all brackets); verified TypeScript/lint via `compile_applet` (0 errors); on-device APK testing pending next export and GitHub Actions build.
+* Deviation: Kept double-tap strictly for Play/Pause toggle only as explicitly requested (no double-tap seek).
+* Known issues: None.
+

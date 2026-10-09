@@ -163,6 +163,14 @@ val defaultProvider = object : androidx.media3.session.DefaultMediaNotificationP
                 .setIconResId(com.example.R.drawable.ic_widget_close)
                 .build()
 
+        if (showWhenCompact) {
+            return com.google.common.collect.ImmutableList.of(
+                prevButton,
+                playPauseButton,
+                nextButton
+            )
+        }
+
         return com.google.common.collect.ImmutableList.of(
             prevButton,
             playPauseButton,

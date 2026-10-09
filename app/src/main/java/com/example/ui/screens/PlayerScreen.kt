@@ -165,8 +165,41 @@ fun formatTime(ms: Long): String {
 enum class GestureType { NONE, SEEK, BRIGHTNESS, VOLUME, ZOOM_PAN }
 
 fun getDisplayNameFromUri(context: android.content.Context, uri: Uri): String {
-    val segment = uri.lastPathSegment?.substringBeforeLast('.')
-    return if (!segment.isNullOrBlank()) segment else "Video"
+    if (uri.scheme == "content") {
+        try {
+            context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    if (nameIndex != -1) {
+                        val name = cursor.getString(nameIndex)
+                        if (!name.isNullOrBlank()) {
+                            return name
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {}
+        try {
+            context.contentResolver.query(uri, arrayOf(android.provider.MediaStore.MediaColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val nameIndex = cursor.getColumnIndex(android.provider.MediaStore.MediaColumns.DISPLAY_NAME)
+                    if (nameIndex != -1) {
+                        val name = cursor.getString(nameIndex)
+                        if (!name.isNullOrBlank()) {
+                            return name
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {}
+    }
+    val decodedSegment = try {
+        val last = uri.lastPathSegment
+        if (last != null) Uri.decode(last) else null
+    } catch (e: Exception) { uri.lastPathSegment }
+    val segment = decodedSegment?.substringBeforeLast('.')?.ifBlank { null }
+        ?: uri.lastPathSegment?.substringBeforeLast('.')?.ifBlank { null }
+    return segment ?: "Video"
 }
 
 @Composable
@@ -1227,66 +1260,60 @@ fun PlayerScreen(
                     if (wasPlayingBeforeSeek) {
                         mediaController?.play()
                     }
+                    if (showControls) {
+                        controlsInteractionTrigger = System.currentTimeMillis()
+                    }
                 } else if (currentGesture == GestureType.NONE && kotlin.math.hypot(dragDistanceX, dragDistanceY) <= touchSlop) {
                     val tapPos = down.position
-                    val inTopBar = showControls && (tapPos.y <= (if (topBarHeightPx > 0f) topBarHeightPx else 140f * density))
-                    val inBottomBar = showControls && (tapPos.y >= size.height - (if (bottomBarHeightPx > 0f) bottomBarHeightPx else 180f * density))
-
-                    if (inTopBar || inBottomBar) {
-                        controlsInteractionTrigger = System.currentTimeMillis()
-                    } else if (showBrightnessSlider) {
+                    val now = System.currentTimeMillis()
+                    val timeDiff = now - lastTapTime
+                    val dist = (tapPos - lastTapPosition).getDistance()
+                    
+                    if (timeDiff in 40L..350L && dist < 100f * density) {
+                        // Double tap: strictly toggle play / pause only
                         pendingSingleTapJob?.cancel()
                         pendingSingleTapJob = null
-                        showBrightnessSlider = false
                         lastTapTime = 0L
-                    } else {
-                        val now = System.currentTimeMillis()
-                        val timeDiff = now - lastTapTime
-                        val dist = (tapPos - lastTapPosition).getDistance()
                         
-                        if (timeDiff in 40L..350L && dist < 100f * density) {
-                            // Double tap: Only pause (play/pause toggle)
-                            pendingSingleTapJob?.cancel()
-                            pendingSingleTapJob = null
-                            lastTapTime = 0L
-                            
-                            mediaController?.let { controller ->
-                                if (controller.playbackState == androidx.media3.common.Player.STATE_ENDED) {
-                                    controller.seekTo(0)
-                                    controller.prepare()
-                                    controller.play()
-                                    wasPlayingBeforePause = true
-                                    showControls = false
-                                } else if (controller.playbackState == androidx.media3.common.Player.STATE_IDLE) {
-                                    controller.prepare()
-                                    controller.play()
-                                    wasPlayingBeforePause = true
-                                    showControls = false
-                                } else if (controller.isPlaying) {
-                                    controller.pause()
-                                    wasPlayingBeforePause = false
-                                    showControls = true
-                                } else {
-                                    controller.play()
-                                    wasPlayingBeforePause = true
-                                    showControls = false
-                                }
-                                flashIsPlaying = controller.isPlaying
-                                showPlayPauseFlash = true
+                        mediaController?.let { controller ->
+                            if (controller.playbackState == androidx.media3.common.Player.STATE_ENDED) {
+                                controller.seekTo(0)
+                                controller.prepare()
+                                controller.play()
+                                wasPlayingBeforePause = true
+                            } else if (controller.playbackState == androidx.media3.common.Player.STATE_IDLE) {
+                                controller.prepare()
+                                controller.play()
+                                wasPlayingBeforePause = true
+                            } else if (controller.isPlaying) {
+                                controller.pause()
+                                wasPlayingBeforePause = false
+                            } else {
+                                controller.play()
+                                wasPlayingBeforePause = true
                             }
-                        } else {
-                            // First tap: record and schedule single tap action
-                            lastTapTime = now
-                            lastTapPosition = tapPos
-                            pendingSingleTapJob?.cancel()
-                            pendingSingleTapJob = coroutineScope.launch {
-                                kotlinx.coroutines.delay(300L)
+                            flashIsPlaying = controller.isPlaying
+                            showPlayPauseFlash = true
+                        }
+                        if (showControls) {
+                            controlsInteractionTrigger = System.currentTimeMillis()
+                        }
+                    } else {
+                        // First tap: record and schedule single tap action
+                        lastTapTime = now
+                        lastTapPosition = tapPos
+                        pendingSingleTapJob?.cancel()
+                        pendingSingleTapJob = coroutineScope.launch {
+                            kotlinx.coroutines.delay(300L)
+                            if (showBrightnessSlider) {
+                                showBrightnessSlider = false
+                            } else {
                                 showControls = !showControls
                                 if (showControls) {
                                     controlsInteractionTrigger = System.currentTimeMillis()
                                 }
-                                pendingSingleTapJob = null
                             }
+                            pendingSingleTapJob = null
                         }
                     }
                 }
@@ -1637,12 +1664,14 @@ fun PlayerScreen(
                                 }
                             }
                             IconButton(onClick = { 
+                                controlsInteractionTrigger = System.currentTimeMillis()
                                 com.example.LogKeeper.log("Audio tracks button clicked", "PlayerScreen")
                                 showAudioDialog = true 
                             }) {
                                 Icon(Icons.Filled.MusicNote, contentDescription = "Audio track", tint = Color.White)
                             }
                             IconButton(onClick = { 
+                                controlsInteractionTrigger = System.currentTimeMillis()
                                 com.example.LogKeeper.log("Subtitles button clicked", "PlayerScreen")
                                 showSubtitleDialog = true 
                             }) {
@@ -1690,7 +1719,10 @@ fun PlayerScreen(
                                     }
                                 }
 
-                                IconButton(onClick = { showTopMenu = true }) {
+                                IconButton(onClick = { 
+                                    controlsInteractionTrigger = System.currentTimeMillis()
+                                    showTopMenu = true 
+                                }) {
                                     Icon(Icons.Filled.MoreVert, contentDescription = "More options", tint = Color.White)
                                 }
                                 androidx.compose.material3.DropdownMenu(
@@ -1742,6 +1774,7 @@ fun PlayerScreen(
                         ) {
                             // A-B Repeat Icon
                             IconButton(onClick = {
+                                controlsInteractionTrigger = System.currentTimeMillis()
                                 val currentPos = mediaController?.currentPosition ?: 0L
                                 if (abRepeatStart == null) {
                                     abRepeatStart = currentPos
@@ -1769,7 +1802,10 @@ fun PlayerScreen(
                             }
                             
                             // Sleep Timer Icon
-                            IconButton(onClick = { showSleepTimerDialog = true }) {
+                            IconButton(onClick = { 
+                                controlsInteractionTrigger = System.currentTimeMillis()
+                                showSleepTimerDialog = true 
+                            }) {
                                 Icon(Icons.Filled.Timer, contentDescription = "Sleep Timer", tint = if (sleepTimerEndTime != null) Color(0xFF2196F3) else Color.White)
                             }
                             IconButton(onClick = { 
@@ -1883,7 +1919,10 @@ fun PlayerScreen(
                         ) {
                             // Left alignment
                             Row(modifier = Modifier.align(Alignment.CenterStart)) {
-                                IconButton(onClick = { isLocked = true }) {
+                                IconButton(onClick = { 
+                                    controlsInteractionTrigger = System.currentTimeMillis()
+                                    isLocked = true 
+                                }) {
                                     Icon(Icons.Filled.LockOpen, contentDescription = "Lock", tint = Color.White)
                                 }
                             }
@@ -1897,6 +1936,7 @@ fun PlayerScreen(
                             
                                 IconButton(
                                     onClick = {
+                                        controlsInteractionTrigger = System.currentTimeMillis()
                                         com.example.LogKeeper.log("Previous button clicked", "PlayerScreen")
                                         mediaController?.let { controller ->
                                             if (controller.hasPreviousMediaItem()) {
@@ -1918,6 +1958,7 @@ fun PlayerScreen(
 
                                 IconButton(
                                     onClick = {
+                                        controlsInteractionTrigger = System.currentTimeMillis()
                                         com.example.LogKeeper.log("Play/Pause button clicked (currently isPlaying=$isPlaying)", "PlayerScreen")
                                         mediaController?.let { controller ->
                                             if (controller.playbackState == androidx.media3.common.Player.STATE_ENDED) {
@@ -1950,6 +1991,7 @@ fun PlayerScreen(
                                 
                                 IconButton(
                                     onClick = {
+                                        controlsInteractionTrigger = System.currentTimeMillis()
                                         com.example.LogKeeper.log("Next button clicked", "PlayerScreen")
                                         mediaController?.let { controller ->
                                             if (controller.hasNextMediaItem()) {
@@ -1975,6 +2017,7 @@ fun PlayerScreen(
 
                             val RightTools: @Composable () -> Unit = {
                                 IconButton(modifier = Modifier.size(36.dp), onClick = {
+                                    controlsInteractionTrigger = System.currentTimeMillis()
                                     val nextMode = when (repeatMode) {
                                         androidx.media3.common.Player.REPEAT_MODE_OFF -> androidx.media3.common.Player.REPEAT_MODE_ALL
                                         androidx.media3.common.Player.REPEAT_MODE_ALL -> androidx.media3.common.Player.REPEAT_MODE_ONE
@@ -1992,6 +2035,7 @@ fun PlayerScreen(
                                     )
                                 }
                                 IconButton(modifier = Modifier.size(36.dp), onClick = { 
+                                    controlsInteractionTrigger = System.currentTimeMillis()
                                     backgroundPlayEnabled = !backgroundPlayEnabled
                                     com.example.LogKeeper.log("Background play toggled -> $backgroundPlayEnabled", "PlayerScreen")
                                     Toast.makeText(context, "Background play " + if (backgroundPlayEnabled) "enabled" else "disabled", Toast.LENGTH_SHORT).show()
@@ -1999,6 +2043,7 @@ fun PlayerScreen(
                                     Icon(modifier = Modifier.size(20.dp), imageVector = Icons.Filled.Headphones, contentDescription = "Background play", tint = if (backgroundPlayEnabled) Color(0xFF2196F3) else Color.White)
                                 }
                                 IconButton(modifier = Modifier.size(36.dp), onClick = {
+                                    controlsInteractionTrigger = System.currentTimeMillis()
                                     scale = 1.0f
                                     offsetX = 0f
                                     offsetY = 0f
@@ -2078,7 +2123,10 @@ fun PlayerScreen(
                                                 }
                                             }
                                         }
-                                        IconButton(onClick = { showToolsStack = !showToolsStack }) {
+                                        IconButton(onClick = { 
+                                            controlsInteractionTrigger = System.currentTimeMillis()
+                                            showToolsStack = !showToolsStack 
+                                        }) {
                                             Icon(if (showToolsStack) Icons.Filled.ExpandMore else Icons.Filled.ExpandLess, contentDescription = "More tools", tint = Color.White)
                                         }
                                     }
@@ -2096,21 +2144,19 @@ fun PlayerScreen(
         }
 
         androidx.compose.animation.AnimatedVisibility(
-            visible = showBrightnessSlider && !isInPipMode,
+            visible = (showBrightnessSlider || activeGesture == GestureType.BRIGHTNESS) && !isInPipMode,
             enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.scaleIn(initialScale = 0.9f),
             exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.scaleOut(targetScale = 0.9f),
             modifier = Modifier
                 .align(Alignment.CenterEnd)
-                .offset(y = (-48).dp)
-                .padding(end = 36.dp)
+                .padding(end = 24.dp)
         ) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
-                    .height(180.dp)
+                    .height(170.dp)
                     .width(56.dp)
-                    .background(Color.Black.copy(alpha = 0.65f), androidx.compose.foundation.shape.RoundedCornerShape(28.dp))
-                    .border(1.dp, Color.White.copy(alpha = 0.15f), androidx.compose.foundation.shape.RoundedCornerShape(28.dp))
+                    .background(Color.Black.copy(alpha = 0.5f), androidx.compose.foundation.shape.RoundedCornerShape(28.dp))
                     .padding(vertical = 12.dp)
                     .pointerInput(Unit) {
                         detectTapGestures {
@@ -2122,7 +2168,7 @@ fun PlayerScreen(
                 Text(
                     text = "${(currentBrightness.coerceIn(0f, 1f) * 100).roundToInt()}%",
                     color = Color.White,
-                    fontSize = 14.sp,
+                    fontSize = 16.sp,
                     fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(8.dp))
@@ -2154,19 +2200,19 @@ fun PlayerScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxHeight()
-                            .width(6.dp)
-                            .background(Color.White.copy(alpha = 0.2f), androidx.compose.foundation.shape.RoundedCornerShape(3.dp)),
+                            .width(4.dp)
+                            .background(Color.DarkGray.copy(alpha = 0.5f), androidx.compose.foundation.shape.RoundedCornerShape(2.dp)),
                         contentAlignment = Alignment.BottomCenter
                     ) {
                         Box(
                             modifier = Modifier
                                 .fillMaxHeight(currentBrightness.coerceIn(0f, 1f))
-                                .fillMaxWidth()
-                                .background(Color(0xFF2196F3), androidx.compose.foundation.shape.RoundedCornerShape(3.dp))
+                                .width(4.dp)
+                                .background(Color(0xFF2196F3), androidx.compose.foundation.shape.RoundedCornerShape(2.dp))
                         )
                     }
                 }
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 Icon(Icons.Filled.LightMode, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
             }
         }

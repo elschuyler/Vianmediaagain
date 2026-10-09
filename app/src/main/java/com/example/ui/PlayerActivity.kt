@@ -74,6 +74,44 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
+    private fun resolveDisplayName(uri: android.net.Uri): String {
+        if (uri.scheme == "content") {
+            try {
+                contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                        if (nameIndex != -1) {
+                            val name = cursor.getString(nameIndex)
+                            if (!name.isNullOrBlank()) {
+                                return name
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {}
+            try {
+                contentResolver.query(uri, arrayOf(android.provider.MediaStore.MediaColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        val nameIndex = cursor.getColumnIndex(android.provider.MediaStore.MediaColumns.DISPLAY_NAME)
+                        if (nameIndex != -1) {
+                            val name = cursor.getString(nameIndex)
+                            if (!name.isNullOrBlank()) {
+                                return name
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {}
+        }
+        val decodedSegment = try {
+            val last = uri.lastPathSegment
+            if (last != null) android.net.Uri.decode(last) else null
+        } catch (e: Exception) { uri.lastPathSegment }
+        val segment = decodedSegment?.substringBeforeLast('.')?.ifBlank { null }
+            ?: uri.lastPathSegment?.substringBeforeLast('.')?.ifBlank { null }
+        return segment ?: "Video"
+    }
+
     private fun preparePlaybackImmediately(encodedUri: String) {
         if (encodedUri.isEmpty()) return
         val decodedStr = try {
@@ -83,7 +121,7 @@ class PlayerActivity : ComponentActivity() {
         val uri = android.net.Uri.parse(decodedStr)
         val player = PlayerManager.exoPlayer
         if (player != null && player.currentMediaItem?.mediaId != decodedStr) {
-            val fileName = uri.lastPathSegment?.substringBeforeLast('.') ?: "Video"
+            val fileName = resolveDisplayName(uri)
             val mediaItem = androidx.media3.common.MediaItem.Builder()
                 .setUri(uri)
                 .setMediaId(decodedStr)
@@ -91,7 +129,6 @@ class PlayerActivity : ComponentActivity() {
                     androidx.media3.common.MediaMetadata.Builder()
                         .setTitle(fileName)
                         .setDisplayTitle(fileName)
-                        .setArtworkUri(uri)
                         .build()
                 )
                 .build()
