@@ -162,4 +162,21 @@
 * Deviation: Kept double-tap strictly for Play/Pause toggle only as explicitly requested (no double-tap seek).
 * Known issues: None.
 
+---
+
+* Timestamp: 2026-10-10T09:25:00Z
+* Summary: Phase 79 - Kotlin Lexical Scope Alignment & CI Gradle Compilation Resolution for PlayerScreen State Variables.
+* Files touched:
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_028.md
+* What was actually done:
+  - Reordered Compose state definitions in `PlayerScreen.kt`: moved `activeGesture`, `gestureText`, `gestureVolumeRatio`, `seekOffsetSec`, `showPlayPauseFlash`, `flashIsPlaying`, `coroutineScope`, `lastTapTime`, `lastTapPosition`, and `pendingSingleTapJob` to the top state declaration block above `LaunchedEffect(showBrightnessSlider, brightnessInteractionTime, activeGesture)`.
+  - Resolved `kotlinc` / `compileDebugKotlin` compiler error (`PlayerScreen.kt:271:69 Unresolved reference 'activeGesture'`) on GitHub Actions CI runner.
+  - Retained 100% identical gesture engine logic, volume/brightness/seek calculations, HUD presentation, and timeout reset behavior.
+* How it was verified: local syntax/AST bracket balance check (0 deltas across all brackets); verified TypeScript/lint via `lint_applet` and `compile_applet` (0 errors); on-device APK testing pending next export and GitHub Actions build.
+* Deviation: None.
+* Known issues: None.
+
+
 

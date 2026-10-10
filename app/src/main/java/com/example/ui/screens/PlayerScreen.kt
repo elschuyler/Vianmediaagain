@@ -266,6 +266,16 @@ fun PlayerScreen(
     var brightnessInteractionTime by remember { mutableLongStateOf(0L) }
     var currentBrightness by remember { mutableFloatStateOf(context.findActivity()?.window?.attributes?.screenBrightness.takeIf { it != -1f } ?: 0.5f) }
     var boostGainMb by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    var activeGesture by remember { mutableStateOf(GestureType.NONE) }
+    var gestureText by remember { mutableStateOf("") }
+    var gestureVolumeRatio by remember { mutableFloatStateOf(0f) }
+    var seekOffsetSec by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    var showPlayPauseFlash by remember { mutableStateOf(false) }
+    var flashIsPlaying by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+    var lastTapTime by remember { mutableLongStateOf(0L) }
+    var lastTapPosition by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+    var pendingSingleTapJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
 
     // Auto-hide brightness slider after inactivity (pauses while actively adjusting)
     LaunchedEffect(showBrightnessSlider, brightnessInteractionTime, activeGesture) {
@@ -280,17 +290,6 @@ fun PlayerScreen(
         com.example.service.PlayerManager.isFloatingVideoActive = false
         com.example.service.PlaybackService.hideOverlay(context)
     }
-
-    var activeGesture by remember { mutableStateOf(GestureType.NONE) }
-    var gestureText by remember { mutableStateOf("") }
-    var gestureVolumeRatio by remember { mutableFloatStateOf(0f) }
-    var seekOffsetSec by remember { androidx.compose.runtime.mutableIntStateOf(0) }
-    var showPlayPauseFlash by remember { mutableStateOf(false) }
-    var flashIsPlaying by remember { mutableStateOf(false) }
-    val coroutineScope = rememberCoroutineScope()
-    var lastTapTime by remember { mutableLongStateOf(0L) }
-    var lastTapPosition by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
-    var pendingSingleTapJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     
     LaunchedEffect(showPlayPauseFlash) {
         if (showPlayPauseFlash) {
