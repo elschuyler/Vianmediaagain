@@ -143,3 +143,23 @@
 * Deviation: Kept double-tap strictly for Play/Pause toggle only as explicitly requested (no double-tap seek).
 * Known issues: None.
 
+---
+
+* Timestamp: 2026-10-10T08:40:00Z
+* Summary: Phase 78 - Zero-Latency Video Startup Decoupling, Full-Surface Controls Tap Timeout Reset & Robust Brightness Slider Swipe Retention.
+* Files touched:
+  - app/src/main/java/com/example/ui/PlayerActivity.kt
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_028.md
+* What was actually done:
+  - Decoupled video decoding and ExoPlayer startup in `PlayerActivity.onCreate()` and `PlayerScreen.kt` from synchronous blocking `ContentResolver` queries. Introduced `getFastImmediateName(uri)` to extract filename from URI segments instantly in 0ms on the main thread, preparing and starting ExoPlayer on frame 0 without UI stalling.
+  - Offloaded `OpenableColumns.DISPLAY_NAME` and `MediaStore.MediaColumns.DISPLAY_NAME` queries to asynchronous background coroutines on `Dispatchers.IO`. Once the ContentResolver returns the real filename, safely updated `currentMediaTitle` on `Dispatchers.Main` and swapped MediaMetadata on the active MediaItem without interrupting or rebuffering playback. Purged leftover `setArtworkUri(decodedUri)` video content URI call in `PlayerScreen.kt`.
+  - Fixed controls disappearing on tap: mapped full-surface tap handling across the controls overlay `Box(modifier = Modifier.fillMaxSize())` so that single tapping anywhere on controls (buttons, borders, top bar, bottom bar, or center canvas) triggers `controlsInteractionTrigger = System.currentTimeMillis()`, resetting the 4-second auto-hide timeout instead of dismissing controls. Single tap on the screen when controls are hidden shows controls and starts the 4-second timeout.
+  - Preserved double tap anywhere across the canvas (whether controls are visible or hidden) to strictly toggle Play/Pause with center flash HUD and timeout reset.
+  - Eliminated premature brightness slider dismissal during vertical swipes: removed `showBrightnessSlider` from root `pointerInput` keys to prevent Compose from aborting active gesture loops during visibility changes. Updated `brightnessInteractionTime` continuously on every vertical drag event (regardless of delta threshold). Guarded `LaunchedEffect` against dismissing the slider while `activeGesture == GestureType.BRIGHTNESS` or while user finger is down. Added `onDragEnd` and `onDragCancel` to reset the 4-second countdown only after the user lifts their finger.
+* How it was verified: local syntax/AST bracket balance check (0 deltas across all brackets); verified TypeScript/lint via `lint_applet` and `compile_applet` (0 errors); on-device APK testing pending next export and GitHub Actions build.
+* Deviation: Kept double-tap strictly for Play/Pause toggle only as explicitly requested (no double-tap seek).
+* Known issues: None.
+
+

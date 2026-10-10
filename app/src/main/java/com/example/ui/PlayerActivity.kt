@@ -10,6 +10,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.example.LogKeeper
 import com.example.service.PlayerManager
 import com.example.ui.screens.PlayerScreen
@@ -74,7 +78,17 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
-    private fun resolveDisplayName(uri: android.net.Uri): String {
+    private fun getFastImmediateName(uri: android.net.Uri): String {
+        val decodedSegment = try {
+            val last = uri.lastPathSegment
+            if (last != null) android.net.Uri.decode(last) else null
+        } catch (e: Exception) { uri.lastPathSegment }
+        val segment = decodedSegment?.substringBeforeLast('.')?.ifBlank { null }
+            ?: uri.lastPathSegment?.substringBeforeLast('.')?.ifBlank { null }
+        return segment ?: "Video"
+    }
+
+    private fun queryDisplayName(uri: android.net.Uri): String? {
         if (uri.scheme == "content") {
             try {
                 contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
@@ -103,13 +117,7 @@ class PlayerActivity : ComponentActivity() {
                 }
             } catch (e: Exception) {}
         }
-        val decodedSegment = try {
-            val last = uri.lastPathSegment
-            if (last != null) android.net.Uri.decode(last) else null
-        } catch (e: Exception) { uri.lastPathSegment }
-        val segment = decodedSegment?.substringBeforeLast('.')?.ifBlank { null }
-            ?: uri.lastPathSegment?.substringBeforeLast('.')?.ifBlank { null }
-        return segment ?: "Video"
+        return null
     }
 
     private fun preparePlaybackImmediately(encodedUri: String) {
@@ -121,25 +129,48 @@ class PlayerActivity : ComponentActivity() {
         val uri = android.net.Uri.parse(decodedStr)
         val player = PlayerManager.exoPlayer
         if (player != null && player.currentMediaItem?.mediaId != decodedStr) {
-            val fileName = resolveDisplayName(uri)
+            val fastName = getFastImmediateName(uri)
             val mediaItem = androidx.media3.common.MediaItem.Builder()
                 .setUri(uri)
                 .setMediaId(decodedStr)
                 .setMediaMetadata(
                     androidx.media3.common.MediaMetadata.Builder()
-                        .setTitle(fileName)
-                        .setDisplayTitle(fileName)
+                        .setTitle(fastName)
+                        .setDisplayTitle(fastName)
                         .build()
                 )
                 .build()
             val settings = com.example.data.SettingsManager.getInstance(applicationContext)
-            val lastPos = settings.getPlaybackPosition(decodedStr, fileName)
-            val startPos = if (lastPos > 0 && !settings.isFinished(decodedStr, fileName)) lastPos else 0L
+            val lastPos = settings.getPlaybackPosition(decodedStr, fastName)
+            val startPos = if (lastPos > 0 && !settings.isFinished(decodedStr, fastName)) lastPos else 0L
             player.setMediaItem(mediaItem, startPos)
             player.prepare()
             player.play()
             PlayerManager.isImplicitFolderQueue = true
-            settings.markAsOpened(decodedStr, fileName)
+            settings.markAsOpened(decodedStr, fastName)
+
+            // Resolve full display name asynchronously on IO dispatcher without delaying video decode
+            if (uri.scheme == "content") {
+                lifecycleScope.launch(Dispatchers.IO) {
+                    val resolvedName = queryDisplayName(uri)
+                    if (!resolvedName.isNullOrBlank() && resolvedName != fastName) {
+                        withContext(Dispatchers.Main) {
+                            val currentPlayer = PlayerManager.exoPlayer
+                            if (currentPlayer != null && currentPlayer.currentMediaItem?.mediaId == decodedStr) {
+                                val updatedMeta = currentPlayer.mediaMetadata.buildUpon()
+                                    .setTitle(resolvedName)
+                                    .setDisplayTitle(resolvedName)
+                                    .build()
+                                val updatedItem = currentPlayer.currentMediaItem?.buildUpon()?.setMediaMetadata(updatedMeta)?.build()
+                                if (updatedItem != null) {
+                                    currentPlayer.replaceMediaItem(currentPlayer.currentMediaItemIndex, updatedItem)
+                                    settings.markAsOpened(decodedStr, resolvedName)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 

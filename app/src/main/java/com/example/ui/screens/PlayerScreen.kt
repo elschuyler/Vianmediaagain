@@ -164,6 +164,16 @@ fun formatTime(ms: Long): String {
 
 enum class GestureType { NONE, SEEK, BRIGHTNESS, VOLUME, ZOOM_PAN }
 
+fun getFastImmediateName(uri: Uri): String {
+    val decodedSegment = try {
+        val last = uri.lastPathSegment
+        if (last != null) Uri.decode(last) else null
+    } catch (e: Exception) { uri.lastPathSegment }
+    val segment = decodedSegment?.substringBeforeLast('.')?.ifBlank { null }
+        ?: uri.lastPathSegment?.substringBeforeLast('.')?.ifBlank { null }
+    return segment ?: "Video"
+}
+
 fun getDisplayNameFromUri(context: android.content.Context, uri: Uri): String {
     if (uri.scheme == "content") {
         try {
@@ -257,10 +267,10 @@ fun PlayerScreen(
     var currentBrightness by remember { mutableFloatStateOf(context.findActivity()?.window?.attributes?.screenBrightness.takeIf { it != -1f } ?: 0.5f) }
     var boostGainMb by remember { androidx.compose.runtime.mutableIntStateOf(0) }
 
-    // Auto-hide brightness slider after inactivity
-    LaunchedEffect(showBrightnessSlider, brightnessInteractionTime) {
-        if (showBrightnessSlider) {
-            kotlinx.coroutines.delay(3000)
+    // Auto-hide brightness slider after inactivity (pauses while actively adjusting)
+    LaunchedEffect(showBrightnessSlider, brightnessInteractionTime, activeGesture) {
+        if (showBrightnessSlider && activeGesture != GestureType.BRIGHTNESS) {
+            kotlinx.coroutines.delay(4000)
             showBrightnessSlider = false
         }
     }
@@ -296,7 +306,10 @@ fun PlayerScreen(
         }
     }
     val decodedUri = remember(uriString) { Uri.parse(decodedUriString) }
-    var currentMediaTitle by remember { mutableStateOf(getDisplayNameFromUri(context, decodedUri)) }
+    var currentMediaTitle by remember {
+        val initialTitle = com.example.service.PlayerManager.exoPlayer?.mediaMetadata?.title?.toString()
+        mutableStateOf(initialTitle ?: getFastImmediateName(decodedUri))
+    }
     var currentMediaUri by remember { mutableStateOf(decodedUri) }
 
     val playerSnapshot by com.example.service.PlayerManager.playbackState.collectAsState()
@@ -493,6 +506,51 @@ fun PlayerScreen(
             val settingsManager = com.example.data.SettingsManager.getInstance(context)
             backgroundPlayEnabled = settingsManager.defaultAudioBackgroundPlay
         }
+        if (decodedUri.scheme == "content") {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                var resolvedName: String? = null
+                try {
+                    context.contentResolver.query(decodedUri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            val idx = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                            if (idx != -1) {
+                                resolvedName = cursor.getString(idx)
+                            }
+                        }
+                    }
+                } catch (e: Exception) {}
+                if (resolvedName.isNullOrBlank()) {
+                    try {
+                        context.contentResolver.query(decodedUri, arrayOf(android.provider.MediaStore.MediaColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                            if (cursor.moveToFirst()) {
+                                val idx = cursor.getColumnIndex(android.provider.MediaStore.MediaColumns.DISPLAY_NAME)
+                                if (idx != -1) {
+                                    resolvedName = cursor.getString(idx)
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {}
+                }
+                if (!resolvedName.isNullOrBlank()) {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                        currentMediaTitle = resolvedName!!
+                        mediaController?.let { controller ->
+                            if (controller.currentMediaItem?.mediaId == decodedUri.toString()) {
+                                val updatedMeta = controller.mediaMetadata.buildUpon()
+                                    .setTitle(resolvedName)
+                                    .setDisplayTitle(resolvedName)
+                                    .build()
+                                val updatedItem = controller.currentMediaItem?.buildUpon()?.setMediaMetadata(updatedMeta)?.build()
+                                if (updatedItem != null) {
+                                    controller.replaceMediaItem(controller.currentMediaItemIndex, updatedItem)
+                                    com.example.data.SettingsManager.getInstance(context).markAsOpened(decodedUriString, resolvedName!!)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
 
@@ -501,14 +559,10 @@ fun PlayerScreen(
         val settingsManager = com.example.data.SettingsManager.getInstance(context)
         
         if (controller.currentMediaItem?.mediaId != decodedUri.toString()) {
-            var fileName = decodedUri.lastPathSegment ?: "Video"
-            if (decodedUri.scheme == "file") {
-                try { fileName = java.io.File(decodedUri.path!!).name } catch (e: Exception) {}
-            }
+            val fileName = getFastImmediateName(decodedUri)
             val mediaMetadataBuilder = androidx.media3.common.MediaMetadata.Builder()
                 .setTitle(fileName)
                 .setDisplayTitle(fileName)
-                .setArtworkUri(decodedUri)
 
             val initialMediaItem = MediaItem.Builder()
                 .setUri(decodedUri)
@@ -767,8 +821,27 @@ fun PlayerScreen(
                 com.example.LogKeeper.log("PlayerScreen: onMediaItemTransition (reason: $reasonStr)", "PlayerScreen")
                 if (uri != null) {
                     currentMediaUri = uri
-                    currentMediaTitle = title ?: getDisplayNameFromUri(context, uri)
+                    val immediateName = title ?: getFastImmediateName(uri)
+                    currentMediaTitle = immediateName
                     com.example.data.SettingsManager.getInstance(context).markAsOpened(uri.toString(), currentMediaTitle)
+                    if (title == null && uri.scheme == "content") {
+                        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                            var resolved: String? = null
+                            try {
+                                context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                                    if (cursor.moveToFirst()) {
+                                        val idx = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                                        if (idx != -1) resolved = cursor.getString(idx)
+                                    }
+                                }
+                            } catch (e: Exception) {}
+                            if (!resolved.isNullOrBlank()) {
+                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                    currentMediaTitle = resolved!!
+                                }
+                            }
+                        }
+                    }
                 }
 
                 // If transition happened automatically and repeat mode is OFF, do not auto-play next video
@@ -1114,7 +1187,7 @@ fun PlayerScreen(
         modifier = Modifier
         .fillMaxSize()
         .background(Color.Black)
-        .pointerInput(isLocked, isInPipMode, showBrightnessSlider) {
+        .pointerInput(isLocked, isInPipMode) {
             if (isLocked || isInPipMode) return@pointerInput
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false)
@@ -1196,19 +1269,17 @@ fun PlayerScreen(
                                 }
                                 GestureType.BRIGHTNESS -> {
                                     val brightnessChange = -(dragDistanceY / size.height)
-                                    val newBrightness = (startBrightness + brightnessChange).coerceIn(0f, 1f)
+                                    val newBrightness = (startBrightness + brightnessChange).coerceIn(0.01f, 1f)
+                                    currentBrightness = newBrightness
                                     
-                                    if (kotlin.math.abs(newBrightness - currentBrightness) > 0.005f) {
-                                        currentBrightness = newBrightness
-                                        val window = context.findActivity()?.window
-                                        if (window != null) {
-                                            val layoutParams = window.attributes
-                                            layoutParams.screenBrightness = newBrightness
-                                            window.attributes = layoutParams
-                                        }
-                                        brightnessInteractionTime = System.currentTimeMillis()
-                                        controlsInteractionTrigger = System.currentTimeMillis()
+                                    val window = context.findActivity()?.window
+                                    if (window != null) {
+                                        val layoutParams = window.attributes
+                                        layoutParams.screenBrightness = newBrightness
+                                        window.attributes = layoutParams
                                     }
+                                    brightnessInteractionTime = System.currentTimeMillis()
+                                    controlsInteractionTrigger = System.currentTimeMillis()
                                     
                                     gestureVolumeRatio = newBrightness
                                     gestureText = "Brightness: ${(newBrightness * 100).roundToInt()}%"
@@ -1307,17 +1378,21 @@ fun PlayerScreen(
                             kotlinx.coroutines.delay(300L)
                             if (showBrightnessSlider) {
                                 showBrightnessSlider = false
+                            } else if (!showControls) {
+                                showControls = true
+                                controlsInteractionTrigger = System.currentTimeMillis()
                             } else {
-                                showControls = !showControls
-                                if (showControls) {
-                                    controlsInteractionTrigger = System.currentTimeMillis()
-                                }
+                                // Controls are already visible: reset auto-hide timeout (do NOT disappear on tap)
+                                controlsInteractionTrigger = System.currentTimeMillis()
                             }
                             pendingSingleTapJob = null
                         }
                     }
                 }
                 
+                if (currentGesture == GestureType.BRIGHTNESS) {
+                    brightnessInteractionTime = System.currentTimeMillis()
+                }
                 activeGesture = GestureType.NONE
                 gestureText = ""
             }
@@ -1539,18 +1614,48 @@ fun PlayerScreen(
                     }
                 }
             } else {
-                Box(modifier = Modifier.fillMaxSize()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .pointerInput(Unit) {
+                            detectTapGestures(
+                                onDoubleTap = {
+                                    controlsInteractionTrigger = System.currentTimeMillis()
+                                    mediaController?.let { controller ->
+                                        if (controller.playbackState == androidx.media3.common.Player.STATE_ENDED) {
+                                            controller.seekTo(0)
+                                            controller.prepare()
+                                            controller.play()
+                                            wasPlayingBeforePause = true
+                                        } else if (controller.playbackState == androidx.media3.common.Player.STATE_IDLE) {
+                                            controller.prepare()
+                                            controller.play()
+                                            wasPlayingBeforePause = true
+                                        } else if (controller.isPlaying) {
+                                            controller.pause()
+                                            wasPlayingBeforePause = false
+                                        } else {
+                                            controller.play()
+                                            wasPlayingBeforePause = true
+                                        }
+                                        flashIsPlaying = controller.isPlaying
+                                        showPlayPauseFlash = true
+                                    }
+                                },
+                                onTap = {
+                                    controlsInteractionTrigger = System.currentTimeMillis()
+                                    if (showBrightnessSlider) {
+                                        showBrightnessSlider = false
+                                    }
+                                }
+                            )
+                        }
+                ) {
                     // Top controls container (traps taps so controls remain visible)
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .align(Alignment.TopCenter)
-                            .pointerInput(Unit) {
-                                awaitEachGesture {
-                                    awaitFirstDown(requireUnconsumed = false)
-                                    controlsInteractionTrigger = System.currentTimeMillis()
-                                }
-                            }
                             .pointerInput(Unit) {
                                 detectTapGestures {
                                     controlsInteractionTrigger = System.currentTimeMillis()
@@ -1879,12 +1984,6 @@ fun PlayerScreen(
                                 bottomBarHeightPx = coordinates.size.height.toFloat()
                             }
                             .pointerInput(Unit) {
-                                awaitEachGesture {
-                                    awaitFirstDown(requireUnconsumed = false)
-                                    controlsInteractionTrigger = System.currentTimeMillis()
-                                }
-                            }
-                            .pointerInput(Unit) {
                                 detectTapGestures {
                                     controlsInteractionTrigger = System.currentTimeMillis()
                                 }
@@ -2181,7 +2280,7 @@ fun PlayerScreen(
                                 onVerticalDrag = { change, dragAmount ->
                                     change.consume()
                                     val dragRatio = -dragAmount / 110.dp.toPx()
-                                    val newVal = (currentBrightness + dragRatio).coerceIn(0f, 1f)
+                                    val newVal = (currentBrightness + dragRatio).coerceIn(0.01f, 1f)
                                     brightnessInteractionTime = System.currentTimeMillis()
                                     controlsInteractionTrigger = System.currentTimeMillis()
                                     currentBrightness = newVal
@@ -2192,6 +2291,14 @@ fun PlayerScreen(
                                         lp.screenBrightness = newVal
                                         it.attributes = lp
                                     }
+                                },
+                                onDragEnd = {
+                                    brightnessInteractionTime = System.currentTimeMillis()
+                                    controlsInteractionTrigger = System.currentTimeMillis()
+                                },
+                                onDragCancel = {
+                                    brightnessInteractionTime = System.currentTimeMillis()
+                                    controlsInteractionTrigger = System.currentTimeMillis()
                                 }
                             )
                         },
