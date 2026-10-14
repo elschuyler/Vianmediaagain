@@ -86,6 +86,7 @@ androidx-media3-ui = { group = "androidx.media3", name = "media3-ui", version.re
 androidx-media3-session = { group = "androidx.media3", name = "media3-session", version.ref = "media3" }
 androidx-media3-common = { group = "androidx.media3", name = "media3-common", version.ref = "media3" }
 androidx-media3-transformer = { group = "androidx.media3", name = "media3-transformer", version.ref = "media3" }
+media3-decoder-ffmpeg = { group = "org.jellyfin.media3", name = "media3-ffmpeg-decoder", version = "1.5.0+1" }
 ffmpeg-kit-full = { group = "com.github.VineshChauhan24", name = "ffmpeg-kit-android-16kb-lts-full-gpl", version.ref = "ffmpegKit" }
 
 [plugins]

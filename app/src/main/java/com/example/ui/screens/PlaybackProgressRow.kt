@@ -73,19 +73,74 @@ fun PlaybackProgressRow(
         }
     }
 
-    LaunchedEffect(mediaController) {
-        while (true) {
-            if (mediaController != null && !isScrubbing) {
-                val dur = mediaController.duration
+    var isPlaying by remember { mutableStateOf(mediaController?.isPlaying == true) }
+
+    androidx.compose.runtime.DisposableEffect(mediaController) {
+        val player = mediaController ?: return@DisposableEffect onDispose {}
+        val listener = object : androidx.media3.common.Player.Listener {
+            override fun onIsPlayingChanged(playing: Boolean) {
+                isPlaying = playing
+            }
+
+            override fun onPlaybackStateChanged(state: Int) {
+                isPlaying = player.isPlaying
+                val dur = player.duration
                 if (dur > 0L && dur != androidx.media3.common.C.TIME_UNSET) {
                     duration = dur
                 }
-                val pos = mediaController.currentPosition
-                if (pos > 0L) {
-                    currentPosition = pos
-                } else if (pos == 0L && duration > 0L && currentPosition == 0L) {
-                    currentPosition = 0L
+                if (!isScrubbing) {
+                    val pos = player.currentPosition
+                    if (pos >= 0L) {
+                        currentPosition = pos
+                    }
                 }
+            }
+
+            override fun onPositionDiscontinuity(
+                oldPosition: androidx.media3.common.Player.PositionInfo,
+                newPosition: androidx.media3.common.Player.PositionInfo,
+                reason: Int
+            ) {
+                if (!isScrubbing) {
+                    currentPosition = newPosition.positionMs
+                }
+            }
+
+            override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
+                val dur = player.duration
+                if (dur > 0L && dur != androidx.media3.common.C.TIME_UNSET) {
+                    duration = dur
+                }
+            }
+        }
+        player.addListener(listener)
+        isPlaying = player.isPlaying
+        val dur = player.duration
+        if (dur > 0L && dur != androidx.media3.common.C.TIME_UNSET) {
+            duration = dur
+        }
+        if (!isScrubbing) {
+            val pos = player.currentPosition
+            if (pos >= 0L) {
+                currentPosition = pos
+            }
+        }
+        onDispose {
+            player.removeListener(listener)
+        }
+    }
+
+    LaunchedEffect(mediaController, isPlaying, isScrubbing) {
+        if (!isPlaying || isScrubbing) return@LaunchedEffect
+        while (true) {
+            val player = mediaController ?: break
+            val dur = player.duration
+            if (dur > 0L && dur != androidx.media3.common.C.TIME_UNSET) {
+                duration = dur
+            }
+            val pos = player.currentPosition
+            if (pos >= 0L) {
+                currentPosition = pos
             }
             delay(500)
         }

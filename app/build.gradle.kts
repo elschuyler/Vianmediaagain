@@ -112,6 +112,7 @@ dependencies {
   implementation(libs.androidx.media3.session)
   implementation(libs.androidx.media3.common)
   implementation(libs.androidx.media3.transformer)
+  implementation(libs.media3.decoder.ffmpeg)
   implementation(libs.coil.compose)
   implementation(libs.coil.video)
   implementation(libs.coil.gif)

@@ -1,5 +1,8 @@
 @file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 package com.example.ui.screens
+import com.example.ui.screens.dialogs.*
+import com.example.ui.screens.hud.*
+import com.example.ui.screens.player.*
 import kotlinx.coroutines.flow.first
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.horizontalScroll
@@ -75,8 +78,7 @@ import androidx.compose.material.icons.filled.ScreenRotation
 import androidx.compose.material.icons.filled.Screenshot
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
-import androidx.compose.material.icons.filled.SkipNext
-import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material.icons.filled.VolumeUp
@@ -212,32 +214,6 @@ fun getDisplayNameFromUri(context: android.content.Context, uri: Uri): String {
     return segment ?: "Video"
 }
 
-@Composable
-fun CompactPlayerDialog(
-    onDismissRequest: () -> Unit,
-    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit
-) {
-    androidx.compose.ui.window.Dialog(
-        onDismissRequest = onDismissRequest,
-        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        androidx.compose.material3.Surface(
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
-            color = androidx.compose.material3.MaterialTheme.colorScheme.surface,
-            modifier = Modifier.widthIn(min = 380.dp, max = 440.dp).padding(horizontal = 16.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .heightIn(max = 350.dp)
-                    .verticalScroll(androidx.compose.foundation.rememberScrollState())
-                    .padding(12.dp)
-            ) {
-                content()
-            }
-        }
-    }
-}
-
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.media3.common.util.UnstableApi::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Suppress("OPT_IN_IS_NOT_ENABLED", "OPT_IN_USAGE")
 @Composable
@@ -264,6 +240,7 @@ fun PlayerScreen(
     var bottomBarHeightPx by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
     var showBrightnessSlider by remember { mutableStateOf(false) }
     var brightnessInteractionTime by remember { mutableLongStateOf(0L) }
+    var isAdjustingBrightness by remember { mutableStateOf(false) }
     var currentBrightness by remember { mutableFloatStateOf(context.findActivity()?.window?.attributes?.screenBrightness.takeIf { it != -1f } ?: 0.5f) }
     var boostGainMb by remember { androidx.compose.runtime.mutableIntStateOf(0) }
     var activeGesture by remember { mutableStateOf(GestureType.NONE) }
@@ -276,11 +253,41 @@ fun PlayerScreen(
     var lastTapTime by remember { mutableLongStateOf(0L) }
     var lastTapPosition by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
     var pendingSingleTapJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    var timeStr by remember { mutableStateOf("") }
+    var batteryPct by remember { androidx.compose.runtime.mutableIntStateOf(100) }
+    var isCharging by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        val sdf = java.text.SimpleDateFormat("hh:mm a", java.util.Locale.US)
+        while (true) {
+            timeStr = sdf.format(java.util.Date()).lowercase(java.util.Locale.US)
+            kotlinx.coroutines.delay(1000)
+        }
+    }
+
+    DisposableEffect(context) {
+        val receiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(ctx: android.content.Context, intent: android.content.Intent) {
+                val status = intent.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1)
+                val level = intent.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1)
+                val scale = intent.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, -1)
+                isCharging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING || status == android.os.BatteryManager.BATTERY_STATUS_FULL
+                batteryPct = if (scale > 0) (level * 100) / scale else 100
+            }
+        }
+        val filter = android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED)
+        context.registerReceiver(receiver, filter)
+        onDispose {
+            try {
+                context.unregisterReceiver(receiver)
+            } catch (e: Exception) {}
+        }
+    }
 
     // Auto-hide brightness slider after inactivity (pauses while actively adjusting)
-    LaunchedEffect(showBrightnessSlider, brightnessInteractionTime, activeGesture) {
-        if (showBrightnessSlider && activeGesture != GestureType.BRIGHTNESS) {
-            kotlinx.coroutines.delay(4000)
+    LaunchedEffect(showBrightnessSlider, brightnessInteractionTime, isAdjustingBrightness) {
+        if (showBrightnessSlider && !isAdjustingBrightness) {
+            kotlinx.coroutines.delay(3000)
             showBrightnessSlider = false
         }
     }
@@ -372,49 +379,84 @@ fun PlayerScreen(
         onNavigateBack()
     }
 
-    LaunchedEffect(mediaController) {
-        var lastSavedTime = 0L
-        while (true) {
-            val actualIsPlaying = mediaController?.isPlaying == true
-            if (isPlaying != actualIsPlaying) {
-                com.example.LogKeeper.log("[UI_MISMATCH_DETECTED] UI isPlaying=$isPlaying, ExoPlayer isPlaying=$actualIsPlaying. Resyncing.", "PlayerScreen")
-                isPlaying = actualIsPlaying
+    DisposableEffect(mediaController) {
+        val controller = mediaController ?: return@DisposableEffect onDispose {}
+        val listener = object : androidx.media3.common.Player.Listener {
+            override fun onIsPlayingChanged(playing: Boolean) {
+                isPlaying = playing
             }
-            
-            // A-B repeat check
-            if (abRepeatStart != null && abRepeatEnd != null && isPlaying) {
-                val currentPos = mediaController?.currentPosition ?: 0L
-                if (currentPos >= abRepeatEnd!!) {
-                    com.example.LogKeeper.log("A-B repeat triggered: seeking back to $abRepeatStart", "PlayerScreen")
-                    mediaController?.seekTo(abRepeatStart!!)
+
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                isPlaying = controller.isPlaying
+            }
+
+            override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
+                if (mediaItem != null) {
+                    val title = mediaItem.mediaMetadata.title?.toString()
+                        ?: mediaItem.mediaMetadata.displayTitle?.toString()
+                    if (!title.isNullOrBlank()) {
+                        currentMediaTitle = title
+                    }
+                    mediaItem.localConfiguration?.uri?.let { uri ->
+                        currentMediaUri = uri
+                    }
                 }
             }
-            
+
+            override fun onMediaMetadataChanged(mediaMetadata: androidx.media3.common.MediaMetadata) {
+                val title = mediaMetadata.title?.toString() ?: mediaMetadata.displayTitle?.toString()
+                if (!title.isNullOrBlank()) {
+                    currentMediaTitle = title
+                }
+            }
+        }
+        controller.addListener(listener)
+        isPlaying = controller.isPlaying
+        controller.mediaMetadata.title?.toString()?.takeIf { it.isNotBlank() }?.let {
+            currentMediaTitle = it
+        }
+
+        onDispose {
+            controller.removeListener(listener)
+        }
+    }
+
+    LaunchedEffect(mediaController, isPlaying, abRepeatStart, abRepeatEnd, sleepTimerEndTime) {
+        if (!isPlaying) return@LaunchedEffect
+        var lastSavedTime = System.currentTimeMillis()
+        while (true) {
+            val controller = mediaController ?: break
+
+            // A-B repeat check
+            if (abRepeatStart != null && abRepeatEnd != null) {
+                val currentPos = controller.currentPosition
+                if (currentPos >= abRepeatEnd!!) {
+                    com.example.LogKeeper.log("A-B repeat triggered: seeking back to $abRepeatStart", "PlayerScreen")
+                    controller.seekTo(abRepeatStart!!)
+                }
+            }
+
             // Sleep timer check
-            if (sleepTimerEndTime != null && isPlaying) {
+            if (sleepTimerEndTime != null) {
                 if (System.currentTimeMillis() >= sleepTimerEndTime!!) {
                     com.example.LogKeeper.log("Sleep timer reached: pausing playback", "PlayerScreen")
-                    mediaController?.pause()
+                    controller.pause()
                     sleepTimerEndTime = null
                 }
             }
 
             // Periodic progress save
-            if (isPlaying) {
-                val now = System.currentTimeMillis()
-                if (now - lastSavedTime >= 3000L) {
-                    mediaController?.let { controller ->
-                        val pos = controller.currentPosition
-                        val dur = controller.duration
-                        if (pos > 0L) {
-                            com.example.data.SettingsManager.getInstance(context).savePlaybackState(decodedUriString, pos, dur, currentMediaTitle)
-                            lastSavedTime = now
-                        }
-                    }
+            val now = System.currentTimeMillis()
+            if (now - lastSavedTime >= 3000L) {
+                val pos = controller.currentPosition
+                val dur = controller.duration
+                if (pos > 0L) {
+                    com.example.data.SettingsManager.getInstance(context).savePlaybackState(decodedUriString, pos, dur, currentMediaTitle)
+                    lastSavedTime = now
                 }
             }
-            
-            kotlinx.coroutines.delay(300)
+
+            kotlinx.coroutines.delay(500)
         }
     }
     val settingsManager = com.example.data.SettingsManager.getInstance(context)
@@ -431,6 +473,23 @@ fun PlayerScreen(
         var subtitleColor by remember { mutableStateOf(androidx.compose.ui.graphics.Color.White) }
         var subtitleSize by remember { mutableStateOf(16f) }
         var subtitleDelay by remember { mutableStateOf(0f) }
+
+        val memoizedCaptionStyle = remember(subtitleColor) {
+            val colorInt = android.graphics.Color.argb(
+                (subtitleColor.alpha * 255).toInt(),
+                (subtitleColor.red * 255).toInt(),
+                (subtitleColor.green * 255).toInt(),
+                (subtitleColor.blue * 255).toInt()
+            )
+            androidx.media3.ui.CaptionStyleCompat(
+                colorInt,
+                android.graphics.Color.TRANSPARENT,
+                android.graphics.Color.TRANSPARENT,
+                androidx.media3.ui.CaptionStyleCompat.EDGE_TYPE_DROP_SHADOW,
+                android.graphics.Color.BLACK,
+                null
+            )
+        }
 
         val audioPickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
             contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
@@ -499,56 +558,11 @@ fun PlayerScreen(
     }
 
     LaunchedEffect(decodedUri) {
-        val mimeType = context.contentResolver.getType(decodedUri)
+        val mimeType = try { context.contentResolver.getType(decodedUri) } catch (e: Exception) { null }
         val isAudio = mimeType?.startsWith("audio/") == true
         if (isAudio) {
             val settingsManager = com.example.data.SettingsManager.getInstance(context)
             backgroundPlayEnabled = settingsManager.defaultAudioBackgroundPlay
-        }
-        if (decodedUri.scheme == "content") {
-            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                var resolvedName: String? = null
-                try {
-                    context.contentResolver.query(decodedUri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
-                        if (cursor.moveToFirst()) {
-                            val idx = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-                            if (idx != -1) {
-                                resolvedName = cursor.getString(idx)
-                            }
-                        }
-                    }
-                } catch (e: Exception) {}
-                if (resolvedName.isNullOrBlank()) {
-                    try {
-                        context.contentResolver.query(decodedUri, arrayOf(android.provider.MediaStore.MediaColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
-                            if (cursor.moveToFirst()) {
-                                val idx = cursor.getColumnIndex(android.provider.MediaStore.MediaColumns.DISPLAY_NAME)
-                                if (idx != -1) {
-                                    resolvedName = cursor.getString(idx)
-                                }
-                            }
-                        }
-                    } catch (e: Exception) {}
-                }
-                if (!resolvedName.isNullOrBlank()) {
-                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                        currentMediaTitle = resolvedName!!
-                        mediaController?.let { controller ->
-                            if (controller.currentMediaItem?.mediaId == decodedUri.toString()) {
-                                val updatedMeta = controller.mediaMetadata.buildUpon()
-                                    .setTitle(resolvedName)
-                                    .setDisplayTitle(resolvedName)
-                                    .build()
-                                val updatedItem = controller.currentMediaItem?.buildUpon()?.setMediaMetadata(updatedMeta)?.build()
-                                if (updatedItem != null) {
-                                    controller.replaceMediaItem(controller.currentMediaItemIndex, updatedItem)
-                                    com.example.data.SettingsManager.getInstance(context).markAsOpened(decodedUriString, resolvedName!!)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
         }
     }
 
@@ -563,11 +577,16 @@ fun PlayerScreen(
                 .setTitle(fileName)
                 .setDisplayTitle(fileName)
 
-            val initialMediaItem = MediaItem.Builder()
+            val siblingSubs = com.example.service.SubtitleAutoDetector.detectSiblingSubtitles(context, decodedUri)
+            val initialMediaItemBuilder = MediaItem.Builder()
                 .setUri(decodedUri)
                 .setMediaId(decodedUri.toString())
                 .setMediaMetadata(mediaMetadataBuilder.build())
-                .build()
+
+            if (siblingSubs.isNotEmpty()) {
+                initialMediaItemBuilder.setSubtitleConfigurations(siblingSubs)
+            }
+            val initialMediaItem = initialMediaItemBuilder.build()
 
             val lastPos = settingsManager.getPlaybackPosition(decodedUriString, fileName)
             val startPos = if (lastPos > 0 && !settingsManager.isFinished(decodedUriString, fileName)) lastPos else 0L
@@ -578,17 +597,18 @@ fun PlayerScreen(
             com.example.service.PlayerManager.isImplicitFolderQueue = true
             settingsManager.markAsOpened(decodedUriString, fileName)
 
-            // Resolve full display name asynchronously on IO dispatcher without delaying video decode
-            if (decodedUri.scheme == "content") {
+            // Resolve full display name asynchronously on IO dispatcher if not already resolved by PlayerActivity
+            if (decodedUri.scheme == "content" && currentMediaTitle == fileName) {
                 kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
                     try {
-                        context.contentResolver.query(decodedUri, arrayOf(android.provider.MediaStore.MediaColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                        context.contentResolver.query(decodedUri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
                             if (cursor.moveToFirst()) {
-                                val nameCol = cursor.getColumnIndex(android.provider.MediaStore.MediaColumns.DISPLAY_NAME)
-                                if (nameCol != -1) {
-                                    val resolvedName = cursor.getString(nameCol)
-                                    if (!resolvedName.isNullOrEmpty() && resolvedName != fileName) {
+                                val idx = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                                if (idx != -1) {
+                                    val resolvedName = cursor.getString(idx)
+                                    if (!resolvedName.isNullOrBlank() && resolvedName != fileName) {
                                         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                            currentMediaTitle = resolvedName
                                             if (controller.currentMediaItem?.mediaId == decodedUri.toString()) {
                                                 val updatedMeta = controller.mediaMetadata.buildUpon()
                                                     .setTitle(resolvedName)
@@ -596,6 +616,7 @@ fun PlayerScreen(
                                                     .build()
                                                 val updatedItem = initialMediaItem.buildUpon().setMediaMetadata(updatedMeta).build()
                                                 controller.replaceMediaItem(controller.currentMediaItemIndex, updatedItem)
+                                                settingsManager.markAsOpened(decodedUriString, resolvedName)
                                             }
                                         }
                                     }
@@ -605,76 +626,47 @@ fun PlayerScreen(
                     } catch (e: Exception) {}
                 }
             }
+        }
             
-            // Load playlist in background with resource awareness
-            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-                // Yield storage I/O and CPU to initial video buffering and decoder setup
-                kotlinx.coroutines.delay(1000)
-                
-                // Do not perform heavy device-wide library scan if background transcoding/compression is running
-                if (com.example.service.FFmpegStatus.isRunning || com.example.service.CompressionStatus.isRunning) {
-                    com.example.LogKeeper.log("PlayerScreen: Deferred background playlist scan because FFmpeg/Compression service is running", "PlayerScreen")
-                    return@launch
-                }
+        // Load sibling playlist items targeted by parent directory / BUCKET_ID (zero full-disk scan)
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            // Yield storage I/O and CPU to initial video buffering and decoder setup
+            kotlinx.coroutines.delay(1000)
+            
+            if (com.example.service.FFmpegStatus.isRunning || com.example.service.CompressionStatus.isRunning) {
+                com.example.LogKeeper.log("PlayerScreen: Deferred background playlist scan because FFmpeg/Compression service is running", "PlayerScreen")
+                return@launch
+            }
 
-                // Check cached media folders first to avoid freezing I/O during active playback
-                val repository = com.example.data.MediaRepository(context.applicationContext as android.app.Application)
-                val folders = repository.getCachedMediaFolders() ?: repository.getMediaFolders()
-                var playlistItems = emptyList<MediaItem>()
-                var startIndex = 0
-                var found = false
-                
-                for (folder in folders) {
-                    val index = folder.mediaItems.indexOfFirst {
-                        it.uri == decodedUri || it.uri.toString() == decodedUriString || it.uri.path == decodedUri.path
-                    }
-                    if (index != -1) {
-                        playlistItems = folder.mediaItems.map { item ->
-                            val meta = androidx.media3.common.MediaMetadata.Builder()
-                                .setTitle(item.name)
-                                .setDisplayTitle(item.name)
-                                .setArtworkUri(item.uri)
-                                .build()
-                            MediaItem.Builder()
-                                .setUri(item.uri)
-                                .setMediaId(item.uri.toString())
-                                .setMediaMetadata(meta)
-                                .build()
+            val (playlistItems, startIndex) = resolveSiblingPlaylistItems(context, decodedUri, decodedUri.toString())
+            
+            if (playlistItems.size > 1 && startIndex != -1) {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    val currentId = controller.currentMediaItem?.mediaId
+                    if ((currentId == decodedUri.toString() || currentId == decodedUriString) && controller.mediaItemCount == 1) {
+                        val precedingItems = playlistItems.subList(0, startIndex)
+                        val succeedingItems = playlistItems.subList(startIndex + 1, playlistItems.size)
+                        if (precedingItems.isNotEmpty()) {
+                            controller.addMediaItems(0, precedingItems)
                         }
-                        startIndex = index
-                        found = true
-                        break
+                        if (succeedingItems.isNotEmpty()) {
+                            controller.addMediaItems(controller.mediaItemCount, succeedingItems)
+                        }
+                        com.example.service.PlayerManager.isImplicitFolderQueue = true
                     }
                 }
                 
-                if (found && playlistItems.size > 1) {
-                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                        // Only populate if controller is still playing this item and has single item loaded
-                        val currentId = controller.currentMediaItem?.mediaId
-                        if ((currentId == decodedUri.toString() || currentId == decodedUriString) && controller.mediaItemCount == 1) {
-                            val precedingItems = playlistItems.subList(0, startIndex)
-                            val succeedingItems = playlistItems.subList(startIndex + 1, playlistItems.size)
-                            if (precedingItems.isNotEmpty()) {
-                                controller.addMediaItems(0, precedingItems)
-                            }
-                            if (succeedingItems.isNotEmpty()) {
-                                controller.addMediaItems(controller.mediaItemCount, succeedingItems)
-                            }
-                            com.example.service.PlayerManager.isImplicitFolderQueue = true
-                        }
-                    }
-                    
-                    // Generate Temp Current playlist
-                    try {
-                        val db = com.example.data.AppDatabase.getDatabase(context)
-                        val playlistRepo = com.example.data.PlaylistRepository(db.playlistDao())
-                        val uris = playlistItems.map { it.mediaId }
-                        playlistRepo.saveOrUpdateTemporaryPlaylist(uris)
-                    } catch(e: Exception) {
-                        e.printStackTrace()
-                    }
+                try {
+                    val db = com.example.data.AppDatabase.getDatabase(context)
+                    val playlistRepo = com.example.data.PlaylistRepository(db.playlistDao())
+                    val uris = playlistItems.map { it.mediaId }
+                    playlistRepo.saveOrUpdateTemporaryPlaylist(uris)
+                } catch(e: Exception) {
+                    e.printStackTrace()
                 }
             }
+        }
+    }
             
 
         } else if (controller.playbackState == androidx.media3.common.Player.STATE_ENDED) {
@@ -1213,6 +1205,7 @@ fun PlayerScreen(
                 val window = context.findActivity()?.window
                 var startBrightness = window?.attributes?.screenBrightness ?: -1f
                 if (startBrightness < 0) startBrightness = 0.5f
+                var lastAppliedBrightness = startBrightness
                 
                 val startPosition = mediaController?.currentPosition?.coerceAtLeast(0L) ?: 0L
                 var wasPlayingBeforeSeek = false
@@ -1267,21 +1260,22 @@ fun PlayerScreen(
                                     change.consume()
                                 }
                                 GestureType.BRIGHTNESS -> {
+                                    isAdjustingBrightness = true
                                     val brightnessChange = -(dragDistanceY / size.height)
                                     val newBrightness = (startBrightness + brightnessChange).coerceIn(0.01f, 1f)
                                     currentBrightness = newBrightness
                                     
-                                    val window = context.findActivity()?.window
-                                    if (window != null) {
-                                        val layoutParams = window.attributes
-                                        layoutParams.screenBrightness = newBrightness
-                                        window.attributes = layoutParams
+                                    if (kotlin.math.abs(newBrightness - lastAppliedBrightness) >= 0.008f) {
+                                        lastAppliedBrightness = newBrightness
+                                        val win = context.findActivity()?.window
+                                        if (win != null) {
+                                            val layoutParams = win.attributes
+                                            layoutParams.screenBrightness = newBrightness
+                                            win.attributes = layoutParams
+                                        }
                                     }
                                     brightnessInteractionTime = System.currentTimeMillis()
                                     controlsInteractionTrigger = System.currentTimeMillis()
-                                    
-                                    gestureVolumeRatio = newBrightness
-                                    gestureText = "Brightness: ${(newBrightness * 100).roundToInt()}%"
                                     change.consume()
                                 }
                                 GestureType.VOLUME -> {
@@ -1390,7 +1384,14 @@ fun PlayerScreen(
                 }
                 
                 if (currentGesture == GestureType.BRIGHTNESS) {
+                    isAdjustingBrightness = false
                     brightnessInteractionTime = System.currentTimeMillis()
+                    val win = context.findActivity()?.window
+                    if (win != null) {
+                        val layoutParams = win.attributes
+                        layoutParams.screenBrightness = currentBrightness
+                        win.attributes = layoutParams
+                    }
                 }
                 activeGesture = GestureType.NONE
                 gestureText = ""
@@ -1413,22 +1414,14 @@ fun PlayerScreen(
                 view.resizeMode = if (resizeMode == 5) androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT else resizeMode
                 view.keepScreenOn = keepScreenAwake && isPlaying
                 view.subtitleView?.let { subtitleView ->
-                    val colorInt = android.graphics.Color.argb(
-                        (subtitleColor.alpha * 255).toInt(),
-                        (subtitleColor.red * 255).toInt(),
-                        (subtitleColor.green * 255).toInt(),
-                        (subtitleColor.blue * 255).toInt()
-                    )
-                    val style = androidx.media3.ui.CaptionStyleCompat(
-                        colorInt,
-                        android.graphics.Color.TRANSPARENT,
-                        android.graphics.Color.TRANSPARENT,
-                        androidx.media3.ui.CaptionStyleCompat.EDGE_TYPE_DROP_SHADOW,
-                        android.graphics.Color.BLACK,
-                        null
-                    )
-                    subtitleView.setStyle(style)
-                    subtitleView.setFixedTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, subtitleSize)
+                    val currentTag = subtitleView.tag as? Pair<*, *>
+                    if (currentTag?.first != memoizedCaptionStyle) {
+                        subtitleView.setStyle(memoizedCaptionStyle)
+                    }
+                    if (currentTag?.second != subtitleSize) {
+                        subtitleView.setFixedTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, subtitleSize)
+                    }
+                    subtitleView.tag = Pair(memoizedCaptionStyle, subtitleSize)
                 }
             },
             onReset = { view ->
@@ -1445,87 +1438,17 @@ fun PlayerScreen(
             }
         )
 
-        androidx.compose.animation.AnimatedVisibility(
-            visible = showPlayPauseFlash,
-            enter = androidx.compose.animation.fadeIn(animationSpec = androidx.compose.animation.core.tween(100)),
-            exit = androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(300)),
+        PlayPauseFlashHud(
+            showFlash = showPlayPauseFlash,
+            flashIsPlaying = flashIsPlaying,
             modifier = Modifier.align(Alignment.Center)
-        ) {
-            Icon(
-                imageVector = if (flashIsPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                contentDescription = null,
-                tint = Color.White.copy(alpha = 0.85f),
-                modifier = Modifier.size(72.dp)
-            )
-        }
+        )
 
         if (activeGesture != GestureType.NONE && !isInPipMode) {
-            if (activeGesture == GestureType.VOLUME) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.CenterStart) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier
-                            .padding(start = 24.dp)
-                            .height(170.dp)
-                            .width(56.dp)
-                            .background(Color.Black.copy(alpha = 0.5f), androidx.compose.foundation.shape.RoundedCornerShape(28.dp))
-                            .padding(vertical = 12.dp)
-                    ) {
-                        Text(
-                            text = "${(gestureVolumeRatio * 200).roundToInt()}",
-                            color = Color.White,
-                            fontSize = 16.sp,
-                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .width(4.dp)
-                                .background(Color.DarkGray.copy(alpha = 0.5f), androidx.compose.foundation.shape.RoundedCornerShape(2.dp)),
-                            contentAlignment = Alignment.BottomCenter
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxHeight((gestureVolumeRatio * 2f).coerceIn(0f, 1f))
-                                    .width(4.dp)
-                                    .background(Color(0xFF2196F3), androidx.compose.foundation.shape.RoundedCornerShape(2.dp))
-                            )
-                            val whiteRatio = ((gestureVolumeRatio - 0.5f) * 2f).coerceIn(0f, 1f)
-                            if (whiteRatio > 0f) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxHeight(whiteRatio)
-                                        .width(4.dp)
-                                        .background(Color.White, androidx.compose.foundation.shape.RoundedCornerShape(2.dp))
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Icon(androidx.compose.material.icons.Icons.Filled.VolumeUp, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
-                    }
-                }
-            } else if (activeGesture == GestureType.SEEK) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    val sign = if (seekOffsetSec >= 0) "+" else ""
-                    Text(
-                        text = "$sign${seekOffsetSec}s",
-                        color = Color.White,
-                        fontSize = 28.sp,
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                        modifier = Modifier.background(Color.Black.copy(alpha = 0.5f), shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)).padding(16.dp)
-                    )
-                }
-            } else if (gestureText.isNotEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(
-                        text = gestureText,
-                        color = Color.White,
-                        fontSize = 24.sp,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.background(Color.Black.copy(alpha = 0.5f), shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)).padding(16.dp)
-                    )
-                }
+            when (activeGesture) {
+                GestureType.VOLUME -> VolumeHudCapsule(gestureVolumeRatio = gestureVolumeRatio)
+                GestureType.SEEK -> SeekHudCapsule(seekOffsetSec = seekOffsetSec)
+                else -> GestureTextHudCapsule(gestureText = gestureText)
             }
         }
 
@@ -1536,62 +1459,13 @@ fun PlayerScreen(
             modifier = Modifier.align(Alignment.TopEnd).windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.displayCutout.only(androidx.compose.foundation.layout.WindowInsetsSides.Horizontal))
         ) {
             Box(
-                modifier = Modifier
-                    .padding(end = 16.dp)
+                modifier = Modifier.padding(end = 16.dp)
             ) {
-                var timeStr by remember { mutableStateOf("") }
-                var batteryPct by remember { mutableStateOf(100) }
-                var isCharging by remember { mutableStateOf(false) }
-
-                LaunchedEffect(Unit) {
-                    val sdf = java.text.SimpleDateFormat("hh:mm a", java.util.Locale.US)
-                    while (true) {
-                        timeStr = sdf.format(java.util.Date()).lowercase(java.util.Locale.US)
-                        kotlinx.coroutines.delay(1000)
-                    }
-                }
-                
-                DisposableEffect(Unit) {
-                    val receiver = object : android.content.BroadcastReceiver() {
-                        override fun onReceive(context: android.content.Context, intent: android.content.Intent) {
-                            val status = intent.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1)
-                            val level = intent.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1)
-                            val scale = intent.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, -1)
-                            isCharging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING || status == android.os.BatteryManager.BATTERY_STATUS_FULL
-                            batteryPct = if (scale > 0) (level * 100) / scale else 100
-                        }
-                    }
-                    val filter = android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED)
-                    context.registerReceiver(receiver, filter)
-                    onDispose {
-                        context.unregisterReceiver(receiver)
-                    }
-                }
-                
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    modifier = Modifier.padding(start = 4.dp, end = 4.dp, bottom = 4.dp, top = 0.dp)
-                ) {
-                    Text(
-                        text = timeStr,
-                        color = Color.White.copy(alpha = 0.8f),
-                        fontSize = 12.sp,
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-                    )
-                    Icon(
-                        imageVector = if (isCharging) Icons.Filled.BatteryChargingFull else Icons.Filled.BatteryFull,
-                        contentDescription = if (isCharging) "Charging" else "Battery",
-                        tint = Color.White.copy(alpha = 0.8f),
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Text(
-                        text = "$batteryPct%",
-                        color = Color.White.copy(alpha = 0.8f),
-                        fontSize = 12.sp,
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-                    )
-                }
+                BatteryTimeHudRow(
+                    timeStr = timeStr,
+                    batteryPct = batteryPct,
+                    isCharging = isCharging
+                )
             }
         }
 
@@ -1679,11 +1553,49 @@ fun PlayerScreen(
                             }
                             .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.systemBarsIgnoringVisibility.union(androidx.compose.foundation.layout.WindowInsets.displayCutout).only(androidx.compose.foundation.layout.WindowInsetsSides.Horizontal + androidx.compose.foundation.layout.WindowInsetsSides.Top))
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 0.dp)
-                        ) {
-                            IconButton(onClick = {
+                        LaunchedEffect(currentMediaUri) {
+                            detailsName = currentMediaUri.lastPathSegment ?: "Unknown"
+                            detailsPath = currentMediaUri.toString()
+                            if (currentMediaUri.scheme == "file") {
+                                try {
+                                    val file = java.io.File(currentMediaUri.path!!)
+                                    detailsName = file.name
+                                    val size = file.length()
+                                    detailsSize = if (size > 1024 * 1024) "${size / (1024 * 1024)} MB" else "${size / 1024} KB"
+                                    detailsDate = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(file.lastModified()))
+                                    detailsPath = file.absolutePath
+                                } catch (e: Exception) {}
+                            } else if (currentMediaUri.scheme == "content") {
+                                try {
+                                    context.contentResolver.query(currentMediaUri, null, null, null, null)?.use { cursor ->
+                                        if (cursor.moveToFirst()) {
+                                            val nameCol = cursor.getColumnIndex(android.provider.MediaStore.MediaColumns.DISPLAY_NAME)
+                                            if (nameCol != -1) cursor.getString(nameCol)?.let { detailsName = it }
+                                            val sizeCol = cursor.getColumnIndex(android.provider.MediaStore.MediaColumns.SIZE)
+                                            if (sizeCol != -1) {
+                                                val size = cursor.getLong(sizeCol)
+                                                detailsSize = if (size > 1024 * 1024) "${size / (1024 * 1024)} MB" else "${size / 1024} KB"
+                                            }
+                                            val dateCol = cursor.getColumnIndex(android.provider.MediaStore.MediaColumns.DATE_ADDED)
+                                            if (dateCol != -1) {
+                                                val dateAdded = cursor.getLong(dateCol)
+                                                val dateMs = if (dateAdded < 10000000000L) dateAdded * 1000 else dateAdded
+                                                if (dateMs > 0) {
+                                                    detailsDate = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(dateMs))
+                                                }
+                                            }
+                                            val dataCol = cursor.getColumnIndex(android.provider.MediaStore.MediaColumns.DATA)
+                                            if (dataCol != -1) cursor.getString(dataCol)?.let { detailsPath = it }
+                                        }
+                                    }
+                                } catch (e: Exception) {}
+                            }
+                        }
+
+                        PlayerTopBar(
+                            title = currentMediaTitle,
+                            playbackSpeed = playbackSpeed,
+                            onNavigateBack = {
                                 com.example.LogKeeper.log("Back button clicked in PlayerScreen top bar", "PlayerScreen")
                                 mediaController?.let { controller ->
                                     val pos = controller.currentPosition
@@ -1704,181 +1616,61 @@ fun PlayerScreen(
                                     } catch (e: Exception) {}
                                 }
                                 onNavigateBack()
-                            }) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
-                            }
-                            Text(
-                                text = currentMediaTitle,
-                                color = Color.White,
-                                fontSize = 16.sp,
-                                fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
-                                maxLines = 1,
-                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(CircleShape)
-                                    .pointerInput(playbackSpeed) {
-                                        detectTapGestures(
-                                            onLongPress = {
-                                                com.example.LogKeeper.log("Speed button long pressed - opening dialog", "PlayerScreen")
-                                                showSpeedDialog = true
-                                            },
-                                            onTap = {
-                                                val speedCycle = listOf(1.0f, 1.2f, 2.0f, 0.5f, 0.25f)
-                                                val currentIndex = speedCycle.indexOfFirst { kotlin.math.abs(it - playbackSpeed) < 0.05f }
-                                                val nextSpeed = if (currentIndex != -1) {
-                                                    speedCycle[(currentIndex + 1) % speedCycle.size]
-                                                } else {
-                                                    1.0f
-                                                }
-                                                playbackSpeed = nextSpeed
-                                                mediaController?.setPlaybackSpeed(nextSpeed)
-                                                settingsManager.savePlaybackSpeed(decodedUriString, nextSpeed)
-                                                com.example.LogKeeper.log("Speed toggled to ${nextSpeed}x", "PlayerScreen")
-                                                controlsInteractionTrigger = System.currentTimeMillis()
-                                            }
-                                        )
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (playbackSpeed == 1.0f) {
-                                    Icon(Icons.Filled.Speed, contentDescription = "Speed: 1x (Long press for controls)", tint = Color.White)
+                            },
+                            onSpeedClick = {
+                                val speedCycle = listOf(1.0f, 1.2f, 2.0f, 0.5f, 0.25f)
+                                val currentIndex = speedCycle.indexOfFirst { kotlin.math.abs(it - playbackSpeed) < 0.05f }
+                                val nextSpeed = if (currentIndex != -1) {
+                                    speedCycle[(currentIndex + 1) % speedCycle.size]
                                 } else {
-                                    val speedDisplay = if (playbackSpeed == 0.25f) "0.25"
-                                        else if (playbackSpeed == 0.5f) "0.5"
-                                        else if (playbackSpeed == 1.2f) "1.2"
-                                        else if (playbackSpeed == 2.0f) "2"
-                                        else String.format("%.1f", playbackSpeed)
-                                    Box(
-                                        modifier = Modifier
-                                            .background(Color(0xFF2196F3).copy(alpha = 0.25f), RoundedCornerShape(6.dp))
-                                            .border(1.dp, Color(0xFF2196F3), RoundedCornerShape(6.dp))
-                                            .padding(horizontal = 4.dp, vertical = 2.dp)
-                                    ) {
-                                        Text(
-                                            text = "${speedDisplay}x",
-                                            color = Color(0xFF2196F3),
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
+                                    1.0f
                                 }
-                            }
-                            IconButton(onClick = { 
-                                controlsInteractionTrigger = System.currentTimeMillis()
+                                playbackSpeed = nextSpeed
+                                mediaController?.setPlaybackSpeed(nextSpeed)
+                                settingsManager.savePlaybackSpeed(decodedUriString, nextSpeed)
+                                com.example.LogKeeper.log("Speed toggled to ${nextSpeed}x", "PlayerScreen")
+                            },
+                            onSpeedLongClick = {
+                                com.example.LogKeeper.log("Speed button long pressed - opening dialog", "PlayerScreen")
+                                showSpeedDialog = true
+                            },
+                            onAudioClick = {
                                 com.example.LogKeeper.log("Audio tracks button clicked", "PlayerScreen")
-                                showAudioDialog = true 
-                            }) {
-                                Icon(Icons.Filled.MusicNote, contentDescription = "Audio track", tint = Color.White)
-                            }
-                            IconButton(onClick = { 
-                                controlsInteractionTrigger = System.currentTimeMillis()
+                                showAudioDialog = true
+                            },
+                            onSubtitleClick = {
                                 com.example.LogKeeper.log("Subtitles button clicked", "PlayerScreen")
-                                showSubtitleDialog = true 
-                            }) {
-                                Icon(Icons.Filled.Subtitles, contentDescription = "Subtitles", tint = Color.White)
-                            }
-                            Box {
+                                showSubtitleDialog = true
+                            },
+                            onDetailsClick = {
+                                showDetailsDialog = true
+                            },
+                            onEditClick = {
+                                val mimeType = context.contentResolver.getType(decodedUri)
+                                val isAudio = mimeType?.startsWith("audio/") == true
+                                val isVideo = mimeType?.startsWith("video/") == true
+                                val isAnimatedImage = mimeType == "image/gif" || mimeType == "image/webp"
+                                val isImage = mimeType?.startsWith("image/") == true
 
-                                
-                                LaunchedEffect(currentMediaUri) {
-                                    detailsName = currentMediaUri.lastPathSegment ?: "Unknown"
-                                    detailsPath = currentMediaUri.toString()
-                                    if (currentMediaUri.scheme == "file") {
-                                        try {
-                                            val file = java.io.File(currentMediaUri.path!!)
-                                            detailsName = file.name
-                                            val size = file.length()
-                                            detailsSize = if (size > 1024 * 1024) "${size / (1024 * 1024)} MB" else "${size / 1024} KB"
-                                            detailsDate = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(file.lastModified()))
-                                            detailsPath = file.absolutePath
-                                        } catch (e: Exception) {}
-                                    } else if (currentMediaUri.scheme == "content") {
-                                        try {
-                                            context.contentResolver.query(currentMediaUri, null, null, null, null)?.use { cursor ->
-                                                if (cursor.moveToFirst()) {
-                                                    val nameCol = cursor.getColumnIndex(android.provider.MediaStore.MediaColumns.DISPLAY_NAME)
-                                                    if (nameCol != -1) cursor.getString(nameCol)?.let { detailsName = it }
-                                                    val sizeCol = cursor.getColumnIndex(android.provider.MediaStore.MediaColumns.SIZE)
-                                                    if (sizeCol != -1) {
-                                                        val size = cursor.getLong(sizeCol)
-                                                        detailsSize = if (size > 1024 * 1024) "${size / (1024 * 1024)} MB" else "${size / 1024} KB"
-                                                    }
-                                                    val dateCol = cursor.getColumnIndex(android.provider.MediaStore.MediaColumns.DATE_ADDED)
-                                                    if (dateCol != -1) {
-                                                        val dateAdded = cursor.getLong(dateCol)
-                                                        val dateMs = if (dateAdded < 10000000000L) dateAdded * 1000 else dateAdded
-                                                        if (dateMs > 0) {
-                                                            detailsDate = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(dateMs))
-                                                        }
-                                                    }
-                                                    val dataCol = cursor.getColumnIndex(android.provider.MediaStore.MediaColumns.DATA)
-                                                    if (dataCol != -1) cursor.getString(dataCol)?.let { detailsPath = it }
-                                                }
-                                            }
-                                        } catch (e: Exception) {}
-                                    }
-                                }
+                                val route = if (isAudio) "audio_trimmer/$uriString"
+                                else if (isVideo) "video_editor/$uriString"
+                                else if (isImage && !isAnimatedImage) "photo_editor/$uriString"
+                                else "video_editor/$uriString"
 
-                                IconButton(onClick = { 
-                                    controlsInteractionTrigger = System.currentTimeMillis()
-                                    showTopMenu = true 
-                                }) {
-                                    Icon(Icons.Filled.MoreVert, contentDescription = "More options", tint = Color.White)
-                                }
-                                androidx.compose.material3.DropdownMenu(
-                                    expanded = showTopMenu,
-                                    onDismissRequest = { showTopMenu = false }
-                                ) {
-                                    androidx.compose.material3.DropdownMenuItem(
-                                        text = { Text("Details") },
-                                        onClick = { 
-                                            showTopMenu = false
-                                            showDetailsDialog = true 
-                                        }
-                                    )
-                                    androidx.compose.material3.DropdownMenuItem(
-                                        text = { Text("Edit") },
-                                        onClick = {
-                                            showTopMenu = false
-                                            val mimeType = context.contentResolver.getType(decodedUri)
-                                            val isAudio = mimeType?.startsWith("audio/") == true
-                                            val isVideo = mimeType?.startsWith("video/") == true
-                                            val isAnimatedImage = mimeType == "image/gif" || mimeType == "image/webp"
-                                            val isImage = mimeType?.startsWith("image/") == true
-
-                                            val route = if (isAudio) "audio_trimmer/$uriString"
-                                            else if (isVideo) "video_editor/$uriString"
-                                            else if (isImage && !isAnimatedImage) "photo_editor/$uriString"
-                                            else "video_editor/$uriString"
-                                            
-                                            onNavigateToEdit(route)
-                                        }
-                                    )
-                                    androidx.compose.material3.DropdownMenuItem(
-                                        text = { Text("Player settings") },
-                                        onClick = {
-                                            showTopMenu = false
-                                            showPlayerSettingsDialog = true
-                                        }
-                                    )
-                                }
-                                
-                                
-                            }
-                        }
-                        
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
-                        ) {
-                            // A-B Repeat Icon
-                            IconButton(onClick = {
+                                onNavigateToEdit(route)
+                            },
+                            onPlayerSettingsClick = {
+                                showPlayerSettingsDialog = true
+                            },
+                            onInteraction = {
                                 controlsInteractionTrigger = System.currentTimeMillis()
+                            }
+                        )
+
+                        PlayerLeftTools(
+                            abRepeatStart = abRepeatStart,
+                            abRepeatEnd = abRepeatEnd,
+                            onAbRepeatClick = {
                                 val currentPos = mediaController?.currentPosition ?: 0L
                                 if (abRepeatStart == null) {
                                     abRepeatStart = currentPos
@@ -1888,56 +1680,27 @@ fun PlayerScreen(
                                     abRepeatStart = null
                                     abRepeatEnd = null
                                 }
-                            }) {
-                                val tint = if (abRepeatStart != null) Color(0xFF2196F3) else Color.White
-                                val text = if (abRepeatStart != null && abRepeatEnd == null) "A" else if (abRepeatEnd != null) "A-B" else ""
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(Icons.Filled.Loop, contentDescription = "A-B Repeat", tint = tint)
-                                    if (text.isNotEmpty()) {
-                                        Text(
-                                            text = text,
-                                            color = tint,
-                                            fontSize = 8.sp,
-                                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                                            modifier = Modifier.align(Alignment.BottomEnd)
-                                        )
-                                    }
-                                }
-                            }
-                            
-                            // Sleep Timer Icon
-                            IconButton(onClick = { 
-                                controlsInteractionTrigger = System.currentTimeMillis()
-                                showSleepTimerDialog = true 
-                            }) {
-                                Icon(Icons.Filled.Timer, contentDescription = "Sleep Timer", tint = if (sleepTimerEndTime != null) Color(0xFF2196F3) else Color.White)
-                            }
-                            IconButton(onClick = { 
-                                showBrightnessSlider = !showBrightnessSlider 
+                            },
+                            isSleepTimerActive = sleepTimerEndTime != null,
+                            onSleepTimerClick = {
+                                showSleepTimerDialog = true
+                            },
+                            isBrightnessSliderVisible = showBrightnessSlider,
+                            onBrightnessClick = {
+                                showBrightnessSlider = !showBrightnessSlider
                                 if (showBrightnessSlider) {
                                     brightnessInteractionTime = System.currentTimeMillis()
                                 }
-                                controlsInteractionTrigger = System.currentTimeMillis()
-                            }) {
-                                Icon(
-                                    Icons.Filled.LightMode,
-                                    contentDescription = "Brightness",
-                                    tint = if (showBrightnessSlider) Color(0xFF2196F3) else Color.White
-                                )
-                            }
-                            IconButton(onClick = {
-                                controlsInteractionTrigger = System.currentTimeMillis()
+                            },
+                            onRotateClick = {
                                 val currentOrientation = context.findActivity()?.requestedOrientation
                                 if (currentOrientation == ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE) {
                                     context.findActivity()?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
                                 } else {
                                     context.findActivity()?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
                                 }
-                            }) {
-                                Icon(Icons.Filled.ScreenRotation, contentDescription = "Rotation", tint = Color.White)
-                            }
-                            IconButton(onClick = {
-                                controlsInteractionTrigger = System.currentTimeMillis()
+                            },
+                            onScreenshotClick = {
                                 val surfaceView = playerViewRef.value?.videoSurfaceView as? android.view.SurfaceView
                                 if (surfaceView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                                     val bitmap = android.graphics.Bitmap.createBitmap(surfaceView.width, surfaceView.height, android.graphics.Bitmap.Config.ARGB_8888)
@@ -1967,10 +1730,11 @@ fun PlayerScreen(
                                 } else {
                                     Toast.makeText(context, "Screenshot failed: Surface not ready or unsupported OS", Toast.LENGTH_SHORT).show()
                                 }
-                            }) {
-                                Icon(Icons.Filled.Screenshot, contentDescription = "Screenshot", tint = Color.White)
+                            },
+                            onInteraction = {
+                                controlsInteractionTrigger = System.currentTimeMillis()
                             }
-                        }
+                        )
                     }
                 }
 
@@ -2015,107 +1779,90 @@ fun PlayerScreen(
                         Box(
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp)
                         ) {
-                            // Left alignment
-                            Row(modifier = Modifier.align(Alignment.CenterStart)) {
-                                IconButton(onClick = { 
+                            // Left alignment: Lock Button
+                            IconButton(
+                                onClick = {
                                     controlsInteractionTrigger = System.currentTimeMillis()
-                                    isLocked = true 
-                                }) {
-                                    Icon(Icons.Filled.LockOpen, contentDescription = "Lock", tint = Color.White)
-                                }
-                            }
-                            
-                            // Center alignment
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
-                                modifier = Modifier.align(Alignment.Center)
+                                    isLocked = true
+                                },
+                                modifier = Modifier.align(Alignment.CenterStart)
                             ) {
-                            
-                                IconButton(
-                                    onClick = {
-                                        controlsInteractionTrigger = System.currentTimeMillis()
-                                        com.example.LogKeeper.log("Previous button clicked", "PlayerScreen")
-                                        mediaController?.let { controller ->
-                                            if (controller.hasPreviousMediaItem()) {
-                                                controller.seekToPreviousMediaItem()
-                                            } else {
-                                                controller.seekTo(0)
-                                            }
-                                        }
-                                    },
-                                    modifier = Modifier.size(56.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.SkipPrevious,
-                                        contentDescription = "Previous",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(36.dp)
-                                    )
-                                }
-
-                                IconButton(
-                                    onClick = {
-                                        controlsInteractionTrigger = System.currentTimeMillis()
-                                        com.example.LogKeeper.log("Play/Pause button clicked (currently isPlaying=$isPlaying)", "PlayerScreen")
-                                        mediaController?.let { controller ->
-                                            if (controller.playbackState == androidx.media3.common.Player.STATE_ENDED) {
-                                                controller.seekTo(0)
-                                                controller.prepare()
-                                                controller.play()
-                                                wasPlayingBeforePause = true
-                                            } else if (controller.playbackState == androidx.media3.common.Player.STATE_IDLE) {
-                                                controller.prepare()
-                                                controller.play()
-                                                wasPlayingBeforePause = true
-                                            } else if (controller.isPlaying) {
-                                                controller.pause()
-                                                wasPlayingBeforePause = false
-                                            } else {
-                                                controller.play()
-                                                wasPlayingBeforePause = true
-                                            }
-                                        }
-                                    },
-                                    modifier = Modifier.size(56.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                                        contentDescription = "Play/Pause",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(36.dp)
-                                    )
-                                }
-                                
-                                IconButton(
-                                    onClick = {
-                                        controlsInteractionTrigger = System.currentTimeMillis()
-                                        com.example.LogKeeper.log("Next button clicked", "PlayerScreen")
-                                        mediaController?.let { controller ->
-                                            if (controller.hasNextMediaItem()) {
-                                                controller.seekToNextMediaItem()
-                                            }
-                                        }
-                                    },
-                                    modifier = Modifier.size(56.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.SkipNext,
-                                        contentDescription = "Next",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(36.dp)
-                                    )
-                                }
-
+                                Icon(Icons.Filled.LockOpen, contentDescription = "Lock", tint = Color.White)
                             }
-                            
-                            // Right alignment
-                            val isPortrait = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
-                            var showToolsStack by remember { mutableStateOf(false) }
 
-                            val RightTools: @Composable () -> Unit = {
-                                IconButton(modifier = Modifier.size(36.dp), onClick = {
+                            // Center alignment: Transport Controls
+                            PlayerTransportControls(
+                                isPlaying = isPlaying,
+                                onPreviousClick = {
+                                    com.example.LogKeeper.log("Previous button clicked", "PlayerScreen")
+                                    mediaController?.let { controller ->
+                                        if (controller.hasPreviousMediaItem()) {
+                                            controller.seekToPreviousMediaItem()
+                                        } else {
+                                            controller.seekTo(0)
+                                        }
+                                    }
+                                },
+                                onPlayPauseClick = {
+                                    com.example.LogKeeper.log("Play/Pause button clicked (currently isPlaying=$isPlaying)", "PlayerScreen")
+                                    mediaController?.let { controller ->
+                                        if (controller.playbackState == androidx.media3.common.Player.STATE_ENDED) {
+                                            controller.seekTo(0)
+                                            controller.prepare()
+                                            controller.play()
+                                            wasPlayingBeforePause = true
+                                        } else if (controller.playbackState == androidx.media3.common.Player.STATE_IDLE) {
+                                            controller.prepare()
+                                            controller.play()
+                                            wasPlayingBeforePause = true
+                                        } else if (controller.isPlaying) {
+                                            controller.pause()
+                                            wasPlayingBeforePause = false
+                                        } else {
+                                            controller.play()
+                                            wasPlayingBeforePause = true
+                                        }
+                                    }
+                                },
+                                onNextClick = {
+                                    com.example.LogKeeper.log("Next button clicked", "PlayerScreen")
+                                    mediaController?.let { controller ->
+                                        if (controller.hasNextMediaItem()) {
+                                            controller.seekToNextMediaItem()
+                                        }
+                                    }
+                                },
+                                onStopClick = {
+                                    com.example.LogKeeper.log("Stop button clicked in main player center controls", "PlayerScreen")
+                                    mediaController?.let { controller ->
+                                        val pos = controller.currentPosition
+                                        val dur = controller.duration
+                                        if (pos > 0L) {
+                                            com.example.data.SettingsManager.getInstance(context).savePlaybackState(decodedUriString, pos, dur, currentMediaTitle)
+                                        }
+                                        controller.pause()
+                                        controller.stop()
+                                        controller.clearMediaItems()
+                                    }
+                                    com.example.service.PlayerManager.releasePlayer()
+                                    try {
+                                        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager
+                                        nm?.cancelAll()
+                                    } catch (e: Exception) {}
+                                    onNavigateBack()
+                                    (context.findActivity() as? androidx.activity.ComponentActivity)?.finish()
+                                },
+                                onInteraction = {
                                     controlsInteractionTrigger = System.currentTimeMillis()
+                                },
+                                modifier = Modifier.align(Alignment.Center)
+                            )
+
+                            // Right alignment: Right Tools (Loop, BgPlay, Resize, Mini, Float)
+                            val isPortrait = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
+                            PlayerRightTools(
+                                repeatMode = repeatMode,
+                                onRepeatModeClick = {
                                     val nextMode = when (repeatMode) {
                                         androidx.media3.common.Player.REPEAT_MODE_OFF -> androidx.media3.common.Player.REPEAT_MODE_ALL
                                         androidx.media3.common.Player.REPEAT_MODE_ALL -> androidx.media3.common.Player.REPEAT_MODE_ONE
@@ -2124,24 +1871,15 @@ fun PlayerScreen(
                                     com.example.LogKeeper.log("Repeat mode toggled from $repeatMode to $nextMode", "PlayerScreen")
                                     repeatMode = nextMode
                                     mediaController?.repeatMode = nextMode
-                                }) {
-                                    Icon(
-                                        modifier = Modifier.size(20.dp),
-                                        imageVector = if (repeatMode == androidx.media3.common.Player.REPEAT_MODE_ONE) androidx.compose.material.icons.Icons.Filled.RepeatOne else androidx.compose.material.icons.Icons.Filled.Repeat,
-                                        contentDescription = "Repeat",
-                                        tint = if (repeatMode != androidx.media3.common.Player.REPEAT_MODE_OFF) androidx.compose.ui.graphics.Color(0xFF2196F3) else androidx.compose.ui.graphics.Color.White
-                                    )
-                                }
-                                IconButton(modifier = Modifier.size(36.dp), onClick = { 
-                                    controlsInteractionTrigger = System.currentTimeMillis()
+                                },
+                                backgroundPlayEnabled = backgroundPlayEnabled,
+                                onBackgroundPlayClick = {
                                     backgroundPlayEnabled = !backgroundPlayEnabled
                                     com.example.LogKeeper.log("Background play toggled -> $backgroundPlayEnabled", "PlayerScreen")
                                     Toast.makeText(context, "Background play " + if (backgroundPlayEnabled) "enabled" else "disabled", Toast.LENGTH_SHORT).show()
-                                }) {
-                                    Icon(modifier = Modifier.size(20.dp), imageVector = Icons.Filled.Headphones, contentDescription = "Background play", tint = if (backgroundPlayEnabled) Color(0xFF2196F3) else Color.White)
-                                }
-                                IconButton(modifier = Modifier.size(36.dp), onClick = {
-                                    controlsInteractionTrigger = System.currentTimeMillis()
+                                },
+                                resizeMode = resizeMode,
+                                onResizeModeClick = {
                                     scale = 1.0f
                                     offsetX = 0f
                                     offsetY = 0f
@@ -2151,16 +1889,8 @@ fun PlayerScreen(
                                         androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> 5
                                         else -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
                                     }
-                                }) {
-                                    val resizeIcon = when (resizeMode) {
-                                        androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT -> androidx.compose.material.icons.Icons.Filled.AspectRatio
-                                        androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL -> androidx.compose.material.icons.Icons.Filled.Fullscreen
-                                        androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> androidx.compose.material.icons.Icons.Filled.Crop
-                                        else -> androidx.compose.material.icons.Icons.Filled.FullscreenExit
-                                    }
-                                    Icon(resizeIcon, modifier = Modifier.size(20.dp), contentDescription = "Aspect Ratio", tint = Color.White)
-                                }
-                                IconButton(modifier = Modifier.size(36.dp), onClick = {
+                                },
+                                onMiniPlayerClick = {
                                     if (android.provider.Settings.canDrawOverlays(context)) {
                                         val overlayIntent = android.content.Intent("com.example.ACTION_WIDGET_COMMAND")
                                         overlayIntent.putExtra("command", "ACTION_MINIPLAYER")
@@ -2174,10 +1904,8 @@ fun PlayerScreen(
                                         intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                                         context.startActivity(intent)
                                     }
-                                }) {
-                                    Icon(modifier = Modifier.size(20.dp), imageVector = Icons.AutoMirrored.Filled.PlaylistPlay, contentDescription = "Mini Player", tint = Color.White)
-                                }
-                                IconButton(modifier = Modifier.size(36.dp), onClick = {
+                                },
+                                onFloatingPlayerClick = {
                                     if (android.provider.Settings.canDrawOverlays(context)) {
                                         com.example.service.PlayerManager.isFloatingVideoActive = true
                                         val overlayIntent = android.content.Intent("com.example.ACTION_WIDGET_COMMAND")
@@ -2192,48 +1920,13 @@ fun PlayerScreen(
                                         intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                                         context.startActivity(intent)
                                     }
-                                }) {
-                                    Icon(modifier = Modifier.size(20.dp), painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_pip), contentDescription = "Floating Player", tint = Color.White)
-                                }
-                            }
-                            
-                            Box(modifier = Modifier.align(Alignment.CenterEnd)) {
-                                if (isPortrait) {
-                                    Box(contentAlignment = Alignment.BottomCenter) {
-                                        Box(
-                                            modifier = Modifier.align(Alignment.TopCenter).layout { measurable, constraints ->
-                                                val placeable = measurable.measure(constraints)
-                                                layout(0, 0) {
-                                                    placeable.place(-placeable.width / 2, -placeable.height - 8.dp.roundToPx())
-                                                }
-                                            }
-                                        ) {
-                                            androidx.compose.animation.AnimatedVisibility(
-                                                visible = showToolsStack,
-                                                enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(expandFrom = Alignment.Bottom),
-                                                exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically(shrinkTowards = Alignment.Bottom)
-                                            ) {
-                                                Column(
-                                                    modifier = Modifier.background(Color.Black.copy(alpha=0.6f), androidx.compose.foundation.shape.RoundedCornerShape(24.dp)),
-                                                    horizontalAlignment = Alignment.CenterHorizontally
-                                                ) {
-                                                    RightTools()
-                                                }
-                                            }
-                                        }
-                                        IconButton(onClick = { 
-                                            controlsInteractionTrigger = System.currentTimeMillis()
-                                            showToolsStack = !showToolsStack 
-                                        }) {
-                                            Icon(if (showToolsStack) Icons.Filled.ExpandMore else Icons.Filled.ExpandLess, contentDescription = "More tools", tint = Color.White)
-                                        }
-                                    }
-                                } else {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        RightTools()
-                                    }
-                                }
-                            }
+                                },
+                                onInteraction = {
+                                    controlsInteractionTrigger = System.currentTimeMillis()
+                                },
+                                isPortrait = isPortrait,
+                                modifier = Modifier.align(Alignment.CenterEnd)
+                            )
                         }
                     }
                 }
@@ -2249,514 +1942,296 @@ fun PlayerScreen(
                 .align(Alignment.CenterEnd)
                 .padding(end = 24.dp)
         ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier
-                    .height(170.dp)
-                    .width(56.dp)
-                    .background(Color.Black.copy(alpha = 0.5f), androidx.compose.foundation.shape.RoundedCornerShape(28.dp))
-                    .padding(vertical = 12.dp)
-                    .pointerInput(Unit) {
-                        detectTapGestures {
-                            brightnessInteractionTime = System.currentTimeMillis()
-                            controlsInteractionTrigger = System.currentTimeMillis()
+            BrightnessHudCapsule(
+                currentBrightness = currentBrightness,
+                onBrightnessChange = { newVal ->
+                    currentBrightness = newVal
+                    brightnessInteractionTime = System.currentTimeMillis()
+                    controlsInteractionTrigger = System.currentTimeMillis()
+                    val window = context.findActivity()?.window
+                    if (window != null) {
+                        val lp = window.attributes
+                        if (kotlin.math.abs(newVal - lp.screenBrightness) >= 0.008f) {
+                            lp.screenBrightness = newVal
+                            window.attributes = lp
                         }
                     }
-            ) {
-                Text(
-                    text = "${(currentBrightness.coerceIn(0f, 1f) * 100).roundToInt()}%",
-                    color = Color.White,
-                    fontSize = 16.sp,
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .width(56.dp)
-                        .pointerInput(Unit) {
-                            detectVerticalDragGestures(
-                                onVerticalDrag = { change, dragAmount ->
-                                    change.consume()
-                                    val dragRatio = -dragAmount / 110.dp.toPx()
-                                    val newVal = (currentBrightness + dragRatio).coerceIn(0.01f, 1f)
-                                    brightnessInteractionTime = System.currentTimeMillis()
-                                    controlsInteractionTrigger = System.currentTimeMillis()
-                                    currentBrightness = newVal
-                                    
-                                    val window = context.findActivity()?.window
-                                    window?.let {
-                                        val lp = it.attributes
-                                        lp.screenBrightness = newVal
-                                        it.attributes = lp
-                                    }
-                                },
-                                onDragEnd = {
-                                    brightnessInteractionTime = System.currentTimeMillis()
-                                    controlsInteractionTrigger = System.currentTimeMillis()
-                                },
-                                onDragCancel = {
-                                    brightnessInteractionTime = System.currentTimeMillis()
-                                    controlsInteractionTrigger = System.currentTimeMillis()
-                                }
-                            )
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .width(4.dp)
-                            .background(Color.DarkGray.copy(alpha = 0.5f), androidx.compose.foundation.shape.RoundedCornerShape(2.dp)),
-                        contentAlignment = Alignment.BottomCenter
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxHeight(currentBrightness.coerceIn(0f, 1f))
-                                .width(4.dp)
-                                .background(Color(0xFF2196F3), androidx.compose.foundation.shape.RoundedCornerShape(2.dp))
-                        )
+                },
+                onDragStateChange = { isDragging ->
+                    isAdjustingBrightness = isDragging
+                    brightnessInteractionTime = System.currentTimeMillis()
+                    controlsInteractionTrigger = System.currentTimeMillis()
+                    if (!isDragging) {
+                        val window = context.findActivity()?.window
+                        if (window != null) {
+                            val lp = window.attributes
+                            lp.screenBrightness = currentBrightness
+                            window.attributes = lp
+                        }
                     }
+                },
+                onTap = {
+                    brightnessInteractionTime = System.currentTimeMillis()
+                    controlsInteractionTrigger = System.currentTimeMillis()
                 }
-                Spacer(modifier = Modifier.height(6.dp))
-                Icon(Icons.Filled.LightMode, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
-            }
+            )
         }
     }
 
     if (showDetailsDialog) {
         val duration = mediaController?.duration ?: 0L
         val durationStr = if (duration > 0) formatTime(duration) else "Unknown"
-        
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { showDetailsDialog = false },
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-            title = { Text("Properties", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold) },
-            text = {
-                Column(modifier = Modifier.heightIn(max = 300.dp).verticalScroll(androidx.compose.foundation.rememberScrollState())) {
-                    Text("Name: $detailsName", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text("Size: $detailsSize", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text("Duration: $durationStr", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text("Date Added: $detailsDate", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("Path: $detailsPath", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
-                }
-            },
-            confirmButton = {
-                androidx.compose.material3.TextButton(onClick = { showDetailsDialog = false }) { Text("OK", color = Color(0xFF2196F3)) }
-            }
+        MediaPropertiesDialog(
+            name = detailsName,
+            size = detailsSize,
+            durationFormatted = durationStr,
+            dateAdded = detailsDate,
+            path = detailsPath,
+            onDismissRequest = { showDetailsDialog = false }
         )
     }
 
     if (showAudioDialog) {
-        CompactPlayerDialog(
-            onDismissRequest = { showAudioDialog = false }
-        ) {
-            Column(modifier = Modifier.padding(4.dp)) {
-                    Text("Select Audio Track", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    
-                    val settings = remember { com.example.data.SettingsManager.getInstance(context) }
-                    if (settings.audioBoosterEnabled) {
-                        Text(
-                            text = "Volume Booster: " + if (boostGainMb == 0) "Off" else "+${boostGainMb / 100}dB",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Slider(
-                            value = boostGainMb.toFloat(),
-                            onValueChange = { newVal ->
-                                val newGain = newVal.toInt()
-                                boostGainMb = newGain
-                                settings.boostGainMb = newGain
-                                com.example.service.PlayerManager.applyAudioBoosterSettings(settings.audioBoosterEnabled, newGain)
-                            },
-                            valueRange = 0f..1500f,
-                            steps = 14
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                    } else {
-                        Text(
-                            text = "Volume Booster is disabled in Player Settings.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                    }
-                    
-                    val currentTracks = mediaController?.currentTracks
-                    val audioGroups = currentTracks?.groups?.filter { it.type == androidx.media3.common.C.TRACK_TYPE_AUDIO } ?: emptyList()
-                    
-                    if (audioGroups.isEmpty()) {
-                        Text("No audio tracks available", style = MaterialTheme.typography.bodyLarge)
-                    } else {
-                        androidx.compose.foundation.lazy.LazyColumn(
-                            modifier = Modifier.heightIn(max = 200.dp)
-                        ) {
-                            items(audioGroups.size) { groupIndex ->
-                                val group = audioGroups[groupIndex]
-                                for (trackIndex in 0 until group.length) {
-                                    val format = group.getTrackFormat(trackIndex)
-                                    val isSelected = group.isSelected
-                                    val title = format.language ?: format.label ?: "Track ${trackIndex + 1}"
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth().clickable {
-                                            val builder = mediaController?.trackSelectionParameters?.buildUpon()
-                                            builder?.setOverrideForType(androidx.media3.common.TrackSelectionOverride(group.mediaTrackGroup, trackIndex))
-                                            builder?.let { mediaController?.trackSelectionParameters = it.build() }
-                                            var totalIdx = 0
-                                            for (g in 0 until groupIndex) {
-                                                totalIdx += audioGroups[g].length
-                                            }
-                                            totalIdx += trackIndex
-                                            settingsManager.saveTrackSelection(decodedUriString, androidx.media3.common.C.TRACK_TYPE_AUDIO, totalIdx)
-                                            showAudioDialog = false
-                                        }.padding(vertical = 12.dp)
-                                    ) {
-                                        Text(title, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, color = if (isSelected) Color(0xFF2196F3) else MaterialTheme.colorScheme.onSurfaceVariant)
-                                    }
-        }
-    }
-                    }
-                    
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth().clickable {
-                            audioPickerLauncher.launch("audio/*")
-                            showAudioDialog = false
-                        }.padding(vertical = 12.dp)
-                    ) {
-                        Icon(Icons.Filled.Add, contentDescription = "Add More", tint = Color(0xFF2196F3))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Add More...", color = Color(0xFF2196F3), fontWeight = FontWeight.Bold)
-                    }
-
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                        androidx.compose.material3.TextButton(onClick = { showAudioDialog = false }) {
-                            Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
+        val settings = remember { com.example.data.SettingsManager.getInstance(context) }
+        AudioTracksDialog(
+            player = mediaController,
+            audioBoosterEnabled = settings.audioBoosterEnabled,
+            boostGainMb = boostGainMb,
+            onBoostGainChange = { newGain ->
+                boostGainMb = newGain
+                settings.boostGainMb = newGain
+                com.example.service.PlayerManager.applyAudioBoosterSettings(settings.audioBoosterEnabled, newGain)
+            },
+            onTrackSelected = { groupIndex, trackIndex, totalIdx ->
+                val currentTracks = mediaController?.currentTracks
+                val audioGroups = currentTracks?.groups?.filter { it.type == androidx.media3.common.C.TRACK_TYPE_AUDIO } ?: emptyList()
+                if (groupIndex < audioGroups.size) {
+                    val group = audioGroups[groupIndex]
+                    val builder = mediaController?.trackSelectionParameters?.buildUpon()
+                    builder?.setOverrideForType(androidx.media3.common.TrackSelectionOverride(group.mediaTrackGroup, trackIndex))
+                    builder?.let { mediaController?.trackSelectionParameters = it.build() }
+                    settingsManager.saveTrackSelection(decodedUriString, androidx.media3.common.C.TRACK_TYPE_AUDIO, totalIdx)
                 }
-            }
-        }
+                showAudioDialog = false
+            },
+            onAddAudioFile = {
+                audioPickerLauncher.launch("audio/*")
+                showAudioDialog = false
+            },
+            onDismissRequest = { showAudioDialog = false }
+        )
     }
 
     if (showSubtitleDialog) {
-        CompactPlayerDialog(
+        SubtitleTracksDialog(
+            player = mediaController,
+            subtitleDelay = subtitleDelay,
+            onSubtitleDelayChange = { subtitleDelay = it },
+            subtitleSize = subtitleSize,
+            onSubtitleSizeChange = { subtitleSize = it },
+            subtitleColor = subtitleColor,
+            onSubtitleColorChange = { subtitleColor = it },
+            onTrackSelected = { groupIndex, trackIndex, totalIdx ->
+                val currentTracks = mediaController?.currentTracks
+                val textGroups = currentTracks?.groups?.filter { it.type == androidx.media3.common.C.TRACK_TYPE_TEXT } ?: emptyList()
+                if (groupIndex < textGroups.size) {
+                    val group = textGroups[groupIndex]
+                    val builder = mediaController?.trackSelectionParameters?.buildUpon()
+                    builder?.setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, false)
+                    builder?.setOverrideForType(androidx.media3.common.TrackSelectionOverride(group.mediaTrackGroup, trackIndex))
+                    builder?.let { mediaController?.trackSelectionParameters = it.build() }
+                    settingsManager.saveTrackSelection(decodedUriString, androidx.media3.common.C.TRACK_TYPE_TEXT, totalIdx)
+                }
+                showSubtitleDialog = false
+            },
+            onDisableSubtitles = {
+                val builder = mediaController?.trackSelectionParameters?.buildUpon()
+                builder?.setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, true)
+                builder?.clearOverridesOfType(androidx.media3.common.C.TRACK_TYPE_TEXT)
+                builder?.let { mediaController?.trackSelectionParameters = it.build() }
+                settingsManager.saveTrackSelection(decodedUriString, androidx.media3.common.C.TRACK_TYPE_TEXT, -1)
+                showSubtitleDialog = false
+            },
+            onAddSubtitleFile = {
+                subtitlePickerLauncher.launch("application/octet-stream")
+                showSubtitleDialog = false
+            },
             onDismissRequest = { showSubtitleDialog = false }
-        ) {
-            var selectedTab by remember { mutableStateOf(0) }
-            Column(modifier = Modifier.padding(8.dp).fillMaxWidth()) {
-                androidx.compose.material3.TabRow(selectedTabIndex = selectedTab) {
-                    androidx.compose.material3.Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("Tracks") })
-                    androidx.compose.material3.Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("Settings") })
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                if (selectedTab == 0) {
-                    val currentTracks = mediaController?.currentTracks
-                    val textGroups = currentTracks?.groups?.filter { it.type == androidx.media3.common.C.TRACK_TYPE_TEXT } ?: emptyList()
-                    val trackSelectionParameters = mediaController?.trackSelectionParameters
-                    val isTextDisabled = trackSelectionParameters?.disabledTrackTypes?.contains(androidx.media3.common.C.TRACK_TYPE_TEXT) ?: false
-
-                    if (textGroups.isEmpty()) {
-                        Text("No subtitles available", style = MaterialTheme.typography.bodyLarge)
-                    } else {
-                        androidx.compose.foundation.lazy.LazyColumn(modifier = Modifier.heightIn(max = 200.dp)) {
-                            item {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().clickable {
-                                        val builder = mediaController?.trackSelectionParameters?.buildUpon()
-                                        builder?.setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, true)
-                                        builder?.clearOverridesOfType(androidx.media3.common.C.TRACK_TYPE_TEXT)
-                                        builder?.let { mediaController?.trackSelectionParameters = it.build() }
-                                        settingsManager.saveTrackSelection(decodedUriString, androidx.media3.common.C.TRACK_TYPE_TEXT, -1)
-                                        showSubtitleDialog = false
-                                    }.padding(vertical = 12.dp)
-                                ) {
-                                    Text("Off", fontWeight = if (isTextDisabled) FontWeight.Bold else FontWeight.Normal, color = if (isTextDisabled) Color(0xFF2196F3) else MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                            }
-                            
-                            items(textGroups.size) { groupIndex ->
-                                val group = textGroups[groupIndex]
-                                for (trackIndex in 0 until group.length) {
-                                    val format = group.getTrackFormat(trackIndex)
-                                    val isSelected = !isTextDisabled && group.isSelected
-                                    val title = format.language ?: format.label ?: "Track ${trackIndex + 1}"
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth().clickable {
-                                            val builder = mediaController?.trackSelectionParameters?.buildUpon()
-                                            builder?.setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, false)
-                                            builder?.setOverrideForType(androidx.media3.common.TrackSelectionOverride(group.mediaTrackGroup, trackIndex))
-                                            builder?.let { mediaController?.trackSelectionParameters = it.build() }
-                                            var totalIdx = 0
-                                            for (g in 0 until groupIndex) {
-                                                totalIdx += textGroups[g].length
-                                            }
-                                            totalIdx += trackIndex
-                                            settingsManager.saveTrackSelection(decodedUriString, androidx.media3.common.C.TRACK_TYPE_TEXT, totalIdx)
-                                            showSubtitleDialog = false
-                                        }.padding(vertical = 12.dp)
-                                    ) {
-                                        Text(title, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, color = if (isSelected) Color(0xFF2196F3) else MaterialTheme.colorScheme.onSurfaceVariant)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth().clickable {
-                            subtitlePickerLauncher.launch("application/octet-stream")
-                            showSubtitleDialog = false
-                        }.padding(vertical = 12.dp)
-                    ) {
-                        Icon(Icons.Filled.Add, contentDescription = "Add More", tint = Color(0xFF2196F3))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Add Subtitle File...", color = Color(0xFF2196F3), fontWeight = FontWeight.Bold)
-                    }
-                } else {
-                    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
-                        Text("Subtitle Delay (ms): ${subtitleDelay.toInt()}", fontWeight = FontWeight.Bold)
-                        androidx.compose.material3.Slider(
-                            value = subtitleDelay,
-                            onValueChange = { subtitleDelay = it },
-                            valueRange = -5000f..5000f,
-                            steps = 100
-                        )
-                        Text("Delay is not natively supported by this ExoPlayer version without reloading.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-                        
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
-                        Text("Font Size: ${subtitleSize.toInt()}sp", fontWeight = FontWeight.Bold)
-                        androidx.compose.material3.Slider(
-                            value = subtitleSize,
-                            onValueChange = { subtitleSize = it },
-                            valueRange = 8f..48f
-                        )
-                        
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
-                        Text("Subtitle Color", fontWeight = FontWeight.Bold)
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                            val colors = listOf(Color.White, Color.Yellow, Color.Cyan, Color.Green, Color.Magenta)
-                            colors.forEach { c ->
-                                Box(
-                                    modifier = Modifier
-                                        .size(32.dp)
-                                        .clip(CircleShape)
-                                        .background(c)
-                                        .border(2.dp, if (subtitleColor == c) Color(0xFF2196F3) else Color.Transparent, CircleShape)
-                                        .clickable { subtitleColor = c }
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(12.dp))
-                    }
-                }
-            }
-        }
+        )
     }
 
     if (showSpeedDialog) {
-        CompactPlayerDialog(
+        SpeedControlsSheet(
+            playbackSpeed = playbackSpeed,
+            onPlaybackSpeedChange = { newSpeed ->
+                playbackSpeed = newSpeed
+                mediaController?.setPlaybackSpeed(newSpeed)
+                settingsManager.savePlaybackSpeed(decodedUriString, newSpeed)
+            },
+            skipSilence = skipSilence,
+            onSkipSilenceChange = { newSkip ->
+                skipSilence = newSkip
+                mediaController?.skipSilenceEnabled = newSkip
+            },
             onDismissRequest = { showSpeedDialog = false }
-        ) {
-            Column(
-                modifier = Modifier.padding(8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                    Text("Select playback speed", style = MaterialTheme.typography.titleLarge, modifier = Modifier.fillMaxWidth(), fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(6.dp))
-                    
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        IconButton(
-                            onClick = { 
-                                val newSpeed = maxOf(0.1f, playbackSpeed - 0.1f)
-                                playbackSpeed = Math.round(newSpeed * 10.0f) / 10.0f
-                                mediaController?.setPlaybackSpeed(playbackSpeed)
-                                settingsManager.savePlaybackSpeed(decodedUriString, playbackSpeed)
-                            },
-                            modifier = Modifier.background(Color(0xFF2196F3).copy(alpha = 0.2f), CircleShape)
-                        ) {
-                            Icon(Icons.Filled.Remove, contentDescription = "Decrease")
-                        }
-                        
-                        Text(String.format("%.1f", playbackSpeed), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        
-                        IconButton(
-                            onClick = { 
-                                val newSpeed = minOf(4.0f, playbackSpeed + 0.1f)
-                                playbackSpeed = Math.round(newSpeed * 10.0f) / 10.0f
-                                mediaController?.setPlaybackSpeed(playbackSpeed)
-                                settingsManager.savePlaybackSpeed(decodedUriString, playbackSpeed)
-                            },
-                            modifier = Modifier.background(Color(0xFF2196F3).copy(alpha = 0.2f), CircleShape)
-                        ) {
-                            Icon(Icons.Filled.Add, contentDescription = "Increase")
-                        }
-                    }
-                    
-                    Spacer(modifier = Modifier.height(4.dp))
-                    
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        SpeedSliderRow(
-                            playbackSpeed = playbackSpeed,
-                            onSpeedChange = { newSpeed ->
-                                playbackSpeed = newSpeed
-                                mediaController?.setPlaybackSpeed(newSpeed)
-                                settingsManager.savePlaybackSpeed(decodedUriString, newSpeed)
-                            },
-                            modifier = Modifier.weight(1f)
-                        )
-                        IconButton(onClick = { 
-                            playbackSpeed = 1.0f
-                            mediaController?.setPlaybackSpeed(playbackSpeed)
-                            settingsManager.savePlaybackSpeed(decodedUriString, playbackSpeed)
-                        }) {
-                            Icon(Icons.Filled.Restore, contentDescription = "Reset")
-                        }
-                    }
-                    
-                    Spacer(modifier = Modifier.height(4.dp))
-                    
-                    Row(
-                        modifier = Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
-                    ) {
-                        val predefinedSpeeds = listOf(0.5f, 1.0f, 1.2f, 1.5f, 2.0f, 2.5f, 3.0f, 4.0f)
-                        predefinedSpeeds.forEach { speed ->
-                            Box(
-                                modifier = Modifier
-                                    .clip(CircleShape)
-                                    .clickable {
-                                        playbackSpeed = speed
-                                        mediaController?.setPlaybackSpeed(playbackSpeed)
-                                        settingsManager.savePlaybackSpeed(decodedUriString, playbackSpeed)
-                                    }
-                                    .border(1.dp, if (playbackSpeed == speed) Color(0xFF2196F3) else MaterialTheme.colorScheme.outline, CircleShape)
-                                    .background(if (playbackSpeed == speed) Color(0xFF2196F3).copy(alpha = 0.2f) else Color.Transparent)
-                                    .padding(horizontal = 8.dp, vertical = 6.dp)
-                            ) {
-                                Text("${speed}x", style = MaterialTheme.typography.labelMedium)
-                            }
-                        }
-                    }
-                    
-                    Spacer(modifier = Modifier.height(6.dp))
-                    
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Skip silence", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Switch(
-                            checked = skipSilence,
-                            onCheckedChange = { 
-                                skipSilence = it
-                                mediaController?.skipSilenceEnabled = skipSilence
-                            }
-                        )
-                    }
-        }
-    }
+        )
     }
 
     if (showPlayerSettingsDialog) {
-        androidx.compose.ui.window.Dialog(
-            onDismissRequest = { showPlayerSettingsDialog = false },
-            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
-        ) {
-            com.example.ui.screens.PlayerSettingsScreen(onNavigateBack = { showPlayerSettingsDialog = false })
-        }
+        PlayerSettingsDialog(onDismissRequest = { showPlayerSettingsDialog = false })
     }
 
     if (showSleepTimerDialog) {
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { showSleepTimerDialog = false },
-            title = { Text("Sleep Timer") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    val options = listOf(
-                        "Off" to null,
-                        "15 minutes" to 15 * 60 * 1000L,
-                        "30 minutes" to 30 * 60 * 1000L,
-                        "60 minutes" to 60 * 60 * 1000L,
-                        "End of video" to (mediaController?.duration?.let { dur -> if (dur > 0) (dur - (mediaController?.currentPosition ?: 0)) else null })
-                    )
-                    options.forEach { (label, duration) ->
-                        androidx.compose.material3.TextButton(
-                            onClick = {
-                                if (duration == null) {
-                                    sleepTimerEndTime = null
-                                } else {
-                                    sleepTimerEndTime = System.currentTimeMillis() + duration
-                                }
-                                showSleepTimerDialog = false
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(label, color = MaterialTheme.colorScheme.onSurface)
-                        }
-                    }
+        SleepTimerDialog(
+            duration = mediaController?.duration ?: 0L,
+            currentPosition = mediaController?.currentPosition ?: 0L,
+            onSetTimerMs = { durationMs ->
+                if (durationMs == null) {
+                    sleepTimerEndTime = null
+                } else {
+                    sleepTimerEndTime = System.currentTimeMillis() + durationMs
                 }
             },
-            confirmButton = {
-                androidx.compose.material3.TextButton(onClick = { showSleepTimerDialog = false }) { Text("Close", color = Color(0xFF2196F3)) }
-            }
+            onDismissRequest = { showSleepTimerDialog = false }
         )
     }
 }
 
-@kotlin.OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
-@Composable
-fun SpeedSliderRow(
-    playbackSpeed: Float,
-    onSpeedChange: (Float) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Slider(
-        value = playbackSpeed,
-        onValueChange = { 
-            onSpeedChange(Math.round(it * 10.0f) / 10.0f)
-        },
-        valueRange = 0.1f..4.0f,
-        thumb = {
-            Box(
-                modifier = Modifier
-                    .size(16.dp)
-                    .background(Color(0xFF2196F3), CircleShape)
-            )
-        },
-        track = { sliderState ->
-            SliderDefaults.Track(
-                sliderState = sliderState,
-                colors = SliderDefaults.colors(
-                    activeTrackColor = Color(0xFF2196F3),
-                    inactiveTrackColor = MaterialTheme.colorScheme.outlineVariant
-                ),
-                drawStopIndicator = null,
-                thumbTrackGapSize = 0.dp,
-                trackInsideCornerSize = 0.dp,
-                modifier = Modifier.height(4.dp)
-            )
-        },
-        modifier = modifier
-    )
+private suspend fun resolveSiblingPlaylistItems(
+    context: android.content.Context,
+    videoUri: android.net.Uri,
+    currentMediaId: String
+): Pair<List<androidx.media3.common.MediaItem>, Int> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+    val result = mutableListOf<androidx.media3.common.MediaItem>()
+    var currentIndex = -1
+
+    try {
+        if (videoUri.scheme == "file" || (videoUri.scheme == null && videoUri.path?.startsWith("/") == true)) {
+            val file = java.io.File(videoUri.path ?: "")
+            val parentDir = file.parentFile
+            if (parentDir != null && parentDir.isDirectory) {
+                val files = parentDir.listFiles()?.filter { f ->
+                    f.isFile && f.extension.lowercase(java.util.Locale.ROOT) in com.example.data.COMMON_VIDEO_EXTENSIONS
+                }?.sortedBy { it.name.lowercase(java.util.Locale.ROOT) } ?: emptyList()
+
+                for ((idx, f) in files.withIndex()) {
+                    val u = android.net.Uri.fromFile(f)
+                    val idStr = u.toString()
+                    if (f.absolutePath == file.absolutePath || idStr == currentMediaId) {
+                        currentIndex = idx
+                    }
+                    val meta = androidx.media3.common.MediaMetadata.Builder()
+                        .setTitle(f.nameWithoutExtension)
+                        .setDisplayTitle(f.nameWithoutExtension)
+                        .build()
+                    result.add(
+                        androidx.media3.common.MediaItem.Builder()
+                            .setUri(u)
+                            .setMediaId(idStr)
+                            .setMediaMetadata(meta)
+                            .build()
+                    )
+                }
+            }
+        } else if (videoUri.scheme == "content") {
+            var bucketId: String? = null
+            try {
+                context.contentResolver.query(
+                    videoUri,
+                    arrayOf(
+                        android.provider.MediaStore.Video.Media._ID,
+                        android.provider.MediaStore.Video.Media.BUCKET_ID,
+                        android.provider.MediaStore.Video.Media.DISPLAY_NAME
+                    ),
+                    null,
+                    null,
+                    null
+                )?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        val bIdx = cursor.getColumnIndex(android.provider.MediaStore.Video.Media.BUCKET_ID)
+                        if (bIdx != -1) bucketId = cursor.getString(bIdx)
+                    }
+                }
+            } catch (e: Exception) {}
+
+            if (!bucketId.isNullOrBlank()) {
+                val projection = arrayOf(
+                    android.provider.MediaStore.Video.Media._ID,
+                    android.provider.MediaStore.Video.Media.DISPLAY_NAME
+                )
+                val selection = "${android.provider.MediaStore.Video.Media.BUCKET_ID} = ?"
+                val selectionArgs = arrayOf(bucketId)
+                val sortOrder = "${android.provider.MediaStore.Video.Media.DISPLAY_NAME} ASC"
+
+                context.contentResolver.query(
+                    android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                    projection,
+                    selection,
+                    selectionArgs,
+                    sortOrder
+                )?.use { cursor ->
+                    val idCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.Video.Media._ID)
+                    val nameCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.Video.Media.DISPLAY_NAME)
+                    var indexCounter = 0
+                    while (cursor.moveToNext()) {
+                        val id = cursor.getLong(idCol)
+                        val name = cursor.getString(nameCol) ?: "Video"
+                        val contentUri = android.content.ContentUris.withAppendedId(
+                            android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                            id
+                        )
+                        val idStr = contentUri.toString()
+                        if (contentUri == videoUri || idStr == currentMediaId) {
+                            currentIndex = indexCounter
+                        }
+                        val title = name.substringBeforeLast('.')
+                        val meta = androidx.media3.common.MediaMetadata.Builder()
+                            .setTitle(title)
+                            .setDisplayTitle(title)
+                            .build()
+                        result.add(
+                            androidx.media3.common.MediaItem.Builder()
+                                .setUri(contentUri)
+                                .setMediaId(idStr)
+                                .setMediaMetadata(meta)
+                                .build()
+                        )
+                        indexCounter++
+                    }
+                }
+            } else {
+                // If not in MediaStore BUCKET_ID, fallback to in-memory cached folders ONLY (never full disk scan)
+                val repository = com.example.data.MediaRepository(context.applicationContext as android.app.Application)
+                val cachedFolders = repository.getCachedMediaFolders()
+                if (cachedFolders != null) {
+                    for (folder in cachedFolders) {
+                        val idx = folder.mediaItems.indexOfFirst {
+                            it.uri == videoUri || it.uri.toString() == currentMediaId
+                        }
+                        if (idx != -1) {
+                            currentIndex = idx
+                            result.addAll(folder.mediaItems.map { item ->
+                                val meta = androidx.media3.common.MediaMetadata.Builder()
+                                    .setTitle(item.name)
+                                    .setDisplayTitle(item.name)
+                                    .build()
+                                androidx.media3.common.MediaItem.Builder()
+                                    .setUri(item.uri)
+                                    .setMediaId(item.uri.toString())
+                                    .setMediaMetadata(meta)
+                                    .build()
+                            })
+                            break
+                        }
+                    }
+                }
+            }
+        }
+    } catch (e: Exception) {
+        com.example.LogKeeper.log("PlayerScreen: Failed to resolve sibling playlist items: ${e.message}", "PlayerScreen")
+    }
+
+    Pair(result, currentIndex)
 }
 
 

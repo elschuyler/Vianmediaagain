@@ -130,7 +130,8 @@ class PlayerActivity : ComponentActivity() {
         val player = PlayerManager.exoPlayer
         if (player != null && player.currentMediaItem?.mediaId != decodedStr) {
             val fastName = getFastImmediateName(uri)
-            val mediaItem = androidx.media3.common.MediaItem.Builder()
+            val siblingSubs = com.example.service.SubtitleAutoDetector.detectSiblingSubtitles(applicationContext, uri)
+            val mediaItemBuilder = androidx.media3.common.MediaItem.Builder()
                 .setUri(uri)
                 .setMediaId(decodedStr)
                 .setMediaMetadata(
@@ -139,7 +140,10 @@ class PlayerActivity : ComponentActivity() {
                         .setDisplayTitle(fastName)
                         .build()
                 )
-                .build()
+            if (siblingSubs.isNotEmpty()) {
+                mediaItemBuilder.setSubtitleConfigurations(siblingSubs)
+            }
+            val mediaItem = mediaItemBuilder.build()
             val settings = com.example.data.SettingsManager.getInstance(applicationContext)
             val lastPos = settings.getPlaybackPosition(decodedStr, fastName)
             val startPos = if (lastPos > 0 && !settings.isFinished(decodedStr, fastName)) lastPos else 0L
@@ -149,21 +153,31 @@ class PlayerActivity : ComponentActivity() {
             PlayerManager.isImplicitFolderQueue = true
             settings.markAsOpened(decodedStr, fastName)
 
-            // Resolve full display name asynchronously on IO dispatcher without delaying video decode
-            if (uri.scheme == "content") {
-                lifecycleScope.launch(Dispatchers.IO) {
-                    val resolvedName = queryDisplayName(uri)
-                    if (!resolvedName.isNullOrBlank() && resolvedName != fastName) {
-                        withContext(Dispatchers.Main) {
-                            val currentPlayer = PlayerManager.exoPlayer
-                            if (currentPlayer != null && currentPlayer.currentMediaItem?.mediaId == decodedStr) {
-                                val updatedMeta = currentPlayer.mediaMetadata.buildUpon()
-                                    .setTitle(resolvedName)
-                                    .setDisplayTitle(resolvedName)
-                                    .build()
-                                val updatedItem = currentPlayer.currentMediaItem?.buildUpon()?.setMediaMetadata(updatedMeta)?.build()
-                                if (updatedItem != null) {
-                                    currentPlayer.replaceMediaItem(currentPlayer.currentMediaItemIndex, updatedItem)
+            // Resolve full display name and any deferred subtitles asynchronously on IO dispatcher
+            lifecycleScope.launch(Dispatchers.IO) {
+                val resolvedName = if (uri.scheme == "content") queryDisplayName(uri) else null
+                val asyncSubs = if (siblingSubs.isEmpty()) {
+                    com.example.service.SubtitleAutoDetector.detectSiblingSubtitles(applicationContext, uri)
+                } else emptyList()
+
+                if ((!resolvedName.isNullOrBlank() && resolvedName != fastName) || asyncSubs.isNotEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        val currentPlayer = PlayerManager.exoPlayer
+                        if (currentPlayer != null && currentPlayer.currentMediaItem?.mediaId == decodedStr) {
+                            val activeItem = currentPlayer.currentMediaItem
+                            val updatedMeta = currentPlayer.mediaMetadata.buildUpon()
+                            if (!resolvedName.isNullOrBlank()) {
+                                updatedMeta.setTitle(resolvedName).setDisplayTitle(resolvedName)
+                            }
+                            val updatedItemBuilder = activeItem?.buildUpon()?.setMediaMetadata(updatedMeta.build())
+                            if (asyncSubs.isNotEmpty()) {
+                                val existingConfigs = activeItem?.localConfiguration?.subtitleConfigurations ?: emptyList()
+                                updatedItemBuilder?.setSubtitleConfigurations(existingConfigs + asyncSubs)
+                            }
+                            val updatedItem = updatedItemBuilder?.build()
+                            if (updatedItem != null) {
+                                currentPlayer.replaceMediaItem(currentPlayer.currentMediaItemIndex, updatedItem)
+                                if (!resolvedName.isNullOrBlank()) {
                                     settings.markAsOpened(decodedStr, resolvedName)
                                 }
                             }

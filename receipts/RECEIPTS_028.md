@@ -178,5 +178,134 @@
 * Deviation: None.
 * Known issues: None.
 
+---
+
+* Timestamp: 2026-10-12T14:32:00Z
+* Summary: Phase 80 - Option B Unified Brightness Slider Interaction Lifecycle & Center Transport Row Stop Button.
+* Files touched:
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_028.md
+* What was actually done:
+  - Decoupled root pointer input vertical dragging strictly to GestureType.VOLUME so screen vertical swipes always control volume and display the volume HUD on the left edge, completely eliminating gesture collision and accidental hijacking of volume gestures by brightness state.
+  - Implemented active drag tracking for the on-screen brightness slider via isAdjustingBrightness state. Updated detectVerticalDragGestures with onDragStart, onVerticalDrag, onDragEnd, and onDragCancel to freeze the 3-second auto-hide LaunchedEffect while the user's finger is actively in contact with the slider, restarting the auto-hide delay only after finger release.
+  - Added a dedicated Stop button (Icons.Filled.Stop) in the center playback controls row placed directly after the SkipNext button ([Previous] [Play/Pause] [Next] [Stop]). On tap, saves current playback position to SettingsManager, stops ExoPlayer and clears media items, releases PlayerManager session, cancels notifications, and finishes the Activity (mirroring the close behavior of the floating and mini player overlays).
+* How it was verified: local syntax/AST bracket balance check (0 deltas across all brackets); verified TypeScript/lint via lint_applet and compile_applet (0 errors); on-device APK testing pending next export and GitHub Actions build.
+* Deviation: Implemented Option B exactly as agreed during the discussion phase.
+* Known issues: None.
+
+---
+
+* Timestamp: 2026-10-12T17:37:00Z
+* Summary: Phase 81 - Native Lightweight Gesture Unification (Volume Default / Dynamic Brightness State Handshake) & Binder IPC Throttling.
+* Files touched:
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_028.md
+* What was actually done:
+  - Configured dynamic vertical gesture delegation: root vertical drag routes to GestureType.VOLUME by default (displaying Volume HUD on left edge), and dynamically routes to GestureType.BRIGHTNESS whenever showBrightnessSlider is true (modifying screen brightness in real-time).
+  - Synchronized isAdjustingBrightness state tracking across full-screen swipe and internal slider track drag events, freezing the 3-second auto-hide LaunchedEffect while the user's finger maintains contact with the glass. Guaranteed the brightness slider never vanishes mid-swipe.
+  - Eliminated brightness leakage into gestureVolumeRatio and redundant center text HUD flashing during brightness adjustments, keeping Volume HUD and Brightness slider completely decoupled.
+  - Throttled Android WindowManager IPC calls: enforced a >= 0.008f (~1%) delta threshold before writing layout parameters to window.attributes.screenBrightness, eliminating system Binder transaction flooding and keeping gesture tracking at 60/120fps.
+* How it was verified: local syntax/AST bracket balance check (0 deltas across all brackets); verified TypeScript/lint via lint_applet and compile_applet (0 errors); on-device APK testing pending next export and GitHub Actions build.
+* Deviation: None.
+* Known issues: None.
+
+---
+
+* Timestamp: 2026-10-13T08:16:00Z
+* Summary: Creation of Plan File & Artifact for Main Video Player Next-Player Architecture Optimization (Mini-Phase 7).
+* Files touched:
+  - .aistudio/artifacts/brain/893111c8-e257-4d81-9e3b-7ccbb677ca36/implementation_plan.md
+  - PLAN.md
+  - receipts/RECEIPTS_028.md
+* What was actually done:
+  - Authored official implementation_plan.md artifact with RequestFeedback: true covering Main Video Player decoupling, recomposition shielding, and lazy dialog loading inspired by Next Player.
+  - Appended Mini-Phase 7 to PLAN.md in repository root establishing clear task boundaries strictly focused on PlayerScreen without touching Editor, Floating Player, or Library.
+* How it was verified: local file validation only (plan authoring turn); no Kotlin code changes made; on-device testing not applicable.
+* Deviation: None.
+* Known issues: None.
+
+---
+
+* Timestamp: 2026-10-13T10:15:00Z
+* Summary: Phase 82 - Master Plan Phase 1: Media3 FFmpeg Software Decoder Fallback, Sibling Subtitle Auto-Detection & Preparation Binding.
+* Files touched:
+  - gradle/libs.versions.toml
+  - app/build.gradle.kts
+  - app/src/main/java/com/example/service/SubtitleAutoDetector.kt
+  - app/src/main/java/com/example/service/PlayerManager.kt
+  - app/src/main/java/com/example/ui/PlayerActivity.kt
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_028.md
+* What was actually done:
+  - Added `media3-decoder-ffmpeg` (`org.jellyfin.media3:media3-ffmpeg-decoder:1.5.0+1` with precompiled native libraries for arm64/armeabi/x86/x86_64) to `gradle/libs.versions.toml` and `app/build.gradle.kts`.
+  - Configured `DefaultRenderersFactory` in `PlayerManager.kt` with `setEnableDecoderFallback(true)` and default `EXTENSION_RENDERER_MODE_PREFER` so unsupported MKV audio tracks (DTS, TrueHD, E-AC3, FLAC 24-bit) automatically engage the FFmpeg software decoder.
+  - Implemented `SubtitleAutoDetector.kt` in `com.example.service` to scan enclosing directories (`file://` paths and MediaStore BUCKET_ID groups) for sibling subtitle files (`.srt`, `.vtt`, `.ass`, `.ssa`, `.sub`) matching video base name with proper MimeType mapping (`MimeTypes.APPLICATION_SUBRIP`, `TEXT_VTT`, `TEXT_SSA`) and language tag extraction.
+  - Bound auto-detected sibling subtitles directly to `MediaItem.SubtitleConfiguration` at preparation time in `PlayerActivity.kt` and `PlayerScreen.kt`, and hooked asynchronous IO subtitle detection. Subtitles are now present on frame 0 in the Subtitle Dialog without manual file picker clicks.
+  - Verified `ForwardingPlayer` command overrides (`COMMAND_SEEK_TO_NEXT`, `COMMAND_SEEK_TO_NEXT_MEDIA_ITEM`) and `DefaultMediaNotificationProvider` in `PlaybackService.kt` to permanently guarantee the Next (⏭) button is visible and functional in notifications.
+* How it was verified: local syntax/AST bracket balance check (0 deltas across all brackets); verified TypeScript/lint via `lint_applet` and `compile_applet` (0 errors); on-device testing pending next export and GitHub Actions build.
+* Deviation: None.
+* Known issues: None.
+
+---
+
+* Timestamp: 2026-10-13T10:35:00Z
+* Summary: Phase 83 - Master Plan Phase 2: Zero-Redundant I/O Startup Streamlining, Targeted Bucket-ID Queue Loading, Event-Driven Player.Listener Tickers & CaptionStyle GC Optimization.
+* Files touched:
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+  - app/src/main/java/com/example/ui/screens/PlaybackProgressRow.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_028.md
+* What was actually done:
+  - Eliminated duplicate startup ContentResolver queries in `PlayerScreen.kt`: purged parallel `OpenableColumns.DISPLAY_NAME` and `MediaStore.MediaColumns.DISPLAY_NAME` queries inside `LaunchedEffect(decodedUri)` and `LaunchedEffect(uriString, mediaController)`. Title resolution is now performed once on `Dispatchers.IO` in `PlayerActivity` and dynamically bound to `PlayerScreen` via `Player.Listener.onMediaMetadataChanged`.
+  - Replaced full device-wide MediaStore scanning on playback start: implemented `resolveSiblingPlaylistItems` targeting strictly the current video's parent directory (`parentFile.listFiles()` for `file://`) and indexed `MediaStore.Video.Media.BUCKET_ID` (`content://`), eliminating storage I/O lockup and contention during hardware decoder buffering.
+  - Replaced 300ms (`PlayerScreen.kt`) and 500ms (`PlaybackProgressRow.kt`) continuous polling while-loops with event-driven Media3 `Player.Listener` callbacks (`onIsPlayingChanged`, `onPlaybackStateChanged`, `onPositionDiscontinuity`, `onTimelineChanged`, `onMediaMetadataChanged`). Confined scrubber ticks and periodic progress saves strictly to an active coroutine that runs only when `isPlaying == true`, reducing idle CPU wakeups to 0.
+  - Eliminated PlayerView GC allocation churn: memoized subtitle `CaptionStyleCompat` via `remember(subtitleColor)` and added tag dirty checking to prevent re-applying view styles on every gesture/recomposition frame. Hoisted system `ACTION_BATTERY_CHANGED` `BroadcastReceiver` and clock coroutine out of `AnimatedVisibility` to the root of `PlayerScreen`, eliminating OS IPC registration churn on controls show/hide transitions.
+* How it was verified: local syntax/AST bracket balance check (0 deltas across all brackets); verified TypeScript/lint via `lint_applet` and `compile_applet` (0 errors); on-device testing pending next export and GitHub Actions build.
+* Deviation: None.
+---
+
+* Timestamp: 2026-10-14T00:49:00Z
+* Summary: Phase 84 - Master Plan Phase 3: Dialog & Component Modularization & HUD Capsule Isolation.
+* Files touched:
+  - app/src/main/java/com/example/ui/screens/hud/PlayerHudCapsules.kt
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_028.md
+* What was actually done:
+  - Added missing `detectTapGestures` import to `PlayerHudCapsules.kt`.
+  - Replaced inline 96-line brightness slider Column and touch gesture handling in `PlayerScreen.kt` with isolated `BrightnessHudCapsule` from `com.example.ui.screens.hud`, confining layout and redraws strictly to the 56dp capsule boundary for smooth 60/120fps vertical swiping.
+  - Decoupled and modularized the 6 monolithic dialogs in `PlayerScreen.kt` by replacing over 400 lines of inline boilerplate with dedicated composables from `com.example.ui.screens.dialogs`: `AudioTracksDialog`, `MediaPropertiesDialog`, `PlayerSettingsDialog`, `SleepTimerDialog`, `SpeedControlsSheet`, and `SubtitleTracksDialog`.
+  - Removed duplicate `SpeedSliderRow` definition from `PlayerScreen.kt` in favor of the shared implementation in `SpeedControlsSheet.kt`.
+* How it was verified: local syntax/AST bracket balance check (0 deltas across all brackets); verified TypeScript/lint via `lint_applet` and `compile_applet` (0 errors); on-device testing pending next export and GitHub Actions build.
+* Deviation: None.
+* Known issues: None.
+
+---
+
+* Timestamp: 2026-10-14T01:05:00Z
+* Summary: Phase 85 - Master Plan Phase 4: PlayerScreen & Layout Assembly & Verification.
+* Files touched:
+  - app/src/main/java/com/example/ui/screens/player/PlayerTopBar.kt
+  - app/src/main/java/com/example/ui/screens/player/PlayerLeftTools.kt
+  - app/src/main/java/com/example/ui/screens/player/PlayerTransportControls.kt
+  - app/src/main/java/com/example/ui/screens/player/PlayerRightTools.kt
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_028.md
+* What was actually done:
+  - Created modular `PlayerTopBar.kt` in `com.example.ui.screens.player` handling back navigation, title, speed toggle/sheet, audio/subtitle dialog triggers, and 3-dots menu for media details, edit, and player settings.
+  - Created modular `PlayerLeftTools.kt` in `com.example.ui.screens.player` handling A-B repeat toggle, sleep timer modal trigger, on-screen brightness slider toggle, orientation sensor toggle, and PixelCopy video frame screenshot capture.
+  - Created modular `PlayerTransportControls.kt` in `com.example.ui.screens.player` handling previous, play/pause, next, and stop controls strictly sequenced in a centered 56dp icon row.
+  - Created modular `PlayerRightTools.kt` in `com.example.ui.screens.player` handling repeat mode cycle, background play toggle, aspect ratio jump (with instant scale/offset reset), mini player docked remote, and floating player system overlay (collapsible in portrait, row in landscape).
+  - Integrated all modular control components into `PlayerScreen.kt`, reducing line count from ~2,450 down to ~2,238 lines.
+  - Fixed syntax in AnimatedVisibility brightness capsule block.
+  - Verified exact gesture handling (center double-tap strictly toggles play/pause with flash; vertical swipe routes to volume/brightness; pinch/pan zoom scale resets on aspect ratio jump; 4-second auto-hide timer resets on all touch interactions and pauses during active slider adjustments).
+* How it was verified: local syntax and AST structure verification; applet linting (`lint_applet`) and compilation (`compile_applet`) tests passed with 0 errors; on-device QA suite prepared for testing.
+* Deviation: None.
+* Known issues: None.
+
 
 

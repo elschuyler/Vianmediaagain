@@ -75,3 +75,22 @@ Inspired by **Next Player** (`anilbeesetti/nextplayer`), this plan establishes a
   2. [x] **Progress Persistence**:
      - Centralized `PlayerManager.flushProgressToStorage()` committing `currentPosition` to `SettingsManager` on pause (`onIsPlayingChanged = false`), item transition, remote transition (`onSwitchToMiniPlayer`, `onOpenMainPlayer`, `onSwitchToVideo`), player release, and lifecycle `ON_PAUSE` / `onDispose`.
      - Resuming from the library or switching between Mini/Floating/Main player continues from the exact second without reloading or timeline drift.
+
+---
+
+## Mini-Phase 7: Main Video Player Decoupling & Lightweight Performance (Next Player Parity)
+- **Goal**: Make the Main Player (`PlayerScreen.kt`) fast, lightweight, and stable like Next Player (`anilbeesetti/nextplayer`) by decoupling the 2,820-line composable into isolated leaf scopes, eliminating root recompositions, and loading heavy dialogs on demand. Strict boundary: does NOT touch Editor, Floating Player, or Library.
+- **Tasks**:
+  1. **Recomposition Scope Isolation**:
+     - Stop collecting `PlayerManager.playbackState` at the root of `PlayerScreen`.
+     - Move state observation into `PlayerTimeBar` and `PlayerProgressRow` leaf composables so 500ms ticker updates do NOT re-evaluate the player root, video surface, or controls chrome.
+  2. **Gesture & Transient HUD Decoupling**:
+     - Isolate `PlayerGestureOverlay` pointer inputs and transient HUDs (`VolumeHudOverlay`, `BrightnessHudOverlay`, `SeekHudOverlay`) from the root layout, eliminating full-screen recomposition during drag gestures.
+  3. **Modular Sub-Composable Extraction**:
+     - Modularize `PlayerControlsOverlay` (`PlayerTopControls`, `PlayerCenterTransport`, `PlayerBottomBar`).
+     - Center transport row maintains `[Prev] [10s Rewind] [Play/Pause] [10s Fast-Forward] [Next] [Stop]` layout.
+  4. **Lazy Dialog Architecture**:
+     - Extract Audio Tracks, Subtitles, Equalizer, Sleep Timer, Speed, and Details dialogs into standalone composables that instantiate only when their respective boolean visibility flag is true.
+  5. **Surface Lifecycle Cleanup**:
+     - Ensure clean `PlayerView` attachment and detachment lifecycle with zero decoder or texture leaks.
+
