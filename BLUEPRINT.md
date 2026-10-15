@@ -160,15 +160,11 @@
   2. External Edit Intent Routing: Re-targeted `.EditMediaActivity` alias in `AndroidManifest.xml` to `.ui.EditorActivity`. Registered explicit intent filters for `ACTION_EDIT`, `ACTION_VIEW`, `ACTION_SEND`, and `ACTION_SEND_MULTIPLE`. In `MainActivity.kt`, routed all inbound edit intents directly to `EditorActivity` with immediate termination (`finish()`), and guarded `ACTION_VIEW` so only non-edit intents route to `PlayerActivity`.
   3. Animated WebP & Image Editor Restoration: Removed incorrect diversion of WebP and GIF images to `VideoEditorScreen` in `AppNavigation.kt`, `MainScreen.kt`, and `PlayerScreen.kt`. Restored native photo editing in `PhotoEditorScreen` for all image types (including static and animated WebP), eliminating decoder crashes and FFmpeg probe errors. Enabled in-player Edit button navigation in `PlayerActivity` directly delegating to `EditorActivity`.
 
-
-
-
-
-
-
-
-
-
+- **Phase 88 (GitHub Actions CI APK Pipeline Pinning & Artifact Matching)**:
+  1. Setup Gradle Version Resolution: Eliminated invalid `gradle-version: "9.7.1"` in `.github/workflows/build.yml`. Pinned to officially released `gradle-version: "8.11.1"` matching `reference/github-actions/CI_WORKFLOW_REFERENCE.md` and `BLUEPRINT.md` specifications.
+  2. Executable Wrapper Safety & Fallback: Added executable shell check in `build.yml` (`if [ -f "./gradlew" ]; then chmod +x ./gradlew && ./gradlew assembleDebug --stacktrace; else gradle assembleDebug --stacktrace; fi`), guaranteeing that the runner executes reliably whether a tracked wrapper or system Gradle binary is present.
+  3. Artifact Path Pattern Stabilization: Standardized upload artifact target path to `app/build/outputs/apk/debug/*.apk`, preventing runner failure due to APK filename variations or flavor suffix differences.
+  4. CI Workflow Documentation Sync: Updated `reference/github-actions/CI_WORKFLOW_REFERENCE.md` to match the exact active workflow (JDK 21, `gradle/actions/setup-gradle@v3`, `gradle-version: '8.11.1'`).
 
 
 

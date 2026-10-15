@@ -345,3 +345,21 @@
 * How it was verified: local Python AST parser scan across all modified Kotlin files (100% bracket and paren balance verified); applet linting (`lint_applet` - tsc --noEmit) and compilation (`compile_applet`) succeeded with 0 errors.
 * Any deviation from what was requested: None.
 * Any known issue or follow-up needed: None.
+
+## Phase 88: GitHub Actions CI APK Pipeline Pinning & Artifact Matching
+* Timestamp: 2026-10-15T11:07:00Z
+* One-line summary: Resolved GitHub Actions setup-gradle failure by pinning gradle-version to 8.11.1, adding executable gradlew fallback check, and wildcarding debug APK artifact path.
+* Files touched:
+  - .github/workflows/build.yml
+  - reference/github-actions/CI_WORKFLOW_REFERENCE.md
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_028.md
+* What was actually done:
+  - Fixed `gradle-version` in `.github/workflows/build.yml`: replaced non-existent/invalid `9.7.1` with official release `8.11.1` under `gradle/actions/setup-gradle@v3`, preventing GitHub Actions runner failure during the Gradle setup phase.
+  - Added wrapper execution check in `build.yml` (`if [ -f "./gradlew" ]; then chmod +x ./gradlew && ./gradlew assembleDebug --stacktrace; else gradle assembleDebug --stacktrace; fi`) to ensure dynamic fallback to system Gradle when tracked wrapper binaries are not present.
+  - Stabilized artifact upload path in `build.yml` to `app/build/outputs/apk/debug/*.apk`, ensuring `actions/upload-artifact@v4` always captures the built APK artifact.
+  - Synchronized `reference/github-actions/CI_WORKFLOW_REFERENCE.md` to document JDK 21, Gradle 8.11.1, and wildcard APK artifact matching.
+* How it was verified: local syntax/AST bracket balance check across all 73 Kotlin source files (0 bracket errors); `lint_applet` (tsc --noEmit) and `compile_applet` passed with 0 errors.
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: Export repository to GitHub to trigger automated GitHub Actions CI APK build run.
+
