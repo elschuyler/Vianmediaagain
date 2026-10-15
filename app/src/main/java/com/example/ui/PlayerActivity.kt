@@ -230,6 +230,13 @@ class PlayerActivity : ComponentActivity() {
                     uriString = activeUriString,
                     onNavigateBack = {
                         finish()
+                    },
+                    onNavigateToEdit = { editRoute ->
+                        val editorIntent = Intent(this@PlayerActivity, EditorActivity::class.java).apply {
+                            action = Intent.ACTION_EDIT
+                            putExtra("uri", activeUriString)
+                        }
+                        startActivity(editorIntent)
                     }
                 )
             }

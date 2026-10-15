@@ -305,9 +305,24 @@ class MainActivity : ComponentActivity() {
       if (handleFloatingOrMiniIntent(intent)) {
           return
       }
+      val isEditNew = intent.action == android.content.Intent.ACTION_EDIT ||
+          intent.action == "edit" ||
+          intent.component?.className?.contains("EditMediaActivity") == true
+      if (isEditNew) {
+          val editorIntent = android.content.Intent(this, com.example.ui.EditorActivity::class.java).apply {
+              action = intent.action
+              data = intent.data
+              intent.type?.let { type = it }
+              intent.extras?.let { putExtras(it) }
+              intent.clipData?.let { clipData = it }
+              addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP)
+          }
+          startActivity(editorIntent)
+          return
+      }
       if (intent.action == "com.example.ACTION_OPEN_PLAYER" ||
-          intent.action == android.content.Intent.ACTION_VIEW ||
-          intent.component?.className?.contains("PlayMediaActivity") == true) {
+          intent.component?.className?.contains("PlayMediaActivity") == true ||
+          (intent.action == android.content.Intent.ACTION_VIEW && !isEditNew)) {
           com.example.service.PlaybackService.hideOverlay(this)
           val playerIntent = android.content.Intent(this, com.example.ui.PlayerActivity::class.java).apply {
               action = intent.action
@@ -329,9 +344,25 @@ class MainActivity : ComponentActivity() {
         if (handleFloatingOrMiniIntent(intent)) {
             return
         }
+        val isEditCreate = intent?.action == android.content.Intent.ACTION_EDIT ||
+            intent?.action == "edit" ||
+            intent?.component?.className?.contains("EditMediaActivity") == true
+        if (isEditCreate) {
+            val editorIntent = android.content.Intent(this, com.example.ui.EditorActivity::class.java).apply {
+                action = intent?.action
+                data = intent?.data
+                intent?.type?.let { type = it }
+                intent?.extras?.let { putExtras(it) }
+                intent?.clipData?.let { clipData = it }
+                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            }
+            startActivity(editorIntent)
+            finish()
+            return
+        }
         if (intent?.action == "com.example.ACTION_OPEN_PLAYER" ||
-            intent?.action == android.content.Intent.ACTION_VIEW ||
-            intent?.component?.className?.contains("PlayMediaActivity") == true) {
+            intent?.component?.className?.contains("PlayMediaActivity") == true ||
+            (intent?.action == android.content.Intent.ACTION_VIEW && !isEditCreate)) {
             com.example.service.PlaybackService.hideOverlay(this)
             val playerIntent = android.content.Intent(this, com.example.ui.PlayerActivity::class.java).apply {
                 action = intent?.action

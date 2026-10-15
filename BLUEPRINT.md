@@ -150,6 +150,17 @@
   2. Gesture, Aspect Ratio, and Timer Discipline Verification: Verified that center double-tap strictly toggles Play/Pause with `PlayPauseFlashHud` (zero seeking); vertical swipe on glass reliably delegates to volume (0–200% with booster) and brightness; aspect ratio jump cleanly resets zoom scale (1.0f) and viewport pan offsets (0, 0); and 4-second controls auto-hide timer resets on all touch interactions with pause during active slider adjustment.
   3. Codebase Streamlining & Integrity: Reduced `PlayerScreen.kt` line footprint from ~2,820 lines down to ~2,238 lines through component modularization, completely separating visual leaf presentation from engine state while maintaining 100% backward compatibility and zero regression.
 
+- **Phase 86 (CI Compilation Fix & AST Bracket Balancing for PlayerScreen.kt)**:
+  1. Root Cause Resolution: Removed two legacy closing braces (`}`) at line 629 and line 669 left over in `PlayerScreen.kt` from the modular component refactoring in Phase 85.
+  2. Scope Restoration: Fixed premature closing of `if (controller.currentMediaItem?.mediaId != decodedUri.toString())` and premature closure of `LaunchedEffect(uriString, mediaController)`, re-attaching the `} else if (controller.playbackState == Player.STATE_ENDED)` branch cleanly back to the conditional chain and enclosing the asynchronous sibling playlist resolver within its intended scope.
+  3. AST Verification: Confirmed 100% balanced AST bracket nesting across all Kotlin source files in the repository. Applet build compiled successfully with 0 errors.
+
+- **Phase 87 (Dedicated Standalone Editor Activity, Animated WebP Routing & Zero-Library-Leak Architecture)**:
+  1. Decoupled Standalone Editor Activity: Created `EditorActivity` as an isolated `ComponentActivity` (`taskAffinity="com.example.editor"`, `singleTask`) matching the architecture of `PlayerActivity`. Directly hosts `VideoEditorScreen`, `AudioTrimmerScreen`, or `PhotoEditorScreen` with zero dependency on the Library/`MainScreen`. All exit points (`onNavigateBack`, back press) invoke `finish()` directly, returning control immediately to the calling application without mounting or displaying the Library.
+  2. External Edit Intent Routing: Re-targeted `.EditMediaActivity` alias in `AndroidManifest.xml` to `.ui.EditorActivity`. Registered explicit intent filters for `ACTION_EDIT`, `ACTION_VIEW`, `ACTION_SEND`, and `ACTION_SEND_MULTIPLE`. In `MainActivity.kt`, routed all inbound edit intents directly to `EditorActivity` with immediate termination (`finish()`), and guarded `ACTION_VIEW` so only non-edit intents route to `PlayerActivity`.
+  3. Animated WebP & Image Editor Restoration: Removed incorrect diversion of WebP and GIF images to `VideoEditorScreen` in `AppNavigation.kt`, `MainScreen.kt`, and `PlayerScreen.kt`. Restored native photo editing in `PhotoEditorScreen` for all image types (including static and animated WebP), eliminating decoder crashes and FFmpeg probe errors. Enabled in-player Edit button navigation in `PlayerActivity` directly delegating to `EditorActivity`.
+
+
 
 
 

@@ -393,13 +393,10 @@ fun MainScreen(
                         Spacer(modifier = Modifier.weight(1f))
                         IconButton(onClick = {
                             val item = selectedMediaItems.first()
-                            val mimeType = context.contentResolver.getType(item.uri) ?: ""
-                            val isAnimated = mimeType == "image/gif" || mimeType == "image/webp"
-                            
                             when {
                                 item.mediaType == com.example.data.MediaType.AUDIO -> onNavigateToAudioTrimmer(item.uri.toString())
                                 item.mediaType == com.example.data.MediaType.VIDEO -> onNavigateToVideoEditor(item.uri.toString())
-                                item.mediaType == com.example.data.MediaType.IMAGE && !isAnimated -> onNavigateToPhotoEditor(item.uri.toString())
+                                item.mediaType == com.example.data.MediaType.IMAGE -> onNavigateToPhotoEditor(item.uri.toString())
                                 else -> Toast.makeText(context, "Editing this format is not supported", Toast.LENGTH_SHORT).show()
                             }
                         }) {

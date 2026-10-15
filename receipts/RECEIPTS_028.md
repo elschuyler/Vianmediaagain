@@ -307,5 +307,41 @@
 * Deviation: None.
 * Known issues: None.
 
+## Phase 86: CI Compilation Fix & AST Bracket Balancing for PlayerScreen.kt
+* Timestamp: 2026-10-15T08:03:00Z
+* One-line summary: Removed rogue closing braces at lines 629 and 669 in PlayerScreen.kt, resolving CI compileDebugKotlin parser failure.
+* Files touched:
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_028.md
+* What was actually done:
+  - Surgically eliminated two rogue closing braces (`}`) from `PlayerScreen.kt` (previously at line 629 and line 669) that were inadvertently left behind during modular component extraction in Phase 85.
+  - Restored proper lexical scoping for the `if (controller.currentMediaItem?.mediaId != decodedUri.toString())` block so that the sibling playlist resolver coroutine lives inside the block, and the `} else if (controller.playbackState == Player.STATE_ENDED)` branch attaches directly to the conditional chain rather than floating as an invalid top-level statement.
+  - Successfully validated AST bracket balancing across the entire Kotlin source tree, confirming zero unclosed blocks and zero orphaned braces.
+* How it was verified: local Python AST parser scan across all Kotlin source files (100% bracket balance verified); applet compilation (`compile_applet`) succeeded with 0 errors.
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: None.
 
-
+## Phase 87: Dedicated Standalone Editor Activity, Animated WebP Routing & Zero-Library-Leak Architecture
+* Timestamp: 2026-10-15T08:42:00Z
+* One-line summary: Decoupled editors into standalone EditorActivity, fixed animated WebP photo editor routing, and eliminated library exposure on edit open/close.
+* Files touched:
+  - app/src/main/java/com/example/ui/EditorActivity.kt
+  - app/src/main/AndroidManifest.xml
+  - app/src/main/java/com/example/MainActivity.kt
+  - app/src/main/java/com/example/ui/PlayerActivity.kt
+  - app/src/main/java/com/example/ui/screens/MainScreen.kt
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+  - app/src/main/java/com/example/ui/navigation/AppNavigation.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_028.md
+* What was actually done:
+  - Created `EditorActivity.kt` as an isolated `ComponentActivity` (`taskAffinity="com.example.editor"`, `launchMode="singleTask"`) matching `PlayerActivity` architecture. Directly renders `VideoEditorScreen`, `AudioTrimmerScreen`, or `PhotoEditorScreen` without loading or mounting the Library (`MainScreen`).
+  - Configured `onNavigateBack = { finish() }` across all editor screens in `EditorActivity`, ensuring the activity terminates cleanly and returns the user directly to the calling app without ever opening or displaying the Library.
+  - Declared `EditorActivity` in `AndroidManifest.xml` with intent filters for `ACTION_EDIT`, `ACTION_VIEW`, `ACTION_SEND`, and `ACTION_SEND_MULTIPLE`. Retargeted `.EditMediaActivity` alias to `.ui.EditorActivity`.
+  - Updated `MainActivity.kt` in `onCreate()` and `onNewIntent()` to route all inbound edit intents to `EditorActivity` with immediate finish, and guarded `ACTION_VIEW` so it never redirects edit intents to `PlayerActivity`.
+  - Connected `onNavigateToEdit` in `PlayerActivity.kt` to launch `EditorActivity` directly via intent.
+  - Eliminated erroneous routing of WebP/GIF files to `VideoEditorScreen` in `AppNavigation.kt`, `MainScreen.kt`, and `PlayerScreen.kt`. Restored native photo editing via `PhotoEditorScreen` for all image formats including static and animated WebP, preventing ExoPlayer decoder failures and FFmpeg probe crashes.
+* How it was verified: local Python AST parser scan across all modified Kotlin files (100% bracket and paren balance verified); applet linting (`lint_applet` - tsc --noEmit) and compilation (`compile_applet`) succeeded with 0 errors.
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: None.

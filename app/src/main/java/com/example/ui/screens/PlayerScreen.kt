@@ -626,8 +626,7 @@ fun PlayerScreen(
                     } catch (e: Exception) {}
                 }
             }
-        }
-            
+
         // Load sibling playlist items targeted by parent directory / BUCKET_ID (zero full-disk scan)
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
             // Yield storage I/O and CPU to initial video buffering and decoder setup
@@ -666,7 +665,6 @@ fun PlayerScreen(
                 }
             }
         }
-    }
             
 
         } else if (controller.playbackState == androidx.media3.common.Player.STATE_ENDED) {
@@ -1649,13 +1647,10 @@ fun PlayerScreen(
                                 val mimeType = context.contentResolver.getType(decodedUri)
                                 val isAudio = mimeType?.startsWith("audio/") == true
                                 val isVideo = mimeType?.startsWith("video/") == true
-                                val isAnimatedImage = mimeType == "image/gif" || mimeType == "image/webp"
-                                val isImage = mimeType?.startsWith("image/") == true
 
                                 val route = if (isAudio) "audio_trimmer/$uriString"
                                 else if (isVideo) "video_editor/$uriString"
-                                else if (isImage && !isAnimatedImage) "photo_editor/$uriString"
-                                else "video_editor/$uriString"
+                                else "photo_editor/$uriString"
 
                                 onNavigateToEdit(route)
                             },

@@ -161,13 +161,17 @@
             android:roundIcon="@mipmap/ic_play_launcher_round"
             android:exported="true" />
 
-        <activity-alias
-            android:name=".EditMediaActivity"
-            android:targetActivity=".MainActivity"
+        <activity
+            android:name=".ui.EditorActivity"
+            android:exported="true"
             android:label="Edit"
             android:icon="@mipmap/ic_edit_launcher"
             android:roundIcon="@mipmap/ic_edit_launcher_round"
-            android:exported="true">
+            android:launchMode="singleTask"
+            android:taskAffinity="com.example.editor"
+            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|uiMode|keyboard|keyboardHidden|colorMode|density"
+            android:theme="@style/Theme.MyApplication"
+            android:enableOnBackInvokedCallback="true">
             <intent-filter
                 android:label="Edit"
                 android:icon="@mipmap/ic_edit_launcher"
@@ -175,6 +179,18 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="video/*" />
+                <data android:mimeType="audio/*" />
+                <data android:mimeType="image/*" />
+                <data android:scheme="file" />
+                <data android:scheme="content" />
+            </intent-filter>
+            <intent-filter
+                android:label="Edit"
+                android:icon="@mipmap/ic_edit_launcher"
+                android:roundIcon="@mipmap/ic_edit_launcher_round">
+                <action android:name="android.intent.action.EDIT" />
+                <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="video/*" />
                 <data android:mimeType="audio/*" />
                 <data android:mimeType="image/*" />
@@ -199,7 +215,15 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="video/*" />
             </intent-filter>
-        </activity-alias>
+        </activity>
+
+        <activity-alias
+            android:name=".EditMediaActivity"
+            android:targetActivity=".ui.EditorActivity"
+            android:label="Edit"
+            android:icon="@mipmap/ic_edit_launcher"
+            android:roundIcon="@mipmap/ic_edit_launcher_round"
+            android:exported="true" />
 
         <activity-alias
             android:name=".PipMediaActivity"

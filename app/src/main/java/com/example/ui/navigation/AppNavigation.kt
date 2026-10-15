@@ -45,8 +45,7 @@ fun AppNavigation(
             val mimeType = context.contentResolver.getType(android.net.Uri.parse(uriStr))?.lowercase()
             val ext = uriStr.substringAfterLast('.', "").substringBefore('?').lowercase()
             
-            val isAnimatedImage = mimeType == "image/gif" || mimeType == "image/webp" || ext == "gif" || ext == "webp"
-            val isImage = mimeType?.startsWith("image/") == true || ext in com.example.data.COMMON_IMAGE_EXTENSIONS || isAnimatedImage
+            val isImage = mimeType?.startsWith("image/") == true || ext in com.example.data.COMMON_IMAGE_EXTENSIONS
             val isAudio = mimeType?.startsWith("audio/") == true || ext in com.example.data.COMMON_AUDIO_EXTENSIONS
             val isVideo = mimeType?.startsWith("video/") == true || ext in com.example.data.COMMON_VIDEO_EXTENSIONS
             
@@ -60,15 +59,11 @@ fun AppNavigation(
                 val encodedUri = android.util.Base64.encodeToString(initialUris.first().toByteArray(), base64Flags)
                 if (isAudio) "audio_trimmer/$encodedUri"
                 else if (isVideo) "video_editor/$encodedUri"
-                else if (isAnimatedImage) "video_editor/$encodedUri"
                 else "photo_editor/$encodedUri"
             } else if (isImage) {
-                if (initialUris.size == 1 && !isAnimatedImage) {
+                if (initialUris.size == 1) {
                     val encodedUri = android.util.Base64.encodeToString(initialUris.first().toByteArray(), base64Flags)
                     "photo_editor/$encodedUri"
-                } else if (initialUris.size == 1 && isAnimatedImage) {
-                    val encodedUri = android.util.Base64.encodeToString(initialUris.first().toByteArray(), base64Flags)
-                    "player/$encodedUri"
                 } else {
                     "main"
                 }
