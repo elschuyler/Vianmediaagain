@@ -166,6 +166,12 @@
   3. Artifact Path Pattern Stabilization: Standardized upload artifact target path to `app/build/outputs/apk/debug/*.apk`, preventing runner failure due to APK filename variations or flavor suffix differences.
   4. CI Workflow Documentation Sync: Updated `reference/github-actions/CI_WORKFLOW_REFERENCE.md` to match the exact active workflow (JDK 21, `gradle/actions/setup-gradle@v3`, `gradle-version: '8.11.1'`).
 
+- **Phase 89 (GitHub Actions CI APK Pipeline: Restoration of Runner Pre-Installed Gradle 9.x for AGP 9.1.1 Compatibility)**:
+  1. Elimination of Incompatible Gradle Override: Removed `gradle-version: "8.11.1"` from `gradle/actions/setup-gradle@v3` in `.github/workflows/build.yml`. Reverted to the proven reference configuration (`reference/github-actions/vianmedia_build.yml`) allowing the Ubuntu 24.04 runner to use its pre-installed Gradle 9.8.0.
+  2. AGP 9.1.1 Version Floor Satisfaction: Satisfied AGP 9.1.1's mandatory Gradle requirement (`Minimum supported Gradle version is 9.3.1`) natively with runner Gradle 9.8.0 (`9.8.0 >= 9.3.1`), resolving `IllegalStateException` during `:app` plugin evaluation.
+  3. Reference Documentation Alignment: Updated `reference/github-actions/CI_WORKFLOW_REFERENCE.md` to document runner Gradle 9.x usage under `setup-gradle@v3`.
+
+
 
 
 

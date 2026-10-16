@@ -10,8 +10,7 @@ This reference documents the Android APK build configuration for GitHub Actions 
   - `workflow_dispatch` (Manual run from GitHub Actions UI)
 - **Runner**: `ubuntu-latest`
 - **JDK**: Java 21 (Eclipse Temurin) via `actions/setup-java@v4`
-- **Gradle Action**: `gradle/actions/setup-gradle@v3`
-  - `gradle-version: '8.11.1'`
+- **Gradle Action**: `gradle/actions/setup-gradle@v3` (utilizes runner pre-installed Gradle 9.8.0, satisfying AGP 9.1.1's minimum requirement of Gradle ≥ 9.3.1)
 - **Build Execution**:
   - Checks for executable `./gradlew`, falls back to `gradle assembleDebug --stacktrace`
 - **Artifact Upload**:

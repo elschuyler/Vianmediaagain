@@ -363,3 +363,21 @@
 * Any deviation from what was requested: None.
 * Any known issue or follow-up needed: Export repository to GitHub to trigger automated GitHub Actions CI APK build run.
 
+## Phase 89: Restoration of Runner Pre-Installed Gradle 9.x for AGP 9.1.1 Compatibility
+* Timestamp: 2026-10-16T06:01:00Z
+* One-line summary: Removed incompatible gradle-version 8.11.1 override in build.yml, restoring implicit runner Gradle 9.8.0 to satisfy AGP 9.1.1 version check.
+* Files touched:
+  - .github/workflows/build.yml
+  - reference/github-actions/CI_WORKFLOW_REFERENCE.md
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_028.md
+* What was actually done:
+  - Surgically purged `with: gradle-version: "8.11.1"` from `gradle/actions/setup-gradle@v3` in `.github/workflows/build.yml`. Reverted to the proven reference pattern from `reference/github-actions/vianmedia_build.yml`.
+  - Restored use of Ubuntu 24.04 runner's pre-installed Gradle 9.8.0, cleanly fulfilling AGP 9.1.1's mandatory minimum Gradle requirement (`>= 9.3.1`) and eliminating the `IllegalStateException` during `:app` plugin evaluation.
+  - Maintained executable `./gradlew` fallback check and wildcard APK artifact upload matching (`app/build/outputs/apk/debug/*.apk`).
+  - Synchronized `reference/github-actions/CI_WORKFLOW_REFERENCE.md` to document runner Gradle 9.x resolution under `setup-gradle@v3`.
+* How it was verified: local syntax/AST bracket balance check across all 73 Kotlin source files (0 bracket errors); `lint_applet` (tsc --noEmit) and `compile_applet` passed with 0 errors.
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: Export repository to GitHub to trigger automated GitHub Actions CI APK build run.
+
+
