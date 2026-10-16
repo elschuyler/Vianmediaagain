@@ -1839,7 +1839,7 @@ fun PlayerScreen(
                                         controller.stop()
                                         controller.clearMediaItems()
                                     }
-                                    com.example.service.PlayerManager.releasePlayer()
+                                    com.example.service.PlayerManager.release()
                                     try {
                                         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager
                                         nm?.cancelAll()

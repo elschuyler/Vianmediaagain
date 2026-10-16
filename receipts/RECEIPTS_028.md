@@ -380,4 +380,21 @@
 * Any deviation from what was requested: None.
 * Any known issue or follow-up needed: Export repository to GitHub to trigger automated GitHub Actions CI APK build run.
 
+## Phase 90: Resolution of PlayerScreen Stop Handler PlayerManager.release Typo
+* Timestamp: 2026-10-16T08:06:00Z
+* One-line summary: Resolved CI compileDebugKotlin compilation failure by updating releasePlayer() to release() in PlayerScreen.kt and adding a safety alias in PlayerManager.kt.
+* Files touched:
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+  - app/src/main/java/com/example/service/PlayerManager.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_028.md
+* What was actually done:
+  - Replaced `com.example.service.PlayerManager.releasePlayer()` with `com.example.service.PlayerManager.release()` at line 1842 in `PlayerScreen.kt` inside the center controls Stop button click handler (`onStopClick`).
+  - Added `fun releasePlayer() = release()` forwarding alias in `PlayerManager.kt` to ensure complete backwards and forward compatibility for callers.
+  - Resolved `Unresolved reference 'releasePlayer'` during Gradle task `:app:compileDebugKotlin`.
+* How it was verified: local syntax/AST bracket balance check across all 73 Kotlin source files (0 bracket errors); `lint_applet` (tsc --noEmit) and `compile_applet` passed with 0 errors.
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: Export repository to GitHub to trigger automated GitHub Actions CI APK build run.
+
+
 

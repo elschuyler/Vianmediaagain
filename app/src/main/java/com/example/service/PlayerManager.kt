@@ -481,6 +481,8 @@ object PlayerManager {
         }
     }
 
+    fun releasePlayer() = release()
+
     fun release() {
         flushProgressToStorage()
         progressTickerJob?.cancel()
