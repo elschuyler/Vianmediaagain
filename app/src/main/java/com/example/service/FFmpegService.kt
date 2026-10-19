@@ -292,6 +292,19 @@ class FFmpegService : Service() {
                             }
                         }
                     }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && finalUri != null) {
+                        try {
+                            val cv = android.content.ContentValues().apply {
+                                put(android.provider.MediaStore.MediaColumns.IS_PENDING, 0)
+                            }
+                            contentResolver.update(finalUri, cv, null, null)
+                        } catch (e: Exception) {}
+                    }
+                    try {
+                        finalUri?.path?.let { p ->
+                            android.media.MediaScannerConnection.scanFile(this@FFmpegService, arrayOf(p), arrayOf(getMimeType(outputExt)), null)
+                        }
+                    } catch (e: Exception) {}
                     LogKeeper.log("Saved to output folder", "FFmpegService")
                     FFmpegStatus.lastOutputUri = finalUri?.toString()
                 } catch (e: Exception) {
@@ -383,18 +396,33 @@ class FFmpegService : Service() {
             }
         }
         // Fallback to media store
+        val isImage = mimeType.startsWith("image/")
+        val isAudio = mimeType.startsWith("audio/")
         val contentValues = android.content.ContentValues().apply {
             put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, fileName)
             put(android.provider.MediaStore.MediaColumns.MIME_TYPE, mimeType)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val relativePath = if (mimeType.startsWith("audio")) android.os.Environment.DIRECTORY_MUSIC else android.os.Environment.DIRECTORY_MOVIES
+                val relativePath = when {
+                    isAudio -> android.os.Environment.DIRECTORY_MUSIC
+                    isImage -> android.os.Environment.DIRECTORY_PICTURES
+                    else -> android.os.Environment.DIRECTORY_MOVIES
+                }
                 put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, "$relativePath/Edited")
+                put(android.provider.MediaStore.MediaColumns.IS_PENDING, 1)
             }
         }
         val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            if (mimeType.startsWith("audio")) android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI else android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+            when {
+                isAudio -> android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+                isImage -> android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+                else -> android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+            }
         } else {
-            if (mimeType.startsWith("audio")) android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI else android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+            when {
+                isAudio -> android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+                isImage -> android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+                else -> android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+            }
         }
         val uri = contentResolver.insert(collection, contentValues)
         return Pair(uri, uri?.let { contentResolver.openOutputStream(it) })

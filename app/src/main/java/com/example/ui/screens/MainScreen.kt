@@ -312,7 +312,8 @@ fun MainScreen(
                         IconButton(onClick = { 
                             if (selectedMediaItems.isNotEmpty()) {
                                 val firstMedia = selectedMediaItems.first()
-                                if (firstMedia.mediaType == com.example.data.MediaType.IMAGE) {
+                                val isAnim = firstMedia.mediaType == com.example.data.MediaType.IMAGE && com.example.data.isAnimatedMedia(context, firstMedia.uri)
+                                if (firstMedia.mediaType == com.example.data.MediaType.IMAGE && !isAnim) {
                                     onNavigateToPhotoEditor(firstMedia.uri.toString())
                                 } else {
                                     onNavigateToPlayer(firstMedia.uri.toString())
@@ -396,7 +397,13 @@ fun MainScreen(
                             when {
                                 item.mediaType == com.example.data.MediaType.AUDIO -> onNavigateToAudioTrimmer(item.uri.toString())
                                 item.mediaType == com.example.data.MediaType.VIDEO -> onNavigateToVideoEditor(item.uri.toString())
-                                item.mediaType == com.example.data.MediaType.IMAGE -> onNavigateToPhotoEditor(item.uri.toString())
+                                item.mediaType == com.example.data.MediaType.IMAGE -> {
+                                    if (com.example.data.isAnimatedMedia(context, item.uri)) {
+                                        onNavigateToVideoEditor(item.uri.toString())
+                                    } else {
+                                        onNavigateToPhotoEditor(item.uri.toString())
+                                    }
+                                }
                                 else -> Toast.makeText(context, "Editing this format is not supported", Toast.LENGTH_SHORT).show()
                             }
                         }) {
@@ -444,7 +451,8 @@ fun MainScreen(
                             val sorted = itemsToConsider.sortedByDescending { settings.getLastPlayedTime(it.uri.toString(), it.name) }
                             val toPlay = sorted.firstOrNull()
                             if (toPlay != null) {
-                                if (toPlay.mediaType == com.example.data.MediaType.IMAGE) {
+                                val isAnim = toPlay.mediaType == com.example.data.MediaType.IMAGE && com.example.data.isAnimatedMedia(context, toPlay.uri)
+                                if (toPlay.mediaType == com.example.data.MediaType.IMAGE && !isAnim) {
                                     onNavigateToPhotoEditor(toPlay.uri.toString())
                                 } else {
                                     onNavigateToPlayer(toPlay.uri.toString())
@@ -674,7 +682,8 @@ fun MainScreen(
                                                         lastSelectedIndex = index
                                                     } else {
                                                         viewModel.markAsStarted(media.id)
-                                                        if (media.mediaType == com.example.data.MediaType.IMAGE) {
+                                                        val isAnim = media.mediaType == com.example.data.MediaType.IMAGE && com.example.data.isAnimatedMedia(context, media.uri)
+                                                        if (media.mediaType == com.example.data.MediaType.IMAGE && !isAnim) {
                                                             onNavigateToPhotoEditor(media.uri.toString())
                                                         } else {
                                                             onNavigateToPlayer(media.uri.toString())

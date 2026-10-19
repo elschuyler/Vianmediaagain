@@ -81,6 +81,156 @@ val COMMON_SUBTITLE_EXTENSIONS: Set<String> = setOf(
     "srt", "vtt", "ass", "ssa", "sub", "idx", "smi", "ttml"
 )
 
+enum class StreamContainerType {
+    STANDARD,
+    MPEG_TS,
+    FRAGMENTED_MP4
+}
+
+fun detectStreamContainer(context: Context, uri: Uri): StreamContainerType {
+    val uriStr = uri.toString()
+    val ext = uriStr.substringAfterLast('.', "").substringBefore('?').lowercase()
+    if (ext in setOf("ts", "m2ts", "mts", "tp", "trp")) {
+        return StreamContainerType.MPEG_TS
+    }
+    if (ext == "m4s") {
+        return StreamContainerType.FRAGMENTED_MP4
+    }
+
+    try {
+        context.contentResolver.openInputStream(uri)?.use { stream ->
+            val buffer = ByteArray(1024)
+            val bytesRead = stream.read(buffer)
+            if (bytesRead >= 188 * 3) {
+                // Check 188-byte MPEG-TS sync byte 0x47 periodicity
+                val maxSearch = minOf(188, bytesRead - 188 * 2)
+                for (offset in 0 until maxSearch) {
+                    if (buffer[offset] == 0x47.toByte() &&
+                        buffer[offset + 188] == 0x47.toByte() &&
+                        buffer[offset + 376] == 0x47.toByte()
+                    ) {
+                        return StreamContainerType.MPEG_TS
+                    }
+                }
+                // Check 192-byte timestamped TS packets
+                if (bytesRead >= 192 * 3) {
+                    val maxSearch192 = minOf(192, bytesRead - 192 * 2)
+                    for (offset in 0 until maxSearch192) {
+                        if (buffer[offset] == 0x47.toByte() &&
+                            buffer[offset + 192] == 0x47.toByte() &&
+                            buffer[offset + 384] == 0x47.toByte()
+                        ) {
+                            return StreamContainerType.MPEG_TS
+                        }
+                    }
+                }
+            }
+
+            // Check for fragmented MP4 / .m4s ISO atoms (styp, sidx, moof)
+            if (bytesRead >= 8) {
+                val boxType = String(buffer, 4, 4, Charsets.ISO_8859_1)
+                if (boxType == "styp" || boxType == "sidx" || boxType == "moof") {
+                    return StreamContainerType.FRAGMENTED_MP4
+                }
+                if (boxType == "ftyp" && bytesRead >= 16) {
+                    val brand = String(buffer, 8, 4, Charsets.ISO_8859_1)
+                    val compatLen = minOf(bytesRead - 16, 64)
+                    val compat = if (compatLen > 0) String(buffer, 16, compatLen, Charsets.ISO_8859_1) else ""
+                    val brandString = (brand + compat).lowercase()
+                    if (brandString.contains("dash") || brandString.contains("iso5") ||
+                        brandString.contains("msdh") || brandString.contains("msix") ||
+                        brandString.contains("cmfc") || brandString.contains("cmf2")
+                    ) {
+                        val headerStr = String(buffer, 0, bytesRead, Charsets.ISO_8859_1)
+                        if (headerStr.contains("moof")) {
+                            return StreamContainerType.FRAGMENTED_MP4
+                        }
+                    }
+                }
+            }
+        }
+    } catch (e: Throwable) {}
+
+    return StreamContainerType.STANDARD
+}
+
+fun isAnimatedMedia(context: Context, uri: Uri): Boolean {
+    val mimeType = try { context.contentResolver.getType(uri)?.lowercase() } catch (e: Exception) { null }
+    val uriStr = uri.toString()
+    val ext = uriStr.substringAfterLast('.', "").substringBefore('?').lowercase()
+    if (ext == "gif" || mimeType == "image/gif") return true
+    if (ext == "webp" || mimeType == "image/webp") {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+            try {
+                val source = android.graphics.ImageDecoder.createSource(context.contentResolver, uri)
+                val drawable = android.graphics.ImageDecoder.decodeDrawable(source)
+                if (drawable is android.graphics.drawable.AnimatedImageDrawable) return true
+            } catch (e: Throwable) {}
+        }
+        try {
+            context.contentResolver.openInputStream(uri)?.use { stream ->
+                val header = ByteArray(64)
+                val read = stream.read(header)
+                if (read >= 21) {
+                    val isRiff = header[0] == 'R'.code.toByte() && header[1] == 'I'.code.toByte() && header[2] == 'F'.code.toByte() && header[3] == 'F'.code.toByte()
+                    val isWebp = header[8] == 'W'.code.toByte() && header[9] == 'E'.code.toByte() && header[10] == 'B'.code.toByte() && header[11] == 'P'.code.toByte()
+                    if (isRiff && isWebp) {
+                        val isVp8x = header[12] == 'V'.code.toByte() && header[13] == 'P'.code.toByte() && header[14] == '8'.code.toByte() && header[15] == 'X'.code.toByte()
+                        if (isVp8x) {
+                            val flags = header[20].toInt() and 0xFF
+                            if ((flags and 0x02) != 0) return true
+                        }
+                    }
+                }
+            }
+        } catch (e: Throwable) {}
+    }
+    return false
+}
+
+fun extractMediaThumbnailBytes(context: Context, uri: Uri): ByteArray? {
+    try {
+        var bmp: android.graphics.Bitmap? = null
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            try {
+                bmp = context.contentResolver.loadThumbnail(uri, android.util.Size(320, 320), null)
+            } catch (e: Exception) {}
+        }
+        if (bmp == null) {
+            val retriever = android.media.MediaMetadataRetriever()
+            try {
+                retriever.setDataSource(context, uri)
+                val pic = retriever.embeddedPicture
+                if (pic != null) {
+                    val options = android.graphics.BitmapFactory.Options().apply { inPreferredConfig = android.graphics.Bitmap.Config.RGB_565 }
+                    bmp = android.graphics.BitmapFactory.decodeByteArray(pic, 0, pic.size, options)
+                }
+                if (bmp == null) {
+                    bmp = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O_MR1) {
+                        retriever.getScaledFrameAtTime(0L, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 320, 320)
+                            ?: retriever.frameAtTime
+                    } else {
+                        retriever.frameAtTime
+                    }
+                }
+            } catch (e: Exception) {}
+            finally {
+                try { retriever.release() } catch (e: Exception) {}
+            }
+        }
+        if (bmp != null) {
+            val baos = java.io.ByteArrayOutputStream()
+            bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, baos)
+            val bytes = baos.toByteArray()
+            bmp.recycle()
+            return bytes
+        }
+    } catch (e: Exception) {
+        com.example.LogKeeper.logError("Thumbnail", "Failed to extract thumbnail", e)
+    }
+    return null
+}
+
 class MediaRepository(private val context: Context) {
     
     companion object {

@@ -31,6 +31,8 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.calculateRotation
+import com.example.ui.screens.player.PlayerBottomBar
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.positionChanged
@@ -151,6 +153,18 @@ fun Context.findActivity(): Activity? = when (this) {
     else -> null
 }
 
+fun getDeviceSystemBrightness(ctx: Context): Float {
+    return try {
+        val brightnessInt = android.provider.Settings.System.getInt(
+            ctx.contentResolver,
+            android.provider.Settings.System.SCREEN_BRIGHTNESS
+        )
+        (brightnessInt / 255f).coerceIn(0.01f, 1f)
+    } catch (e: Exception) {
+        0.5f
+    }
+}
+
 fun formatTime(ms: Long): String {
     if (ms <= 0L) return "00:00"
     val totalSeconds = ms / 1000
@@ -241,7 +255,13 @@ fun PlayerScreen(
     var showBrightnessSlider by remember { mutableStateOf(false) }
     var brightnessInteractionTime by remember { mutableLongStateOf(0L) }
     var isAdjustingBrightness by remember { mutableStateOf(false) }
-    var currentBrightness by remember { mutableFloatStateOf(context.findActivity()?.window?.attributes?.screenBrightness.takeIf { it != -1f } ?: 0.5f) }
+    val initialBrightness = remember {
+        val winBrightness = context.findActivity()?.window?.attributes?.screenBrightness ?: -1f
+        if (winBrightness >= 0f) winBrightness else getDeviceSystemBrightness(context)
+    }
+    var currentBrightness by remember { mutableFloatStateOf(initialBrightness) }
+    var showVolumeHud by remember { mutableStateOf(false) }
+    var volumeHudTime by remember { mutableLongStateOf(0L) }
     var boostGainMb by remember { androidx.compose.runtime.mutableIntStateOf(0) }
     var activeGesture by remember { mutableStateOf(GestureType.NONE) }
     var gestureText by remember { mutableStateOf("") }
@@ -250,9 +270,6 @@ fun PlayerScreen(
     var showPlayPauseFlash by remember { mutableStateOf(false) }
     var flashIsPlaying by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
-    var lastTapTime by remember { mutableLongStateOf(0L) }
-    var lastTapPosition by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
-    var pendingSingleTapJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var timeStr by remember { mutableStateOf("") }
     var batteryPct by remember { androidx.compose.runtime.mutableIntStateOf(100) }
     var isCharging by remember { mutableStateOf(false) }
@@ -284,11 +301,19 @@ fun PlayerScreen(
         }
     }
 
-    // Auto-hide brightness slider after inactivity (pauses while actively adjusting)
+    // Auto-hide brightness slider synchronously with controls after inactivity
     LaunchedEffect(showBrightnessSlider, brightnessInteractionTime, isAdjustingBrightness) {
         if (showBrightnessSlider && !isAdjustingBrightness) {
-            kotlinx.coroutines.delay(3000)
+            kotlinx.coroutines.delay(4000)
             showBrightnessSlider = false
+        }
+    }
+
+    // Auto-hide volume HUD after gesture release (Next Player style smooth fade)
+    LaunchedEffect(showVolumeHud, volumeHudTime, activeGesture) {
+        if (showVolumeHud && activeGesture != GestureType.VOLUME) {
+            kotlinx.coroutines.delay(1500L)
+            showVolumeHud = false
         }
     }
 
@@ -335,6 +360,7 @@ fun PlayerScreen(
     var scale by remember { mutableFloatStateOf(1f) }
     var offsetX by remember { mutableFloatStateOf(0f) }
     var offsetY by remember { mutableFloatStateOf(0f) }
+    var rotationAngle by remember { mutableFloatStateOf(0f) }
     var backgroundPlayEnabled by remember { mutableStateOf(false) }
     val backgroundPlayEnabledRef = androidx.compose.runtime.rememberUpdatedState(backgroundPlayEnabled)
     val forceBackgroundPlay = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
@@ -554,6 +580,7 @@ fun PlayerScreen(
         if (showControls) {
             kotlinx.coroutines.delay(4000)
             showControls = false
+            showBrightnessSlider = false
         }
     }
 
@@ -1176,225 +1203,139 @@ fun PlayerScreen(
         modifier = Modifier
         .fillMaxSize()
         .background(Color.Black)
-        .pointerInput(isLocked, isInPipMode) {
-            if (isLocked || isInPipMode) return@pointerInput
-            awaitEachGesture {
-                val down = awaitFirstDown(requireUnconsumed = false)
-                var currentGesture = GestureType.NONE
-                var dragDistanceX = 0f
-                var dragDistanceY = 0f
-                var lastSeekTime = 0L
+        .playerGestureDetector(
+            enabled = !isLocked && !isInPipMode,
+            density = density,
+            touchSlop = androidx.compose.ui.platform.LocalViewConfiguration.current.touchSlop,
+            coroutineScope = coroutineScope,
+            context = context,
+            showBrightnessSlider = showBrightnessSlider,
+            boosterEnabled = com.example.data.SettingsManager.getInstance(context).audioBoosterEnabled,
+            currentBoostGainMb = boostGainMb,
+            startPositionMs = mediaController?.currentPosition?.coerceAtLeast(0L) ?: 0L,
+            durationMs = mediaController?.duration?.coerceAtLeast(1L) ?: 1L,
+            isPlaying = mediaController?.isPlaying == true,
+            currentBrightness = currentBrightness,
+            getDeviceBrightness = { getDeviceSystemBrightness(context) },
+            onSingleTap = {
+                if (showControls) {
+                    showControls = false
+                    showBrightnessSlider = false
+                } else {
+                    showControls = true
+                    controlsInteractionTrigger = System.currentTimeMillis()
+                }
+            },
+            onDoubleTap = {
+                mediaController?.let { controller ->
+                    if (controller.playbackState == androidx.media3.common.Player.STATE_ENDED) {
+                        controller.seekTo(0)
+                        controller.prepare()
+                        controller.play()
+                        wasPlayingBeforePause = true
+                    } else if (controller.playbackState == androidx.media3.common.Player.STATE_IDLE) {
+                        controller.prepare()
+                        controller.play()
+                        wasPlayingBeforePause = true
+                    } else if (controller.isPlaying) {
+                        controller.pause()
+                        wasPlayingBeforePause = false
+                    } else {
+                        controller.play()
+                        wasPlayingBeforePause = true
+                    }
+                    flashIsPlaying = controller.isPlaying
+                    showPlayPauseFlash = true
+                }
+                if (showControls) {
+                    controlsInteractionTrigger = System.currentTimeMillis()
+                }
+            },
+            onSeekStart = {
+                mediaController?.pause()
+            },
+            onSeekUpdate = { offsetMs, seekSec ->
+                val curDuration = mediaController?.duration?.coerceAtLeast(1L) ?: 1L
+                val targetPos = ((mediaController?.currentPosition?.coerceAtLeast(0L) ?: 0L) + offsetMs).coerceIn(0L, curDuration)
+                mediaController?.seekTo(targetPos)
+                seekOffsetSec = seekSec
+            },
+            onSeekCommit = { targetPos, resumePlay ->
+                mediaController?.seekTo(targetPos)
+                if (resumePlay) {
+                    mediaController?.play()
+                }
+                if (showControls) {
+                    controlsInteractionTrigger = System.currentTimeMillis()
+                }
+            },
+            onBrightnessStart = {
+                isAdjustingBrightness = true
+                brightnessInteractionTime = System.currentTimeMillis()
+                controlsInteractionTrigger = System.currentTimeMillis()
+            },
+            onBrightnessUpdate = { newBrightness ->
+                currentBrightness = newBrightness
+                val win = context.findActivity()?.window
+                if (win != null) {
+                    val lp = win.attributes
+                    lp.screenBrightness = newBrightness
+                    win.attributes = lp
+                }
+                brightnessInteractionTime = System.currentTimeMillis()
+                controlsInteractionTrigger = System.currentTimeMillis()
+            },
+            onBrightnessEnd = { finalBrightness ->
+                isAdjustingBrightness = false
+                currentBrightness = finalBrightness
+                val win = context.findActivity()?.window
+                if (win != null) {
+                    val lp = win.attributes
+                    lp.screenBrightness = finalBrightness
+                    win.attributes = lp
+                }
+                brightnessInteractionTime = System.currentTimeMillis()
+                if (showControls) {
+                    controlsInteractionTrigger = System.currentTimeMillis()
+                }
+            },
+            onVolumeStart = {
+                showVolumeHud = true
+                volumeHudTime = System.currentTimeMillis()
+            },
+            onVolumeUpdate = { ratio, targetSysVol, targetBoostMb, displayText ->
                 val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
-                val maxVolume = audioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC)
-                val startVolume = audioManager.getStreamVolume(android.media.AudioManager.STREAM_MUSIC)
-                val settings = com.example.data.SettingsManager.getInstance(context)
-                val boosterEnabled = settings.audioBoosterEnabled
-                val effectiveBoost = if (boosterEnabled) boostGainMb else 0
-                val startVolumeRatio = if (maxVolume > 0) {
-                    if (effectiveBoost > 0) {
-                        0.5f + (effectiveBoost.toFloat() / 1500f) * 0.5f
-                    } else {
-                        (startVolume.toFloat() / maxVolume.toFloat()) * 0.5f
-                    }
-                } else 0f
-                var lastAppliedSystemVolume = startVolume
-                var lastAppliedBoost = effectiveBoost
-                
-                val window = context.findActivity()?.window
-                var startBrightness = window?.attributes?.screenBrightness ?: -1f
-                if (startBrightness < 0) startBrightness = 0.5f
-                var lastAppliedBrightness = startBrightness
-                
-                val startPosition = mediaController?.currentPosition?.coerceAtLeast(0L) ?: 0L
-                var wasPlayingBeforeSeek = false
-
-                do {
-                    val event = awaitPointerEvent()
-                    val changes = event.changes
-                    
-                    if (changes.size > 1) {
-                        currentGesture = GestureType.ZOOM_PAN
-                        activeGesture = GestureType.ZOOM_PAN
-                        val zoomChange = event.calculateZoom()
-                        val panChange = event.calculatePan()
-                        
-                        scale = (scale * zoomChange).coerceIn(0.25f, 4f)
-                        offsetX += panChange.x
-                        offsetY += panChange.y
-                        
-                        changes.forEach { if (it.positionChanged()) it.consume() }
-                    } else if (currentGesture != GestureType.ZOOM_PAN) {
-                        val change = changes.firstOrNull()
-                        if (change != null) {
-                            val posChange = change.positionChange()
-                            dragDistanceX += posChange.x
-                            dragDistanceY += posChange.y
-                            
-                            if (currentGesture == GestureType.NONE) {
-                                val touchSlop = viewConfiguration.touchSlop
-                                if (kotlin.math.hypot(dragDistanceX, dragDistanceY) > touchSlop) {
-                                    if (kotlin.math.abs(dragDistanceX) > kotlin.math.abs(dragDistanceY)) {
-                                        currentGesture = GestureType.SEEK
-                                        wasPlayingBeforeSeek = mediaController?.isPlaying == true
-                                        mediaController?.pause()
-                                    } else {
-                                        currentGesture = if (showBrightnessSlider) GestureType.BRIGHTNESS else GestureType.VOLUME
-                                    }
-                                    activeGesture = currentGesture
-                                }
-                            }
-                            
-                            when (currentGesture) {
-                                GestureType.SEEK -> {
-                                    val currentDuration = mediaController?.duration?.coerceAtLeast(1L) ?: 1L
-                                    val seekOffsetMs = (dragDistanceX / size.width) * 120_000
-                                    val targetPos = (startPosition + seekOffsetMs.toLong()).coerceIn(0L, currentDuration)
-                                    val currentTime = System.currentTimeMillis()
-                                    if (currentTime - lastSeekTime > 300) {
-                                        mediaController?.seekTo(targetPos)
-                                        lastSeekTime = currentTime
-                                    }
-                                    seekOffsetSec = ((dragDistanceX / size.width) * 120).toInt()
-                                    change.consume()
-                                }
-                                GestureType.BRIGHTNESS -> {
-                                    isAdjustingBrightness = true
-                                    val brightnessChange = -(dragDistanceY / size.height)
-                                    val newBrightness = (startBrightness + brightnessChange).coerceIn(0.01f, 1f)
-                                    currentBrightness = newBrightness
-                                    
-                                    if (kotlin.math.abs(newBrightness - lastAppliedBrightness) >= 0.008f) {
-                                        lastAppliedBrightness = newBrightness
-                                        val win = context.findActivity()?.window
-                                        if (win != null) {
-                                            val layoutParams = win.attributes
-                                            layoutParams.screenBrightness = newBrightness
-                                            win.attributes = layoutParams
-                                        }
-                                    }
-                                    brightnessInteractionTime = System.currentTimeMillis()
-                                    controlsInteractionTrigger = System.currentTimeMillis()
-                                    change.consume()
-                                }
-                                GestureType.VOLUME -> {
-                                    val volumeScale = if (boosterEnabled) 1.0f else 0.5f
-                                    val volumeChange = -(dragDistanceY / size.height) * volumeScale
-                                    val currentRatio = (startVolumeRatio + volumeChange).coerceIn(0f, volumeScale)
-                                    
-                                    val targetSystemVolume = if (currentRatio <= 0.5f) {
-                                        if (maxVolume > 0) ((currentRatio / 0.5f) * maxVolume).roundToInt().coerceIn(0, maxVolume) else 0
-                                    } else {
-                                        maxVolume
-                                    }
-                                    val targetBoost = if (boosterEnabled && currentRatio > 0.5f) {
-                                        (((currentRatio - 0.5f) / 0.5f) * 1500f).roundToInt().coerceIn(0, 1500)
-                                    } else {
-                                        0
-                                    }
-                                    
-                                    if (targetSystemVolume != lastAppliedSystemVolume) {
-                                        lastAppliedSystemVolume = targetSystemVolume
-                                        audioManager.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, targetSystemVolume, 0)
-                                    }
-                                    if (targetBoost != lastAppliedBoost) {
-                                        lastAppliedBoost = targetBoost
-                                        boostGainMb = targetBoost
-                                        settings.boostGainMb = targetBoost
-                                        com.example.service.PlayerManager.applyAudioBoosterSettings(settings.audioBoosterEnabled, targetBoost)
-                                    }
-                                    
-                                    gestureVolumeRatio = currentRatio
-                                    gestureText = "Volume: ${(currentRatio * 200).roundToInt()}"
-                                    change.consume()
-                                }
-                                else -> {}
-                            }
-                        }
-                    }
-                } while (event.changes.any { it.pressed })
-                
-                val touchSlop = viewConfiguration.touchSlop
-                if (currentGesture == GestureType.SEEK) {
-                    val currentDuration = mediaController?.duration?.coerceAtLeast(1L) ?: 1L
-                    val seekOffsetMs = (dragDistanceX / size.width) * 120_000
-                    val targetPos = (startPosition + seekOffsetMs.toLong()).coerceIn(0L, currentDuration)
-                    mediaController?.seekTo(targetPos)
-                    if (wasPlayingBeforeSeek) {
-                        mediaController?.play()
-                    }
-                    if (showControls) {
-                        controlsInteractionTrigger = System.currentTimeMillis()
-                    }
-                } else if (currentGesture == GestureType.NONE && kotlin.math.hypot(dragDistanceX, dragDistanceY) <= touchSlop) {
-                    val tapPos = down.position
-                    val now = System.currentTimeMillis()
-                    val timeDiff = now - lastTapTime
-                    val dist = (tapPos - lastTapPosition).getDistance()
-                    
-                    if (timeDiff in 40L..350L && dist < 100f * density) {
-                        // Double tap: strictly toggle play / pause only
-                        pendingSingleTapJob?.cancel()
-                        pendingSingleTapJob = null
-                        lastTapTime = 0L
-                        
-                        mediaController?.let { controller ->
-                            if (controller.playbackState == androidx.media3.common.Player.STATE_ENDED) {
-                                controller.seekTo(0)
-                                controller.prepare()
-                                controller.play()
-                                wasPlayingBeforePause = true
-                            } else if (controller.playbackState == androidx.media3.common.Player.STATE_IDLE) {
-                                controller.prepare()
-                                controller.play()
-                                wasPlayingBeforePause = true
-                            } else if (controller.isPlaying) {
-                                controller.pause()
-                                wasPlayingBeforePause = false
-                            } else {
-                                controller.play()
-                                wasPlayingBeforePause = true
-                            }
-                            flashIsPlaying = controller.isPlaying
-                            showPlayPauseFlash = true
-                        }
-                        if (showControls) {
-                            controlsInteractionTrigger = System.currentTimeMillis()
-                        }
-                    } else {
-                        // First tap: record and schedule single tap action
-                        lastTapTime = now
-                        lastTapPosition = tapPos
-                        pendingSingleTapJob?.cancel()
-                        pendingSingleTapJob = coroutineScope.launch {
-                            kotlinx.coroutines.delay(300L)
-                            if (showBrightnessSlider) {
-                                showBrightnessSlider = false
-                            } else if (!showControls) {
-                                showControls = true
-                                controlsInteractionTrigger = System.currentTimeMillis()
-                            } else {
-                                // Controls are already visible: reset auto-hide timeout (do NOT disappear on tap)
-                                controlsInteractionTrigger = System.currentTimeMillis()
-                            }
-                            pendingSingleTapJob = null
-                        }
-                    }
+                audioManager.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, targetSysVol, 0)
+                if (targetBoostMb != boostGainMb) {
+                    boostGainMb = targetBoostMb
+                    val settings = com.example.data.SettingsManager.getInstance(context)
+                    settings.boostGainMb = targetBoostMb
+                    com.example.service.PlayerManager.applyAudioBoosterSettings(settings.audioBoosterEnabled, targetBoostMb)
                 }
-                
-                if (currentGesture == GestureType.BRIGHTNESS) {
-                    isAdjustingBrightness = false
-                    brightnessInteractionTime = System.currentTimeMillis()
-                    val win = context.findActivity()?.window
-                    if (win != null) {
-                        val layoutParams = win.attributes
-                        layoutParams.screenBrightness = currentBrightness
-                        win.attributes = layoutParams
-                    }
+                gestureVolumeRatio = ratio
+                gestureText = displayText
+                showVolumeHud = true
+                volumeHudTime = System.currentTimeMillis()
+            },
+            onVolumeEnd = {
+                volumeHudTime = System.currentTimeMillis()
+                if (showControls) {
+                    controlsInteractionTrigger = System.currentTimeMillis()
                 }
-                activeGesture = GestureType.NONE
-                gestureText = ""
+            },
+            onZoomPanRotate = { zoomChange, panChange, rotChange ->
+                scale = (scale * zoomChange).coerceIn(0.25f, 4f)
+                offsetX += panChange.x
+                offsetY += panChange.y
+                rotationAngle += rotChange
+            },
+            onGestureStateChange = { newGesture ->
+                activeGesture = newGesture
+                if (newGesture == GestureType.NONE) {
+                    gestureText = ""
+                }
             }
-        }
+        )
     ) {
         AndroidView(
             factory = { ctx ->
@@ -1433,6 +1374,7 @@ fun PlayerScreen(
                 scaleY = scale
                 translationX = offsetX
                 translationY = offsetY
+                rotationZ = rotationAngle
             }
         )
 
@@ -1444,10 +1386,17 @@ fun PlayerScreen(
 
         if (activeGesture != GestureType.NONE && !isInPipMode) {
             when (activeGesture) {
-                GestureType.VOLUME -> VolumeHudCapsule(gestureVolumeRatio = gestureVolumeRatio)
                 GestureType.SEEK -> SeekHudCapsule(seekOffsetSec = seekOffsetSec)
-                else -> GestureTextHudCapsule(gestureText = gestureText)
+                else -> if (activeGesture != GestureType.VOLUME) GestureTextHudCapsule(gestureText = gestureText) else Unit
             }
+        }
+
+        androidx.compose.animation.AnimatedVisibility(
+            visible = showVolumeHud && !isInPipMode,
+            enter = androidx.compose.animation.fadeIn(animationSpec = androidx.compose.animation.core.tween(150)),
+            exit = androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(300))
+        ) {
+            VolumeHudCapsule(gestureVolumeRatio = gestureVolumeRatio)
         }
 
         androidx.compose.animation.AnimatedVisibility(
@@ -1514,10 +1463,9 @@ fun PlayerScreen(
                                     }
                                 },
                                 onTap = {
-                                    controlsInteractionTrigger = System.currentTimeMillis()
-                                    if (showBrightnessSlider) {
-                                        showBrightnessSlider = false
-                                    }
+                                    // Tapping empty backdrop when controls are visible: dismiss synchronously!
+                                    showControls = false
+                                    showBrightnessSlider = false
                                 }
                             )
                         }
@@ -1733,198 +1681,145 @@ fun PlayerScreen(
                     }
                 }
 
-                    // Bottom controls container (traps taps so controls remain visible)
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .align(Alignment.BottomCenter)
-                            .onGloballyPositioned { coordinates ->
-                                bottomBarHeightPx = coordinates.size.height.toFloat()
+                    val isPortrait = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
+                    PlayerBottomBar(
+                        mediaController = mediaController,
+                        isPlaying = isPlaying,
+                        onLockClick = {
+                            controlsInteractionTrigger = System.currentTimeMillis()
+                            isLocked = true
+                        },
+                        abRepeatStart = abRepeatStart,
+                        abRepeatEnd = abRepeatEnd,
+                        repeatMode = repeatMode,
+                        onRepeatModeClick = {
+                            val nextMode = when (repeatMode) {
+                                androidx.media3.common.Player.REPEAT_MODE_OFF -> androidx.media3.common.Player.REPEAT_MODE_ALL
+                                androidx.media3.common.Player.REPEAT_MODE_ALL -> androidx.media3.common.Player.REPEAT_MODE_ONE
+                                else -> androidx.media3.common.Player.REPEAT_MODE_OFF
                             }
-                            .pointerInput(Unit) {
-                                detectTapGestures {
-                                    controlsInteractionTrigger = System.currentTimeMillis()
+                            com.example.LogKeeper.log("Repeat mode toggled from $repeatMode to $nextMode", "PlayerScreen")
+                            repeatMode = nextMode
+                            mediaController?.repeatMode = nextMode
+                        },
+                        backgroundPlayEnabled = backgroundPlayEnabled,
+                        onBackgroundPlayClick = {
+                            backgroundPlayEnabled = !backgroundPlayEnabled
+                            com.example.LogKeeper.log("Background play toggled -> $backgroundPlayEnabled", "PlayerScreen")
+                            Toast.makeText(context, "Background play " + if (backgroundPlayEnabled) "enabled" else "disabled", Toast.LENGTH_SHORT).show()
+                        },
+                        resizeMode = resizeMode,
+                        onResizeModeClick = {
+                            scale = 1.0f
+                            offsetX = 0f
+                            offsetY = 0f
+                            rotationAngle = 0f
+                            resizeMode = when (resizeMode) {
+                                androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL
+                                androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                                androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> 5
+                                else -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                            }
+                        },
+                        onPreviousClick = {
+                            com.example.LogKeeper.log("Previous button clicked", "PlayerScreen")
+                            mediaController?.let { controller ->
+                                if (controller.hasPreviousMediaItem()) {
+                                    controller.seekToPreviousMediaItem()
+                                } else {
+                                    controller.seekTo(0)
                                 }
                             }
-                    ) {
-                        // Bottom controls background
-                        Box(modifier = Modifier
-                            .fillMaxWidth()
-                            .height(180.dp)
-                            .align(Alignment.BottomCenter)
-                            .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.9f))))
-                        )
-
-                    // Bottom controls overlay
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .align(Alignment.BottomCenter)
-                            .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.systemBarsIgnoringVisibility.union(androidx.compose.foundation.layout.WindowInsets.displayCutout).only(androidx.compose.foundation.layout.WindowInsetsSides.Horizontal + androidx.compose.foundation.layout.WindowInsetsSides.Bottom))
-                            .padding(bottom = 4.dp)
-                    ) {
-                        com.example.ui.screens.PlaybackProgressRow(
-                            mediaController = mediaController,
-                            abRepeatStart = abRepeatStart,
-                            abRepeatEnd = abRepeatEnd,
-                            onInteraction = { controlsInteractionTrigger = System.currentTimeMillis() },
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
-                        )
-                        
-                        Box(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp)
-                        ) {
-                            // Left alignment: Lock Button
-                            IconButton(
-                                onClick = {
-                                    controlsInteractionTrigger = System.currentTimeMillis()
-                                    isLocked = true
-                                },
-                                modifier = Modifier.align(Alignment.CenterStart)
-                            ) {
-                                Icon(Icons.Filled.LockOpen, contentDescription = "Lock", tint = Color.White)
+                        },
+                        onPlayPauseClick = {
+                            com.example.LogKeeper.log("Play/Pause button clicked (currently isPlaying=$isPlaying)", "PlayerScreen")
+                            mediaController?.let { controller ->
+                                if (controller.playbackState == androidx.media3.common.Player.STATE_ENDED) {
+                                    controller.seekTo(0)
+                                    controller.prepare()
+                                    controller.play()
+                                    wasPlayingBeforePause = true
+                                } else if (controller.playbackState == androidx.media3.common.Player.STATE_IDLE) {
+                                    controller.prepare()
+                                    controller.play()
+                                    wasPlayingBeforePause = true
+                                } else if (controller.isPlaying) {
+                                    controller.pause()
+                                    wasPlayingBeforePause = false
+                                } else {
+                                    controller.play()
+                                    wasPlayingBeforePause = true
+                                }
                             }
-
-                            // Center alignment: Transport Controls
-                            PlayerTransportControls(
-                                isPlaying = isPlaying,
-                                onPreviousClick = {
-                                    com.example.LogKeeper.log("Previous button clicked", "PlayerScreen")
-                                    mediaController?.let { controller ->
-                                        if (controller.hasPreviousMediaItem()) {
-                                            controller.seekToPreviousMediaItem()
-                                        } else {
-                                            controller.seekTo(0)
-                                        }
-                                    }
-                                },
-                                onPlayPauseClick = {
-                                    com.example.LogKeeper.log("Play/Pause button clicked (currently isPlaying=$isPlaying)", "PlayerScreen")
-                                    mediaController?.let { controller ->
-                                        if (controller.playbackState == androidx.media3.common.Player.STATE_ENDED) {
-                                            controller.seekTo(0)
-                                            controller.prepare()
-                                            controller.play()
-                                            wasPlayingBeforePause = true
-                                        } else if (controller.playbackState == androidx.media3.common.Player.STATE_IDLE) {
-                                            controller.prepare()
-                                            controller.play()
-                                            wasPlayingBeforePause = true
-                                        } else if (controller.isPlaying) {
-                                            controller.pause()
-                                            wasPlayingBeforePause = false
-                                        } else {
-                                            controller.play()
-                                            wasPlayingBeforePause = true
-                                        }
-                                    }
-                                },
-                                onNextClick = {
-                                    com.example.LogKeeper.log("Next button clicked", "PlayerScreen")
-                                    mediaController?.let { controller ->
-                                        if (controller.hasNextMediaItem()) {
-                                            controller.seekToNextMediaItem()
-                                        }
-                                    }
-                                },
-                                onStopClick = {
-                                    com.example.LogKeeper.log("Stop button clicked in main player center controls", "PlayerScreen")
-                                    mediaController?.let { controller ->
-                                        val pos = controller.currentPosition
-                                        val dur = controller.duration
-                                        if (pos > 0L) {
-                                            com.example.data.SettingsManager.getInstance(context).savePlaybackState(decodedUriString, pos, dur, currentMediaTitle)
-                                        }
-                                        controller.pause()
-                                        controller.stop()
-                                        controller.clearMediaItems()
-                                    }
-                                    com.example.service.PlayerManager.release()
-                                    try {
-                                        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager
-                                        nm?.cancelAll()
-                                    } catch (e: Exception) {}
-                                    onNavigateBack()
-                                    (context.findActivity() as? androidx.activity.ComponentActivity)?.finish()
-                                },
-                                onInteraction = {
-                                    controlsInteractionTrigger = System.currentTimeMillis()
-                                },
-                                modifier = Modifier.align(Alignment.Center)
-                            )
-
-                            // Right alignment: Right Tools (Loop, BgPlay, Resize, Mini, Float)
-                            val isPortrait = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
-                            PlayerRightTools(
-                                repeatMode = repeatMode,
-                                onRepeatModeClick = {
-                                    val nextMode = when (repeatMode) {
-                                        androidx.media3.common.Player.REPEAT_MODE_OFF -> androidx.media3.common.Player.REPEAT_MODE_ALL
-                                        androidx.media3.common.Player.REPEAT_MODE_ALL -> androidx.media3.common.Player.REPEAT_MODE_ONE
-                                        else -> androidx.media3.common.Player.REPEAT_MODE_OFF
-                                    }
-                                    com.example.LogKeeper.log("Repeat mode toggled from $repeatMode to $nextMode", "PlayerScreen")
-                                    repeatMode = nextMode
-                                    mediaController?.repeatMode = nextMode
-                                },
-                                backgroundPlayEnabled = backgroundPlayEnabled,
-                                onBackgroundPlayClick = {
-                                    backgroundPlayEnabled = !backgroundPlayEnabled
-                                    com.example.LogKeeper.log("Background play toggled -> $backgroundPlayEnabled", "PlayerScreen")
-                                    Toast.makeText(context, "Background play " + if (backgroundPlayEnabled) "enabled" else "disabled", Toast.LENGTH_SHORT).show()
-                                },
-                                resizeMode = resizeMode,
-                                onResizeModeClick = {
-                                    scale = 1.0f
-                                    offsetX = 0f
-                                    offsetY = 0f
-                                    resizeMode = when (resizeMode) {
-                                        androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL
-                                        androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                                        androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> 5
-                                        else -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
-                                    }
-                                },
-                                onMiniPlayerClick = {
-                                    if (android.provider.Settings.canDrawOverlays(context)) {
-                                        val overlayIntent = android.content.Intent("com.example.ACTION_WIDGET_COMMAND")
-                                        overlayIntent.putExtra("command", "ACTION_MINIPLAYER")
-                                        overlayIntent.setPackage(context.packageName)
-                                        context.sendBroadcast(overlayIntent)
-                                        forceBackgroundPlay.set(true)
-                                        backgroundPlayEnabled = true
-                                        onNavigateBack()
-                                    } else {
-                                        val intent = android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:${context.packageName}"))
-                                        intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                                        context.startActivity(intent)
-                                    }
-                                },
-                                onFloatingPlayerClick = {
-                                    if (android.provider.Settings.canDrawOverlays(context)) {
-                                        com.example.service.PlayerManager.isFloatingVideoActive = true
-                                        val overlayIntent = android.content.Intent("com.example.ACTION_WIDGET_COMMAND")
-                                        overlayIntent.putExtra("command", "ACTION_VIDEO_OVERLAY")
-                                        overlayIntent.setPackage(context.packageName)
-                                        context.sendBroadcast(overlayIntent)
-                                        forceBackgroundPlay.set(true)
-                                        backgroundPlayEnabled = true
-                                        onNavigateBack()
-                                    } else {
-                                        val intent = android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:${context.packageName}"))
-                                        intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                                        context.startActivity(intent)
-                                    }
-                                },
-                                onInteraction = {
-                                    controlsInteractionTrigger = System.currentTimeMillis()
-                                },
-                                isPortrait = isPortrait,
-                                modifier = Modifier.align(Alignment.CenterEnd)
-                            )
-                        }
-                    }
-                }
+                        },
+                        onNextClick = {
+                            com.example.LogKeeper.log("Next button clicked", "PlayerScreen")
+                            mediaController?.let { controller ->
+                                if (controller.hasNextMediaItem()) {
+                                    controller.seekToNextMediaItem()
+                                }
+                            }
+                        },
+                        onStopClick = {
+                            com.example.LogKeeper.log("Stop button clicked in main player center controls", "PlayerScreen")
+                            mediaController?.let { controller ->
+                                val pos = controller.currentPosition
+                                val dur = controller.duration
+                                if (pos > 0L) {
+                                    com.example.data.SettingsManager.getInstance(context).savePlaybackState(decodedUriString, pos, dur, currentMediaTitle)
+                                }
+                                controller.pause()
+                                controller.stop()
+                                controller.clearMediaItems()
+                            }
+                            com.example.service.PlayerManager.release()
+                            try {
+                                val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager
+                                nm?.cancelAll()
+                            } catch (e: Exception) {}
+                            onNavigateBack()
+                            (context.findActivity() as? androidx.activity.ComponentActivity)?.finish()
+                        },
+                        onMiniPlayerClick = {
+                            if (android.provider.Settings.canDrawOverlays(context)) {
+                                val overlayIntent = android.content.Intent("com.example.ACTION_WIDGET_COMMAND")
+                                overlayIntent.putExtra("command", "ACTION_MINIPLAYER")
+                                overlayIntent.setPackage(context.packageName)
+                                context.sendBroadcast(overlayIntent)
+                                forceBackgroundPlay.set(true)
+                                backgroundPlayEnabled = true
+                                onNavigateBack()
+                            } else {
+                                val intent = android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:${context.packageName}"))
+                                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                context.startActivity(intent)
+                            }
+                        },
+                        onFloatingPlayerClick = {
+                            if (android.provider.Settings.canDrawOverlays(context)) {
+                                com.example.service.PlayerManager.isFloatingVideoActive = true
+                                val overlayIntent = android.content.Intent("com.example.ACTION_WIDGET_COMMAND")
+                                overlayIntent.putExtra("command", "ACTION_VIDEO_OVERLAY")
+                                overlayIntent.setPackage(context.packageName)
+                                context.sendBroadcast(overlayIntent)
+                                forceBackgroundPlay.set(true)
+                                backgroundPlayEnabled = true
+                                onNavigateBack()
+                            } else {
+                                val intent = android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:${context.packageName}"))
+                                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                context.startActivity(intent)
+                            }
+                        },
+                        onInteraction = {
+                            controlsInteractionTrigger = System.currentTimeMillis()
+                        },
+                        onHeightMeasured = { h ->
+                            bottomBarHeightPx = h
+                        },
+                        isPortrait = isPortrait,
+                        modifier = Modifier.align(Alignment.BottomCenter)
+                    )
                 }
             }
         }

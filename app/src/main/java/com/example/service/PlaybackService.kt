@@ -212,6 +212,34 @@ override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?,
     com.example.LogKeeper.log("PlaybackService: onMediaItemTransition (reason: $reasonStr)", "PlaybackService")
     decoderServiceRetryCount = 0
     updateWidgetUI()
+
+    if (mediaItem != null && mediaItem.mediaMetadata.artworkData == null) {
+        val targetUri = mediaItem.requestMetadata.mediaUri 
+            ?: mediaItem.localConfiguration?.uri 
+            ?: mediaItem.mediaMetadata.artworkUri
+            ?: mediaItem.mediaId.let { try { android.net.Uri.parse(it) } catch (e: Exception) { null } }
+        if (targetUri != null) {
+            serviceScope.launch(Dispatchers.IO) {
+                val thumbBytes = com.example.data.extractMediaThumbnailBytes(applicationContext, targetUri)
+                if (thumbBytes != null) {
+                    kotlinx.coroutines.withContext(Dispatchers.Main) {
+                        val player = PlayerManager.exoPlayer
+                        if (player != null && player.currentMediaItem?.mediaId == mediaItem.mediaId) {
+                            val activeItem = player.currentMediaItem
+                            val updatedMeta = player.mediaMetadata.buildUpon()
+                                .setArtworkData(thumbBytes, androidx.media3.common.MediaMetadata.PICTURE_TYPE_FRONT_COVER)
+                                .build()
+                            val updatedItem = activeItem?.buildUpon()?.setMediaMetadata(updatedMeta)?.build()
+                            if (updatedItem != null) {
+                                player.replaceMediaItem(player.currentMediaItemIndex, updatedItem)
+                                updateCustomLayout()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 override fun onRepeatModeChanged(repeatMode: Int) {
     com.example.LogKeeper.log("PlaybackService: onRepeatModeChanged = $repeatMode", "PlaybackService")

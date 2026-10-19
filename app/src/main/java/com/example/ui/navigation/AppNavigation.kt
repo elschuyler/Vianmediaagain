@@ -48,6 +48,8 @@ fun AppNavigation(
             val isImage = mimeType?.startsWith("image/") == true || ext in com.example.data.COMMON_IMAGE_EXTENSIONS
             val isAudio = mimeType?.startsWith("audio/") == true || ext in com.example.data.COMMON_AUDIO_EXTENSIONS
             val isVideo = mimeType?.startsWith("video/") == true || ext in com.example.data.COMMON_VIDEO_EXTENSIONS
+            val isAnimated = isImage && com.example.data.isAnimatedMedia(context, android.net.Uri.parse(uriStr))
+            val isEffectiveVideo = isVideo || isAnimated
             
             val base64Flags = android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING
             if (forceAction == "mini" || forceAction == "pip" || forceAction == "none") {
@@ -58,9 +60,9 @@ fun AppNavigation(
             } else if (forceAction == "edit") {
                 val encodedUri = android.util.Base64.encodeToString(initialUris.first().toByteArray(), base64Flags)
                 if (isAudio) "audio_trimmer/$encodedUri"
-                else if (isVideo) "video_editor/$encodedUri"
+                else if (isEffectiveVideo) "video_editor/$encodedUri"
                 else "photo_editor/$encodedUri"
-            } else if (isImage) {
+            } else if (isImage && !isAnimated) {
                 if (initialUris.size == 1) {
                     val encodedUri = android.util.Base64.encodeToString(initialUris.first().toByteArray(), base64Flags)
                     "photo_editor/$encodedUri"

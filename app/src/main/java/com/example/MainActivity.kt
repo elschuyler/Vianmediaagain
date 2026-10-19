@@ -164,6 +164,8 @@ class MainActivity : ComponentActivity() {
                   .setMediaMetadata(
                       androidx.media3.common.MediaMetadata.Builder()
                           .setTitle(name)
+                          .setDisplayTitle(name)
+                          .setArtworkUri(uri)
                           .build()
                   )
                   .build()

@@ -318,18 +318,30 @@ fun VideoEditorScreen(
     val uri = Uri.parse(effectiveUri)
 
     LaunchedEffect(uriString) {
+        val targetUri = Uri.parse(uriString)
         val extRaw = uriString.substringAfterLast('.', "").substringBefore('?').lowercase()
-        val isM4s = extRaw == "m4s" || (mimeType == "video/mp4" && uriString.endsWith(".m4s", true))
-        LogKeeper.log("Starting pre-conversion for mimeType: $mimeType ext: $extRaw", "VideoEditor")
+        val containerType = withContext(Dispatchers.IO) {
+            com.example.data.detectStreamContainer(context, targetUri)
+        }
+        val isStreamContainer = (containerType != com.example.data.StreamContainerType.STANDARD)
+        val isM4s = extRaw == "m4s" || (mimeType == "video/mp4" && uriString.endsWith(".m4s", true)) || containerType == com.example.data.StreamContainerType.FRAGMENTED_MP4
+        val isTs = extRaw in setOf("ts", "m2ts", "mts", "tp", "trp") || containerType == com.example.data.StreamContainerType.MPEG_TS
+
+        LogKeeper.log("Starting pre-conversion check: mimeType=$mimeType ext=$extRaw containerType=$containerType", "VideoEditor")
         
-        if (mimeType == "image/gif" || mimeType == "image/webp" || isM4s) {
+        if (mimeType == "image/gif" || mimeType == "image/webp" || isM4s || isTs || isStreamContainer) {
             isConverting = true
             try {
                 // Step 1: Copy URI to cache file on IO thread
-                val ext = if (mimeType == "image/gif") "gif" else if (mimeType == "image/webp") "webp" else "m4s"
+                val ext = when {
+                    mimeType == "image/gif" -> "gif"
+                    mimeType == "image/webp" -> "webp"
+                    isTs -> "ts"
+                    else -> "m4s"
+                }
                 val inputFile = withContext(Dispatchers.IO) {
                     val f = java.io.File(context.cacheDir, "editor_in_${System.currentTimeMillis()}.$ext")
-                    context.contentResolver.openInputStream(Uri.parse(uriString))?.use { input ->
+                    context.contentResolver.openInputStream(targetUri)?.use { input ->
                         f.outputStream().use { output -> input.copyTo(output) }
                     }
                     f
@@ -435,15 +447,50 @@ fun VideoEditorScreen(
                             LogKeeper.logError("VideoEditor", "FFmpeg GIF/WEBP→MP4 failed: ${session.returnCode}\nLogs: ${session.allLogsAsString}", Exception())
                         }
                     }
-                } else if (ext == "m4s") {
+                } else if (isTs || isM4s || isStreamContainer) {
+                    // Two-Tier Optimization Pipeline for TS / M4S / Disguised Stream Containers
                     withContext(Dispatchers.IO) {
-                        val cmd = "-y -i '${inputFile.absolutePath}' -vcodec libx264 -preset ultrafast -crf 23 -acodec aac -metadata:s:v:0 rotate=0 '${outputFile.absolutePath}'"
-                        val session = com.arthenica.ffmpegkit.FFmpegKit.execute(cmd)
-                        if (com.arthenica.ffmpegkit.ReturnCode.isSuccess(session.returnCode) && outputFile.exists()) {
+                        LogKeeper.log("Starting 2-Tier Stream Optimization for $containerType (input: ${inputFile.name})", "VideoEditor")
+                        
+                        // Tier 1: Fast Lossless Remux with Timestamp & PTS Regeneration
+                        val remuxCmd = "-y -fflags +genpts+igndts -avoid_negative_ts make_zero -i '${inputFile.absolutePath}' -c copy -movflags +faststart '${outputFile.absolutePath}'"
+                        val session1 = com.arthenica.ffmpegkit.FFmpegKit.execute(remuxCmd)
+                        
+                        var tier1Valid = false
+                        if (com.arthenica.ffmpegkit.ReturnCode.isSuccess(session1.returnCode) && outputFile.exists() && outputFile.length() > 2048L) {
+                            val retriever = android.media.MediaMetadataRetriever()
+                            try {
+                                retriever.setDataSource(outputFile.absolutePath)
+                                val hasVideo = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_HAS_VIDEO)
+                                val durationStr = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
+                                val durationMs = durationStr?.toLongOrNull() ?: 0L
+                                if (hasVideo == "yes" && durationMs > 0L) {
+                                    tier1Valid = true
+                                }
+                            } catch (e: Exception) {
+                                tier1Valid = false
+                            } finally {
+                                try { retriever.release() } catch (e: Exception) {}
+                            }
+                        }
+                        
+                        if (tier1Valid) {
                             convertedUri = outputFile.toURI().toString()
-                            LogKeeper.log("Pre-conversion complete (m4s)", "VideoEditor")
+                            LogKeeper.log("Tier 1 fast remux succeeded for $containerType (${outputFile.length()} bytes)", "VideoEditor")
                         } else {
-                            LogKeeper.logError("VideoEditor", "FFmpeg m4s→MP4 failed: ${session.returnCode}\nLogs: ${session.allLogsAsString}", Exception())
+                            // Tier 2: Fallback Transcode with Constant Frame Rate (CFR) & Audio Sample Alignment
+                            LogKeeper.log("Tier 1 remux was invalid or failed; executing Tier 2 CFR transcode for $containerType", "VideoEditor")
+                            if (outputFile.exists()) {
+                                outputFile.delete()
+                            }
+                            val transcodeCmd = "-y -fflags +genpts+igndts -avoid_negative_ts make_zero -i '${inputFile.absolutePath}' -vf \"fps=30,setpts=PTS-STARTPTS\" -af \"aresample=async=1000:first_pts=0\" -c:v libx264 -preset ultrafast -crf 22 -c:a aac -b:a 192k -movflags +faststart '${outputFile.absolutePath}'"
+                            val session2 = com.arthenica.ffmpegkit.FFmpegKit.execute(transcodeCmd)
+                            if (com.arthenica.ffmpegkit.ReturnCode.isSuccess(session2.returnCode) && outputFile.exists() && outputFile.length() > 2048L) {
+                                convertedUri = outputFile.toURI().toString()
+                                LogKeeper.log("Tier 2 CFR transcode succeeded for $containerType", "VideoEditor")
+                            } else {
+                                LogKeeper.logError("VideoEditor", "Both Tier 1 and Tier 2 failed for $containerType:\nLogs: ${session2.allLogsAsString}", Exception())
+                            }
                         }
                     }
                 }
@@ -476,7 +523,7 @@ fun VideoEditorScreen(
                 val outputFile = java.io.File(context.cacheDir, "editor_converted_${System.currentTimeMillis()}.mp4")
                 sessionTempFiles.add(outputFile)
                 withContext(Dispatchers.IO) {
-                    val cmd = "-y -i '${inputFile.absolutePath}' -vcodec libx264 -preset ultrafast -crf 23 -acodec aac -metadata:s:v:0 rotate=0 '${outputFile.absolutePath}'"
+                    val cmd = "-y -fflags +genpts+igndts -avoid_negative_ts make_zero -i '${inputFile.absolutePath}' -vf \"fps=30,setpts=PTS-STARTPTS\" -af \"aresample=async=1000:first_pts=0\" -c:v libx264 -preset ultrafast -crf 22 -c:a aac -b:a 192k -metadata:s:v:0 rotate=0 '${outputFile.absolutePath}'"
                     val session = com.arthenica.ffmpegkit.FFmpegKit.execute(cmd)
                     if (com.arthenica.ffmpegkit.ReturnCode.isSuccess(session.returnCode) && outputFile.exists()) {
                         convertedUri = outputFile.toURI().toString()
@@ -543,7 +590,7 @@ fun VideoEditorScreen(
     }
 
     val exoPlayer = remember(effectiveUri, editState.joinVideoUris, editState.joinVideoUri, editState.joinAtEnd) {
-        val uriToUse = if (mimeType == "image/gif" || mimeType == "image/webp") convertedUri else effectiveUri?.toString()
+        val uriToUse = convertedUri ?: effectiveUri?.toString()
         if (uriToUse == null) null
         else androidx.media3.exoplayer.ExoPlayer.Builder(context).build().apply {
             val items = mutableListOf<androidx.media3.common.MediaItem>()
@@ -674,7 +721,7 @@ fun VideoEditorScreen(
         Box(modifier = Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 CircularProgressIndicator(color = Color.White)
-                Text("Converting for editing...", color = Color.White)
+                Text("Optimizing stream for editing...", color = Color.White)
             }
         }
         return
@@ -3434,12 +3481,14 @@ fun VideoEditorScreen(
                         Button(onClick = {
                             val newUri = exportedPreviewUri
                             exportedPreviewUri = null
-                            val intent = android.content.Intent(context, com.example.MainActivity::class.java).apply {
-                                action = "edit"
-                                setDataAndType(Uri.parse(newUri), "video/*")
+                            if (newUri != null) {
+                                currentMainUri = newUri
+                                convertedUri = null
+                                isConverting = false
+                                editState = VideoEditState()
+                                playerError = null
+                                LogKeeper.log("Reloading VideoEditorScreen in-place with finished file: $newUri", "VideoEditor")
                             }
-                            context.startActivity(intent)
-                            (context as? android.app.Activity)?.finish()
                         }, modifier = Modifier.fillMaxWidth()) {
                             Text("Edit Finished File")
                         }

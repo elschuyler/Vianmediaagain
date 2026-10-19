@@ -70,11 +70,15 @@ class EditorActivity : ComponentActivity() {
         val uriSet = LinkedHashSet<String>()
 
         intent.getStringExtra("uri")?.let { raw ->
-            val decoded = try {
-                val bytes = android.util.Base64.decode(raw, android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
-                val str = String(bytes)
-                if (str.contains("://") || str.startsWith("/")) str else raw
-            } catch (e: Exception) { raw }
+            val decoded = if (raw.startsWith("content://") || raw.startsWith("file://") || raw.startsWith("/")) {
+                raw
+            } else {
+                try {
+                    val bytes = android.util.Base64.decode(raw, android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
+                    val str = String(bytes)
+                    if (str.contains("://") || str.startsWith("/")) str else raw
+                } catch (e: Exception) { raw }
+            }
             if (decoded.isNotBlank()) uriSet.add(decoded)
         }
 
@@ -109,6 +113,10 @@ class EditorActivity : ComponentActivity() {
         return uriSet.filter { it.isNotBlank() }
     }
 
+    private fun isAnimatedMedia(uri: Uri, mime: String, ext: String): Boolean {
+        return com.example.data.isAnimatedMedia(this, uri)
+    }
+
     private fun classifyMediaType(uris: List<String>, explicitMime: String?): String {
         if (uris.isEmpty()) return "image"
         val firstUriStr = uris.first()
@@ -122,7 +130,8 @@ class EditorActivity : ComponentActivity() {
         val ext = firstUriStr.substringAfterLast('.', "").substringBefore('?').lowercase()
 
         val isAudio = mime.startsWith("audio/") || ext in com.example.data.COMMON_AUDIO_EXTENSIONS
-        val isVideo = mime.startsWith("video/") || ext in com.example.data.COMMON_VIDEO_EXTENSIONS
+        val isAnimated = isAnimatedMedia(uri, mime, ext)
+        val isVideo = isAnimated || mime.startsWith("video/") || ext in com.example.data.COMMON_VIDEO_EXTENSIONS
 
         return when {
             isAudio -> "audio"

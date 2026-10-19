@@ -44,42 +44,38 @@ class MyBitmapLoader(val context: Context) : BitmapLoader {
         val future = SettableFuture.create<Bitmap>()
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                // 1. Try Coil image loading (downsampled to 256x256)
-                try {
-                    val req = ImageRequest.Builder(context)
-                        .data(uri)
-                        .size(256)
-                        .bitmapConfig(Bitmap.Config.RGB_565)
-                        .build()
-                    val result = context.imageLoader.execute(req)
-                    val dr = result.drawable
-                    if (dr is android.graphics.drawable.BitmapDrawable) {
-                        future.set(dr.bitmap)
-                        return@launch
-                    }
-                } catch (e: Exception) {}
+                // 1. Try ContentResolver loadThumbnail on Android 10+ (fastest hardware thumbnail)
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    try {
+                        val thumb = context.contentResolver.loadThumbnail(uri, android.util.Size(320, 320), null)
+                        if (thumb != null) {
+                            future.set(thumb)
+                            return@launch
+                        }
+                    } catch (e: Exception) {}
+                }
 
-                // 2. Try MediaMetadataRetriever (embedded artwork or video frame)
+                // 2. Try MediaMetadataRetriever (embedded artwork or video frame at 0L)
                 val retriever = android.media.MediaMetadataRetriever()
                 try {
                     retriever.setDataSource(context, uri)
                     val pic = retriever.embeddedPicture
                     if (pic != null) {
-                        val bmp = decodeDownsampledBitmap(pic, 256)
+                        val bmp = decodeDownsampledBitmap(pic, 320)
                         if (bmp != null) {
                             future.set(bmp)
                             return@launch
                         }
                     }
                     val frame = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O_MR1) {
-                        retriever.getScaledFrameAtTime(1000000L, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 256, 256)
+                        retriever.getScaledFrameAtTime(0L, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 320, 320)
                             ?: retriever.frameAtTime
                     } else {
                         retriever.frameAtTime
                     }
                     if (frame != null) {
-                        val scaled = if (frame.width > 256 || frame.height > 256) {
-                            Bitmap.createScaledBitmap(frame, 256, (256f * frame.height / frame.width).toInt().coerceAtLeast(1), true)
+                        val scaled = if (frame.width > 320 || frame.height > 320) {
+                            Bitmap.createScaledBitmap(frame, 320, (320f * frame.height / frame.width).toInt().coerceAtLeast(1), true)
                         } else {
                             frame
                         }
@@ -91,16 +87,20 @@ class MyBitmapLoader(val context: Context) : BitmapLoader {
                     try { retriever.release() } catch (e: Exception) {}
                 }
 
-                // 3. Try ContentResolver loadThumbnail on Android 10+
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                    try {
-                        val thumb = context.contentResolver.loadThumbnail(uri, android.util.Size(256, 256), null)
-                        if (thumb != null) {
-                            future.set(thumb)
-                            return@launch
-                        }
-                    } catch (e: Exception) {}
-                }
+                // 3. Try Coil image loading
+                try {
+                    val req = ImageRequest.Builder(context)
+                        .data(uri)
+                        .size(320)
+                        .bitmapConfig(Bitmap.Config.RGB_565)
+                        .build()
+                    val result = context.imageLoader.execute(req)
+                    val dr = result.drawable
+                    if (dr is android.graphics.drawable.BitmapDrawable) {
+                        future.set(dr.bitmap)
+                        return@launch
+                    }
+                } catch (e: Exception) {}
 
                 future.setException(Exception("No bitmap available for $uri"))
             } catch(e: Exception) { 

@@ -138,6 +138,7 @@ class PlayerActivity : ComponentActivity() {
                     androidx.media3.common.MediaMetadata.Builder()
                         .setTitle(fastName)
                         .setDisplayTitle(fastName)
+                        .setArtworkUri(uri)
                         .build()
                 )
             if (siblingSubs.isNotEmpty()) {
@@ -153,14 +154,15 @@ class PlayerActivity : ComponentActivity() {
             PlayerManager.isImplicitFolderQueue = true
             settings.markAsOpened(decodedStr, fastName)
 
-            // Resolve full display name and any deferred subtitles asynchronously on IO dispatcher
+            // Resolve full display name, video thumbnail, and deferred subtitles asynchronously on IO dispatcher
             lifecycleScope.launch(Dispatchers.IO) {
                 val resolvedName = if (uri.scheme == "content") queryDisplayName(uri) else null
                 val asyncSubs = if (siblingSubs.isEmpty()) {
                     com.example.service.SubtitleAutoDetector.detectSiblingSubtitles(applicationContext, uri)
                 } else emptyList()
+                val thumbBytes = extractThumbnailBytes(uri)
 
-                if ((!resolvedName.isNullOrBlank() && resolvedName != fastName) || asyncSubs.isNotEmpty()) {
+                if ((!resolvedName.isNullOrBlank() && resolvedName != fastName) || asyncSubs.isNotEmpty() || thumbBytes != null) {
                     withContext(Dispatchers.Main) {
                         val currentPlayer = PlayerManager.exoPlayer
                         if (currentPlayer != null && currentPlayer.currentMediaItem?.mediaId == decodedStr) {
@@ -168,6 +170,10 @@ class PlayerActivity : ComponentActivity() {
                             val updatedMeta = currentPlayer.mediaMetadata.buildUpon()
                             if (!resolvedName.isNullOrBlank()) {
                                 updatedMeta.setTitle(resolvedName).setDisplayTitle(resolvedName)
+                            }
+                            updatedMeta.setArtworkUri(uri)
+                            if (thumbBytes != null) {
+                                updatedMeta.setArtworkData(thumbBytes, androidx.media3.common.MediaMetadata.PICTURE_TYPE_FRONT_COVER)
                             }
                             val updatedItemBuilder = activeItem?.buildUpon()?.setMediaMetadata(updatedMeta.build())
                             if (asyncSubs.isNotEmpty()) {
@@ -180,12 +186,53 @@ class PlayerActivity : ComponentActivity() {
                                 if (!resolvedName.isNullOrBlank()) {
                                     settings.markAsOpened(decodedStr, resolvedName)
                                 }
+                                try {
+                                    applicationContext.sendBroadcast(
+                                        Intent("com.example.ACTION_UPDATE_NOTIFICATION").setPackage(packageName)
+                                    )
+                                } catch (e: Exception) {}
                             }
                         }
                     }
                 }
             }
         }
+    }
+
+    private fun extractThumbnailBytes(uri: Uri): ByteArray? {
+        try {
+            var bmp: android.graphics.Bitmap? = null
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                try {
+                    bmp = contentResolver.loadThumbnail(uri, android.util.Size(320, 320), null)
+                } catch (e: Exception) {}
+            }
+            if (bmp == null) {
+                val retriever = android.media.MediaMetadataRetriever()
+                try {
+                    retriever.setDataSource(applicationContext, uri)
+                    bmp = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O_MR1) {
+                        retriever.getScaledFrameAtTime(0L, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 320, 320)
+                            ?: retriever.frameAtTime
+                    } else {
+                        retriever.frameAtTime
+                    }
+                } catch (e: Exception) {}
+                finally {
+                    try { retriever.release() } catch (e: Exception) {}
+                }
+            }
+            if (bmp != null) {
+                val baos = java.io.ByteArrayOutputStream()
+                bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, baos)
+                val bytes = baos.toByteArray()
+                bmp.recycle()
+                return bytes
+            }
+        } catch (e: Exception) {
+            LogKeeper.logError("PlayerActivity", "Error extracting video thumbnail for notification: ${e.message}", e)
+        }
+        return null
     }
 
     override fun onNewIntent(intent: Intent) {
