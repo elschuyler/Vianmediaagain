@@ -584,7 +584,7 @@ fun VideoEditorScreen(
                 }
             }
             val audioStr = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO)
-            videoHasAudio = (audioStr != "no")
+            videoHasAudio = (audioStr == "yes")
             retriever.release()
         } catch (e: Exception) {}
     }
@@ -3158,6 +3158,9 @@ fun VideoEditorScreen(
 
                         var cmd = ""
                         if (isSpeedCurveActive && joinPaths.isEmpty()) {
+                            val baseStartSec = if (!editState.isDoubleTrim && !editState.isCutMode) {
+                                (editState.trimStartMs.coerceIn(0L, durationMs) / 1000f)
+                            } else 0f
                             val activeDurationSec = if (!editState.isDoubleTrim && !editState.isCutMode) {
                                 val start = editState.trimStartMs.coerceIn(0L, durationMs)
                                 val end = editState.trimEndMs.coerceIn(start, durationMs).takeIf { it > 0 } ?: durationMs
@@ -3173,8 +3176,8 @@ fun VideoEditorScreen(
                             for (k in 0 until numSegments) {
                                 val fStart = k.toFloat() / numSegments.toFloat()
                                 val fEnd = (k + 1).toFloat() / numSegments.toFloat()
-                                val sStart = fStart * activeDurationSec
-                                val sEnd = fEnd * activeDurationSec
+                                val sStart = baseStartSec + fStart * activeDurationSec
+                                val sEnd = baseStartSec + fEnd * activeDurationSec
                                 val fMid = (fStart + fEnd) / 2.0f
                                 val spd = getSpeedAtTime(editState.speedCurvePoints, fMid).coerceIn(0.2f, 5.0f)
 
@@ -3201,9 +3204,9 @@ fun VideoEditorScreen(
 
                             if (hasAudio) {
                                 if (audioFilterList.isNotEmpty()) {
-                                    sb.append("[a_ramped]${audioFilterList.joinToString(",")}[a_out]")
+                                    sb.append("[a_ramped]${audioFilterList.joinToString(",")},aresample=48000,aformat=channel_layouts=stereo[a_out]")
                                 } else {
-                                    sb.append("[a_ramped]anull[a_out]")
+                                    sb.append("[a_ramped]aresample=48000,aformat=channel_layouts=stereo[a_out]")
                                 }
                             }
 
@@ -3222,28 +3225,28 @@ fun VideoEditorScreen(
                                 val finalFilter = sbAudio.toString()
                                 val audioMapTag = if (!editState.isAudioReplaceMode && hasAudio) "[a_mixed]" else "[a_out]"
                                 cmd = when (format) {
-                                    "mp4" -> "-y $trimArgs -i %INPUT% $audioInputArg -filter_complex \"$finalFilter\" -map \"[v_out]\" -map \"$audioMapTag\" -shortest -r $fps -vcodec libx264 -crf $crf -preset $presetArg -acodec aac -b:a 192k -metadata:s:v:0 rotate=0 %OUTPUT%"
-                                    "mp3" -> "-y $trimArgs -i %INPUT% $audioInputArg -filter_complex \"$finalFilter\" -vn -map \"$audioMapTag\" -shortest -acodec libmp3lame -q:a 2 %OUTPUT%"
-                                    "gif" -> "-y $trimArgs -i %INPUT% -filter_complex \"$curveFilterComplex\" -map \"[v_out]\" -loop 0 %OUTPUT%"
+                                    "mp4" -> "-y -i %INPUT% $audioInputArg -filter_complex \"$finalFilter\" -map \"[v_out]\" -map \"$audioMapTag\" -shortest -r $fps -vcodec libx264 -crf $crf -preset $presetArg -acodec aac -b:a 192k -metadata:s:v:0 rotate=0 %OUTPUT%"
+                                    "mp3" -> "-y -i %INPUT% $audioInputArg -filter_complex \"$finalFilter\" -vn -map \"$audioMapTag\" -shortest -acodec libmp3lame -q:a 2 %OUTPUT%"
+                                    "gif" -> "-y -i %INPUT% -filter_complex \"$curveFilterComplex\" -map \"[v_out]\" -loop 0 %OUTPUT%"
                                     else -> "-y -i %INPUT% %OUTPUT%"
                                 }
                             } else {
                                 cmd = when (format) {
                                     "mp4" -> {
                                         if (hasAudio) {
-                                            "-y $trimArgs -i %INPUT% -filter_complex \"$curveFilterComplex\" -map \"[v_out]\" -map \"[a_out]\" -r $fps -vcodec libx264 -crf $crf -preset $presetArg -metadata:s:v:0 rotate=0 %OUTPUT%"
+                                            "-y -i %INPUT% -filter_complex \"$curveFilterComplex\" -map \"[v_out]\" -map \"[a_out]\" -r $fps -vcodec libx264 -crf $crf -preset $presetArg -acodec aac -b:a 192k -metadata:s:v:0 rotate=0 %OUTPUT%"
                                         } else {
-                                            "-y $trimArgs -i %INPUT% -filter_complex \"$curveFilterComplex\" -map \"[v_out]\" -r $fps -vcodec libx264 -crf $crf -preset $presetArg -metadata:s:v:0 rotate=0 %OUTPUT%"
+                                            "-y -i %INPUT% -filter_complex \"$curveFilterComplex\" -map \"[v_out]\" -r $fps -vcodec libx264 -crf $crf -preset $presetArg -metadata:s:v:0 rotate=0 %OUTPUT%"
                                         }
                                     }
                                     "mp3" -> {
                                         if (hasAudio) {
-                                            "-y $trimArgs -i %INPUT% -filter_complex \"$curveFilterComplex\" -vn -map \"[a_out]\" -acodec libmp3lame -q:a 2 %OUTPUT%"
+                                            "-y -i %INPUT% -filter_complex \"$curveFilterComplex\" -vn -map \"[a_out]\" -acodec libmp3lame -q:a 2 %OUTPUT%"
                                         } else {
-                                            "-y $trimArgs -i %INPUT% -vn -acodec libmp3lame -q:a 2 %OUTPUT%"
+                                            "-y -i %INPUT% -vn -acodec libmp3lame -q:a 2 %OUTPUT%"
                                         }
                                     }
-                                    "gif" -> "-y $trimArgs -i %INPUT% -filter_complex \"$curveFilterComplex\" -map \"[v_out]\" -loop 0 %OUTPUT%"
+                                    "gif" -> "-y -i %INPUT% -filter_complex \"$curveFilterComplex\" -map \"[v_out]\" -loop 0 %OUTPUT%"
                                     else -> "-y -i %INPUT% %OUTPUT%"
                                 }
                             }

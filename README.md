@@ -1,102 +1,84 @@
-# Vianbhr Media 🎬🎵
+# Vian Media 🎬🎵
 
-A modern, high-performance, all-in-one Media Player, Video Suite, and Audio Editor for Android. Built from the ground up with **100% Kotlin**, **Jetpack Compose (Material 3)**, and **AndroidX Media3**.
+A clean, ultra-lightweight, all-in-one Media Player, Creative Editors Suite, and Batch Processing utility for Android. Engineered with **100% Kotlin**, **Jetpack Compose (Material 3)**, and **AndroidX Media3**, designed from the ground up to run butter-smooth with zero bloat even on resource-constrained hardware.
 
-> 💡 **Built With Zero Compromises on Ultra-Low-End Hardware**  
-> This entire application was engineered, tested, and iterated **exclusively on a low-end smartphone running Android 15 (Go Edition) with only 3 GB of RAM**, using **Google AI Studio** for code generation & iteration and **GitHub Actions** for automated CI/CD cloud APK compilation—with no laptop, desktop, or local Android Studio environment.
-
----
-
-## ✨ Features Overview
-
-### 📽️ 1. Advanced Media Player
-* **Modern Playback Engine**: Powered by AndroidX Media3 (ExoPlayer, MediaSession, and SessionService).
-* **Smart Time & Scrubbing**: Dynamic time display supporting both `MM:SS` and `HH:MM:SS` for long media, interactive seekbar with live scrubbing, and remaining time calculation.
-* **Gesture Controls**:
-  * Vertical swipe on the left side for Screen Brightness.
-  * Vertical swipe on the right side for Media Volume.
-  * Double-tap left/right edges for 10-second skip forward/backward.
-  * Pinch-to-zoom and pan gesture support.
-* **Playback Controls & Tools**:
-  * Variable playback speeds (0.25x to 3.0x).
-  * Multiple Audio Track & Subtitle Track selection.
-  * A-B Looping / Repeat mode.
-  * Configurable Sleep Timer.
-  * Aspect Ratio switching (Fit, Fill, Stretch, 16:9, 4:3).
-  * One-tap UI Lock Mode to prevent accidental touches.
-  * Persistent playback position remembering where you left off.
-* **Background & Multitasking**:
-  * True Background Audio Playback with persistent notification controls.
-  * Native Android Picture-in-Picture (PiP) support.
-  * Floating Video Overlay (Mini-Player) to watch while using other apps.
+* **Creator**: Lewis  
+* **Series**: Viabhron  
 
 ---
 
-### ✂️ 2. Video Studio & Editor
-* **Frame-Accurate Video Trimmer**: Cut, trim, and export video clips with millisecond precision.
-* **Video Joiner / Concatenator**: Merge multiple video clips into a single continuous video.
-* **Speed Adjustments & Scaling**: Fast-forward or slow-motion video rendering.
-* **Orientation & Transformation**: 90°/180°/270° video rotation and aspect ratio framing.
-* **Audio Extraction & Mute**: Strip audio from video or export audio tracks directly.
-* **Video Compression**: Reduce file sizes without sacrificing visual clarity.
+## ⚡ Core Highlights
+
+* **Ultra-Lightweight & Zero-Bloat**: Minimal RAM footprint, zero background telemetry, and consistent 60fps performance across low-end and flagship devices alike.
+* **All-in-One Local Utility**: Media Player, Video Studio, Audio Trimmer, Photo Editor, Floating Overlays, and Batch Processing unified into a single standalone app.
+* **The Origin Story**: Developed and tested exclusively on a low-end smartphone running **Android 15 (Go Edition) with only 3 GB of RAM**. Crafted inside **Google AI Studio** with automated **GitHub Actions** CI/CD compilation, with very little external help (what little help was received came mainly from **Claude**, with minor assistance from **ChatGPT**).
 
 ---
 
-### 🎧 3. Audio Trimmer & Suite
-* Precision waveform-assisted audio trimming.
-* Millisecond-level start and end point selection.
-* Quick audio preview and lossless export.
+## 🌟 Key Features
 
----
+### 🎬 Advanced Media Player
+* **High-Performance Engine**: Powered by AndroidX Media3 (ExoPlayer) with native asynchronous hardware decoding.
+* **Dedicated Task Architecture**: Isolated `PlayerActivity` with zero-latency video preparation, completely separated from the library.
+* **Precision Gestures**:
+  * Double-tap anywhere on screen strictly toggles **Play / Pause**.
+  * Vertical swipe on the left edge for **Media Volume**.
+  * Vertical swipe on the right edge for **System Screen Brightness** (synchronized directly to device backlight).
+  * Horizontal swipe across the canvas to **scrub and seek** with real-time delta preview.
+  * Multi-touch pinch-to-zoom, translation pan, and **canvas rotation** (`graphicsLayer`).
+* **Playback Suite**: Single-tap speed cycling (`1.0x` -> `1.2x` -> `2.0x` -> `0.5x` -> `0.25x`) and full dialog, multi-track audio & subtitle selection, A-B repeat looping, configurable sleep timer, aspect ratio cycling (Fit, Fill, Stretch, 16:9, 4:3), one-tap UI Lock, and a dedicated center Stop button.
 
-### 🖼️ 4. Photo Editor
-* Built-in image editor supporting cropping, rotation, filters, and image adjustments.
-* Clean, standalone UI for fast image modifications.
+### 🗂️ Smart Folder Library
+* **Structured Organization**: Categorized media browsing across Videos, Audios, Playlists, and File Folders.
+* **Instant Loading**: JSON-backed persistent disk caching (`media_library_cache.json`) with a 24-hour auto-sync cooldown.
+* **Butter-Smooth Scrolling**: 60fps lazy lists powered by `@Immutable` data models and non-recomposing `snapshotFlow` state tracking.
+* **Privacy & Control**: Recursive `.nomedia` folder hierarchy exclusion, multi-select batch actions, and temporary smart queues with automated next-day cleanup.
 
----
+### ✂️ Creative Editors Suite
+* **Video Studio Pro**:
+  * **Trimming**: Frame-accurate single trim and double-trim (cut middle or keep ends).
+  * **Dual-Mode Speed**: Standard speed slider (0.25x–16x) and an interactive **Speed Curve (Wave)** canvas with draggable bezier keyframes for cinematic speed ramping.
+  * **Aspect Ratio & Crop**: Freeform custom crop and standard ratio presets with letterbox/pillarbox canvas framing.
+  * **Rotation & Flip**: 90°/180°/270° video rotation and horizontal/vertical flipping.
+  * **Audio Workstation**: Volume adjustments (0–300%), custom audio track insertion, Mix (background) vs Replace (mute original) modes, and live dual-player preview.
+  * **Multi-Video Joiner**: Interactive sequence cards, per-clip Fit/Fill/Stretch/Blur edge modes, position shifting, and clip promotion.
+  * **Animation & In-Place Editing**: Native animated WebP/GIF frame extraction to MP4 video and instant in-place re-editing of finished exports.
+* **Audio Trimmer**: Waveform-assisted audio trimming with millisecond-level start/end point selection and lossless export.
+* **Photo Editor**: Standalone image editor supporting cropping, rotation, adjustments, and visual filters.
 
-### 📂 5. Media Library & Playlists
-* Automated folder scanning and smart media categorization (Videos / Audios / Folders).
-* Custom playlist creation, sorting, and management.
-* Batch operations: multi-select files for batch deletion, renaming, or playlist addition.
-* Comprehensive file properties and metadata viewer (resolution, codecs, bitrate, dimensions, duration).
+### 📦 Batch Compression & Conversion
+* **Multi-File Background Processing**: Dedicated batch engine integrated with Android's system Share Sheet (`ACTION_SEND_MULTIPLE`).
+* **Batch Image Compression**: Adjust quality, resolution, format (JPEG, PNG, WebP), and resize constraints via `CompressionService`.
+* **Batch Video Transcoding**: Convert formats (MP4, MKV, AVI, MOV, WebM, MP3, AAC), scale resolutions (480p, 720p, 1080p), and fine-tune CRF quality via `FFmpegService`.
+* **2-Tier Stream Optimization**: Zero-cost magic byte container sniffing that automatically unmasks and smoothens erratic `.ts` and `.m4s` streams into continuous 30fps MP4s.
 
----
-
-### 🛡️ 6. System & Diagnostics (`LogKeeper`)
-* **Live In-App Diagnostics**: Integrated `LogKeeper` logging subsystem that tracks player state changes, media transitions, service lifecycles, and error captures in real time.
-* **Permissions Manager**: Dedicated permission dashboard to inspect and request media and overlay permissions seamlessly.
+### 🪟 Floating & Mini Player Overlays
+* **Floating Video Player**: Resizable overlay window (`TYPE_APPLICATION_OVERLAY`) with 3-zone double-tap, PiP support, and an **Aspect Ratio Break** toggle enabling true freeform 2D window resizing.
+* **Mini Player & Folded Bubble**: Compact audio/video player that seamlessly collapses into a draggable, touch-slop responsive floating bubble with in-session coordinate memory.
+* **Media Notification**: Background audio service (`PlaybackService`) featuring a standard 5-button transport layout with full lockscreen artwork delivery.
 
 ---
 
 ## 🛠️ Architecture & Tech Stack
 
 * **Language**: 100% Kotlin
-* **UI Toolkit**: Jetpack Compose with Material Design 3 (M3)
-* **Media Framework**: AndroidX Media3 (ExoPlayer, MediaSession, SessionService)
-* **Video Processing**: FFmpeg & Android MediaCodec
+* **UI Toolkit**: Jetpack Compose & Material Design 3 (M3)
+* **Media Engine**: AndroidX Media3 (ExoPlayer, MediaSession, SessionService)
+* **Transcoding Engine**: FFmpeg-Kit Full & Android MediaCodec
+* **Local Storage & Database**: Room DB & Atomic JSON Caching
 * **Concurrency**: Kotlin Coroutines & Flow
-* **Target OS**: Android 8.0 (API 26) through Android 15 (API 35)
+* **Target OS**: Android 8.0 (API 26) through Android 16 (API 36)
 
 ---
 
-## 🚀 The Development Story
+## 🙏 Credits & Acknowledgements
 
-* **Development Environment**: Crafted entirely via conversational engineering on **Google AI Studio**.
-* **Device**: Developed and verified on an **Android 15 (Go Edition)** low-end smartphone with **3 GB RAM**.
-* **Build Pipeline**: Continuous Integration and automated APK artifact builds handled 100% through **GitHub Actions** (no Android Studio, laptop, or desktop used).
-
----
-
-## 📦 Building the APK
-
-The APK is built automatically via GitHub Actions on every push to `main`.
-
-1. Go to the **Actions** tab in GitHub.
-2. Select the latest workflow run.
-3. Download the compiled APK from the **Artifacts** section.
+* **[Next Player](https://github.com/anilbeesetti/nextplayer)** by Anil Beesetti — Referenced for architectural inspiration regarding dedicated player task isolation (`taskAffinity`) and clean notification media controls.
+* **[AndroidX Media3](https://developer.android.com/media/media3)** & **[FFmpeg-Kit](https://github.com/arthenica/ffmpeg-kit)** for powering the playback and video manipulation engines.
+* **Google AI Studio**, **Claude**, and **ChatGPT** for conversational engineering assistance.
 
 ---
 
 ## 📄 License
+
 Licensed under the [MIT License](LICENSE).

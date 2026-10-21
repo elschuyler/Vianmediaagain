@@ -195,6 +195,16 @@
      - Tier 2 (CFR & Audio Sample Resample Fallback): If remux fails or has unplayable timing quirks, falls back automatically to `-vf "fps=30,setpts=PTS-STARTPTS" -af "aresample=async=1000:first_pts=0" -c:v libx264 -preset ultrafast -crf 22 -c:a aac -b:a 192k`, guaranteeing butter-smooth 30fps editing and perfect audio sync.
   3. Seamless Editor & Player Synchronization: Bound `uriToUse = convertedUri ?: effectiveUri?.toString()` in `VideoEditorScreen.kt` so ExoPlayer immediately previews the optimized container, updated `repairVideo()` with timestamp regeneration flags, and added informative user feedback during stream optimization.
 
+- **Phase 95 (README Architecture Reset, Creator & Series Branding & Attribution Sync)**:
+  1. Documentation Reset: Completely refreshed and synchronized `README.md` to reflect the comprehensive state of Vian Media across all 94 previous phases without unneeded minutiae. Documented the 5 core application pillars: Advanced Media Player, Smart Folder Library, Creative Editors Suite (Video, Audio, Photo), Batch Compression & Conversion (2-Tier stream optimization), and Floating/Mini Player overlays.
+  2. Provenance & Engineering Attribution: Formally added Creator: Lewis and Series: Viabhron. Documented the extreme low-resource development story (Android 15 Go Edition, 3GB RAM, GitHub Actions CI) crafted in Google AI Studio with external input primarily from Claude and slight help from ChatGPT.
+  3. Clean Architectural Reference: Acknowledged `anilbeesetti/nextplayer` as a functional and UX inspiration for dedicated player activity isolation and notification transport standards, preserving clean-room independence and MIT licensing.
+- **Phase 96 (CI Pipeline Inset Resolution, Speed Curve AAC Audio Encoding & Standalone MIT License)**:
+  1. GitHub Actions CI Inset Resolution: Replaced experimental `WindowInsets.systemBarsIgnoringVisibility.union(WindowInsets.displayCutout)` with stable Jetpack Compose `WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)` in `PlayerBottomBar.kt`, resolving `Unresolved reference 'systemBarsIgnoringVisibility'` and `Unresolved reference 'displayCutout'` that failed the CI compilation.
+  2. Speed Curve Export Audio Codec Alignment: Fixed failed video export after applying speed curve. Added explicit `-acodec aac -b:a 192k` to the FFmpeg export command in `VideoEditorScreen.kt` when exporting with audio, added `aresample=48000,aformat=channel_layouts=stereo` to `[a_ramped]` to prevent sample rate and channel layout mismatches across concatenated curve segments, and eliminated conflicting `-ss / -to` input CLI arguments so trimming is cleanly handled within internal filtergraph segment calculations (`sStart = baseStartSec + fStart * activeDurationSec`).
+  3. Audio Stream Specifier Hardening: Hardened `videoHasAudio` detection from `audioStr != "no"` to `audioStr == "yes"` against null metadata results, avoiding fatal `[0:a]` filter specifier errors when videos do not contain an audio stream.
+  4. Repository License Creation: Created root `LICENSE` file under the MIT License copyrighting Lewis (Series: Viabhron) and acknowledging Next Player by Anil Beesetti for architectural reference under GPLv3.
+
 
 
 

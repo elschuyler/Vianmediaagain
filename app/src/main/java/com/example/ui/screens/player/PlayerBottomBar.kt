@@ -4,11 +4,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LockOpen
@@ -22,16 +25,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.dp
-import androidx.media3.session.MediaController
+import androidx.media3.common.Player
 import com.example.ui.screens.PlaybackProgressRow
 
 /**
  * Modularized Bottom Bar surface for PlayerScreen.
  * Encapsulates timeline scrubber row, lock button, transport controls, and right tool buttons.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun PlayerBottomBar(
-    mediaController: MediaController?,
+    mediaController: Player?,
     isPlaying: Boolean,
     onLockClick: () -> Unit,
     abRepeatStart: Long?,
@@ -80,12 +84,10 @@ fun PlayerBottomBar(
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
                 .windowInsetsPadding(
-                    androidx.compose.foundation.layout.WindowInsets.systemBarsIgnoringVisibility
-                        .union(androidx.compose.foundation.layout.WindowInsets.displayCutout)
-                        .only(
-                            androidx.compose.foundation.layout.WindowInsetsSides.Horizontal +
-                            androidx.compose.foundation.layout.WindowInsetsSides.Bottom
-                        )
+                    WindowInsets.safeDrawing.only(
+                        WindowInsetsSides.Horizontal +
+                        WindowInsetsSides.Bottom
+                    )
                 )
                 .padding(bottom = 4.dp)
         ) {
