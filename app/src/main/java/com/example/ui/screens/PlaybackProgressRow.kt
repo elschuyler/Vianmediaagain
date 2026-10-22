@@ -41,8 +41,19 @@ fun PlaybackProgressRow(
     onInteraction: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    var currentPosition by remember { mutableLongStateOf(fallbackPosition?.takeIf { it > 0L } ?: 0L) }
-    var duration by remember { mutableLongStateOf(fallbackDuration?.takeIf { it > 0L } ?: 0L) }
+    val playerSnapshot by com.example.service.PlayerManager.playbackState.collectAsState()
+
+    val initialPos = mediaController?.currentPosition?.takeIf { it >= 0L }
+        ?: fallbackPosition?.takeIf { it > 0L }
+        ?: playerSnapshot.currentPosition.takeIf { it > 0L }
+        ?: 0L
+    val initialDur = mediaController?.duration?.takeIf { it > 0L && it != androidx.media3.common.C.TIME_UNSET }
+        ?: fallbackDuration?.takeIf { it > 0L }
+        ?: playerSnapshot.duration.takeIf { it > 0L }
+        ?: 0L
+
+    var currentPosition by remember { mutableLongStateOf(initialPos) }
+    var duration by remember { mutableLongStateOf(initialDur) }
     var showRemainingTime by remember { mutableStateOf(false) }
     var isScrubbing by remember { mutableStateOf(false) }
     var scrubPosition by remember { mutableStateOf(0f) }
@@ -56,19 +67,19 @@ fun PlaybackProgressRow(
         }
     }
 
-    val playerSnapshot by com.example.service.PlayerManager.playbackState.collectAsState()
-
     LaunchedEffect(playerSnapshot, isScrubbing) {
         if (!isScrubbing) {
-            if (playerSnapshot.duration > 0L) {
+            val livePos = mediaController?.currentPosition?.takeIf { it >= 0L }
+            val liveDur = mediaController?.duration?.takeIf { it > 0L && it != androidx.media3.common.C.TIME_UNSET }
+            if (liveDur != null) {
+                duration = liveDur
+            } else if (playerSnapshot.duration > 0L) {
                 duration = playerSnapshot.duration
-            } else if (mediaController != null && mediaController.duration > 0L && mediaController.duration != androidx.media3.common.C.TIME_UNSET) {
-                duration = mediaController.duration
             }
-            if (playerSnapshot.currentPosition >= 0L) {
+            if (livePos != null) {
+                currentPosition = livePos
+            } else if (playerSnapshot.currentPosition > 0L) {
                 currentPosition = playerSnapshot.currentPosition
-            } else if (mediaController != null && mediaController.currentPosition >= 0L) {
-                currentPosition = mediaController.currentPosition
             }
         }
     }

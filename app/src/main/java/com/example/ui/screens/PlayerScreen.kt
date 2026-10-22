@@ -576,8 +576,11 @@ fun PlayerScreen(
         }
     }
 
-    LaunchedEffect(showControls, controlsInteractionTrigger) {
-        if (showControls) {
+    val isAnyDialogOpen = showPlayerSettingsDialog || showDetailsDialog || showSleepTimerDialog ||
+            showSpeedDialog || showAudioDialog || showSubtitleDialog || showTopMenu
+
+    LaunchedEffect(showControls, controlsInteractionTrigger, isAnyDialogOpen) {
+        if (showControls && !isAnyDialogOpen) {
             kotlinx.coroutines.delay(4000)
             showControls = false
             showBrightnessSlider = false
@@ -1417,24 +1420,12 @@ fun PlayerScreen(
         }
 
         androidx.compose.animation.AnimatedVisibility(
-            visible = showControls && !isInPipMode,
+            visible = showControls && !isInPipMode && !isLocked,
             enter = androidx.compose.animation.fadeIn(animationSpec = androidx.compose.animation.core.tween(200)),
             exit = androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(200)),
             modifier = Modifier.fillMaxSize()
         ) {
-            if (isLocked) {
-                Box(modifier = Modifier.fillMaxSize()) {
-                    IconButton(
-                        onClick = { isLocked = false },
-                        modifier = Modifier
-                            .align(Alignment.CenterStart)
-                            .padding(16.dp)
-                    ) {
-                        Icon(Icons.Filled.Lock, contentDescription = "Unlock", tint = Color.White)
-                    }
-                }
-            } else {
-                Box(
+            Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .pointerInput(Unit) {
@@ -1680,147 +1671,162 @@ fun PlayerScreen(
                         )
                     }
                 }
+            }
+        }
 
-                    val isPortrait = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
-                    PlayerBottomBar(
-                        mediaController = mediaController,
-                        isPlaying = isPlaying,
-                        onLockClick = {
-                            controlsInteractionTrigger = System.currentTimeMillis()
+        // Bottom Bar (contains lock button - stays permanently visible when locked, in exact same OG position)
+        androidx.compose.animation.AnimatedVisibility(
+            visible = (showControls || isLocked) && !isInPipMode,
+            enter = androidx.compose.animation.fadeIn(animationSpec = androidx.compose.animation.core.tween(200)),
+            exit = androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(200)),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                val isPortrait = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
+                PlayerBottomBar(
+                    mediaController = mediaController,
+                    isPlaying = isPlaying,
+                    isLocked = isLocked,
+                    onLockClick = {
+                        controlsInteractionTrigger = System.currentTimeMillis()
+                        if (isLocked) {
+                            isLocked = false
+                            showControls = true
+                        } else {
                             isLocked = true
-                        },
-                        abRepeatStart = abRepeatStart,
-                        abRepeatEnd = abRepeatEnd,
-                        repeatMode = repeatMode,
-                        onRepeatModeClick = {
-                            val nextMode = when (repeatMode) {
-                                androidx.media3.common.Player.REPEAT_MODE_OFF -> androidx.media3.common.Player.REPEAT_MODE_ALL
-                                androidx.media3.common.Player.REPEAT_MODE_ALL -> androidx.media3.common.Player.REPEAT_MODE_ONE
-                                else -> androidx.media3.common.Player.REPEAT_MODE_OFF
+                        }
+                    },
+                    abRepeatStart = abRepeatStart,
+                    abRepeatEnd = abRepeatEnd,
+                    repeatMode = repeatMode,
+                    onRepeatModeClick = {
+                        val nextMode = when (repeatMode) {
+                            androidx.media3.common.Player.REPEAT_MODE_OFF -> androidx.media3.common.Player.REPEAT_MODE_ALL
+                            androidx.media3.common.Player.REPEAT_MODE_ALL -> androidx.media3.common.Player.REPEAT_MODE_ONE
+                            else -> androidx.media3.common.Player.REPEAT_MODE_OFF
+                        }
+                        com.example.LogKeeper.log("Repeat mode toggled from $repeatMode to $nextMode", "PlayerScreen")
+                        repeatMode = nextMode
+                        mediaController?.repeatMode = nextMode
+                    },
+                    backgroundPlayEnabled = backgroundPlayEnabled,
+                    onBackgroundPlayClick = {
+                        backgroundPlayEnabled = !backgroundPlayEnabled
+                        com.example.LogKeeper.log("Background play toggled -> $backgroundPlayEnabled", "PlayerScreen")
+                        Toast.makeText(context, "Background play " + if (backgroundPlayEnabled) "enabled" else "disabled", Toast.LENGTH_SHORT).show()
+                    },
+                    resizeMode = resizeMode,
+                    onResizeModeClick = {
+                        scale = 1.0f
+                        offsetX = 0f
+                        offsetY = 0f
+                        rotationAngle = 0f
+                        resizeMode = when (resizeMode) {
+                            androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL
+                            androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                            androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> 5
+                            else -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                        }
+                    },
+                    onPreviousClick = {
+                        com.example.LogKeeper.log("Previous button clicked", "PlayerScreen")
+                        mediaController?.let { controller ->
+                            if (controller.hasPreviousMediaItem()) {
+                                controller.seekToPreviousMediaItem()
+                            } else {
+                                controller.seekTo(0)
                             }
-                            com.example.LogKeeper.log("Repeat mode toggled from $repeatMode to $nextMode", "PlayerScreen")
-                            repeatMode = nextMode
-                            mediaController?.repeatMode = nextMode
-                        },
-                        backgroundPlayEnabled = backgroundPlayEnabled,
-                        onBackgroundPlayClick = {
-                            backgroundPlayEnabled = !backgroundPlayEnabled
-                            com.example.LogKeeper.log("Background play toggled -> $backgroundPlayEnabled", "PlayerScreen")
-                            Toast.makeText(context, "Background play " + if (backgroundPlayEnabled) "enabled" else "disabled", Toast.LENGTH_SHORT).show()
-                        },
-                        resizeMode = resizeMode,
-                        onResizeModeClick = {
-                            scale = 1.0f
-                            offsetX = 0f
-                            offsetY = 0f
-                            rotationAngle = 0f
-                            resizeMode = when (resizeMode) {
-                                androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL
-                                androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                                androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> 5
-                                else -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
-                            }
-                        },
-                        onPreviousClick = {
-                            com.example.LogKeeper.log("Previous button clicked", "PlayerScreen")
-                            mediaController?.let { controller ->
-                                if (controller.hasPreviousMediaItem()) {
-                                    controller.seekToPreviousMediaItem()
-                                } else {
-                                    controller.seekTo(0)
-                                }
-                            }
-                        },
-                        onPlayPauseClick = {
-                            com.example.LogKeeper.log("Play/Pause button clicked (currently isPlaying=$isPlaying)", "PlayerScreen")
-                            mediaController?.let { controller ->
-                                if (controller.playbackState == androidx.media3.common.Player.STATE_ENDED) {
-                                    controller.seekTo(0)
-                                    controller.prepare()
-                                    controller.play()
-                                    wasPlayingBeforePause = true
-                                } else if (controller.playbackState == androidx.media3.common.Player.STATE_IDLE) {
-                                    controller.prepare()
-                                    controller.play()
-                                    wasPlayingBeforePause = true
-                                } else if (controller.isPlaying) {
-                                    controller.pause()
-                                    wasPlayingBeforePause = false
-                                } else {
-                                    controller.play()
-                                    wasPlayingBeforePause = true
-                                }
-                            }
-                        },
-                        onNextClick = {
-                            com.example.LogKeeper.log("Next button clicked", "PlayerScreen")
-                            mediaController?.let { controller ->
-                                if (controller.hasNextMediaItem()) {
-                                    controller.seekToNextMediaItem()
-                                }
-                            }
-                        },
-                        onStopClick = {
-                            com.example.LogKeeper.log("Stop button clicked in main player center controls", "PlayerScreen")
-                            mediaController?.let { controller ->
-                                val pos = controller.currentPosition
-                                val dur = controller.duration
-                                if (pos > 0L) {
-                                    com.example.data.SettingsManager.getInstance(context).savePlaybackState(decodedUriString, pos, dur, currentMediaTitle)
-                                }
+                        }
+                    },
+                    onPlayPauseClick = {
+                        com.example.LogKeeper.log("Play/Pause button clicked (currently isPlaying=$isPlaying)", "PlayerScreen")
+                        mediaController?.let { controller ->
+                            if (controller.playbackState == androidx.media3.common.Player.STATE_ENDED) {
+                                controller.seekTo(0)
+                                controller.prepare()
+                                controller.play()
+                                wasPlayingBeforePause = true
+                            } else if (controller.playbackState == androidx.media3.common.Player.STATE_IDLE) {
+                                controller.prepare()
+                                controller.play()
+                                wasPlayingBeforePause = true
+                            } else if (controller.isPlaying) {
                                 controller.pause()
-                                controller.stop()
-                                controller.clearMediaItems()
+                                wasPlayingBeforePause = false
+                            } else {
+                                controller.play()
+                                wasPlayingBeforePause = true
                             }
-                            com.example.service.PlayerManager.release()
-                            try {
-                                val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager
-                                nm?.cancelAll()
-                            } catch (e: Exception) {}
+                        }
+                    },
+                    onNextClick = {
+                        com.example.LogKeeper.log("Next button clicked", "PlayerScreen")
+                        mediaController?.let { controller ->
+                            if (controller.hasNextMediaItem()) {
+                                controller.seekToNextMediaItem()
+                            }
+                        }
+                    },
+                    onStopClick = {
+                        com.example.LogKeeper.log("Stop button clicked in main player center controls", "PlayerScreen")
+                        mediaController?.let { controller ->
+                            val pos = controller.currentPosition
+                            val dur = controller.duration
+                            if (pos > 0L) {
+                                com.example.data.SettingsManager.getInstance(context).savePlaybackState(decodedUriString, pos, dur, currentMediaTitle)
+                            }
+                            controller.pause()
+                            controller.stop()
+                            controller.clearMediaItems()
+                        }
+                        com.example.service.PlayerManager.release()
+                        try {
+                            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager
+                            nm?.cancelAll()
+                        } catch (e: Exception) {}
+                        onNavigateBack()
+                        (context.findActivity() as? androidx.activity.ComponentActivity)?.finish()
+                    },
+                    onMiniPlayerClick = {
+                        if (android.provider.Settings.canDrawOverlays(context)) {
+                            val overlayIntent = android.content.Intent("com.example.ACTION_WIDGET_COMMAND")
+                            overlayIntent.putExtra("command", "ACTION_MINIPLAYER")
+                            overlayIntent.setPackage(context.packageName)
+                            context.sendBroadcast(overlayIntent)
+                            forceBackgroundPlay.set(true)
+                            backgroundPlayEnabled = true
                             onNavigateBack()
-                            (context.findActivity() as? androidx.activity.ComponentActivity)?.finish()
-                        },
-                        onMiniPlayerClick = {
-                            if (android.provider.Settings.canDrawOverlays(context)) {
-                                val overlayIntent = android.content.Intent("com.example.ACTION_WIDGET_COMMAND")
-                                overlayIntent.putExtra("command", "ACTION_MINIPLAYER")
-                                overlayIntent.setPackage(context.packageName)
-                                context.sendBroadcast(overlayIntent)
-                                forceBackgroundPlay.set(true)
-                                backgroundPlayEnabled = true
-                                onNavigateBack()
-                            } else {
-                                val intent = android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:${context.packageName}"))
-                                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                                context.startActivity(intent)
-                            }
-                        },
-                        onFloatingPlayerClick = {
-                            if (android.provider.Settings.canDrawOverlays(context)) {
-                                com.example.service.PlayerManager.isFloatingVideoActive = true
-                                val overlayIntent = android.content.Intent("com.example.ACTION_WIDGET_COMMAND")
-                                overlayIntent.putExtra("command", "ACTION_VIDEO_OVERLAY")
-                                overlayIntent.setPackage(context.packageName)
-                                context.sendBroadcast(overlayIntent)
-                                forceBackgroundPlay.set(true)
-                                backgroundPlayEnabled = true
-                                onNavigateBack()
-                            } else {
-                                val intent = android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:${context.packageName}"))
-                                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                                context.startActivity(intent)
-                            }
-                        },
-                        onInteraction = {
-                            controlsInteractionTrigger = System.currentTimeMillis()
-                        },
-                        onHeightMeasured = { h ->
-                            bottomBarHeightPx = h
-                        },
-                        isPortrait = isPortrait,
-                        modifier = Modifier.align(Alignment.BottomCenter)
-                    )
-                }
+                        } else {
+                            val intent = android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:${context.packageName}"))
+                            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                            context.startActivity(intent)
+                        }
+                    },
+                    onFloatingPlayerClick = {
+                        if (android.provider.Settings.canDrawOverlays(context)) {
+                            com.example.service.PlayerManager.isFloatingVideoActive = true
+                            val overlayIntent = android.content.Intent("com.example.ACTION_WIDGET_COMMAND")
+                            overlayIntent.putExtra("command", "ACTION_VIDEO_OVERLAY")
+                            overlayIntent.setPackage(context.packageName)
+                            context.sendBroadcast(overlayIntent)
+                            forceBackgroundPlay.set(true)
+                            backgroundPlayEnabled = true
+                            onNavigateBack()
+                        } else {
+                            val intent = android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:${context.packageName}"))
+                            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                            context.startActivity(intent)
+                        }
+                    },
+                    onInteraction = {
+                        controlsInteractionTrigger = System.currentTimeMillis()
+                    },
+                    onHeightMeasured = { h ->
+                        bottomBarHeightPx = h
+                    },
+                    isPortrait = isPortrait,
+                    modifier = Modifier.align(Alignment.BottomCenter)
+                )
             }
         }
 

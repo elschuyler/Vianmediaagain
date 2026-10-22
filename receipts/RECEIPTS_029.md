@@ -39,3 +39,81 @@
 * How it was verified: AST / bracket balance verification, `lint_applet` clean check, and `compile_applet` passing with 0 errors.
 * Any deviation from what was requested: None.
 * Any known issue or follow-up needed: None.
+
+## Phase 97: Butter-Smooth Volume/Brightness Gesture, Single-Tap Canvas Reliability, Paused Timeline Precision & Inactivity Timer Reset
+* Timestamp: 2026-10-22T03:10:00Z
+* One-line summary: Stabilized pointerInput against recomposition cancellation, restored 100% reliable single-tap controls toggle, smoothed volume/brightness gestures without screen partitioning, eliminated paused timeline zero glitch, and enabled controls auto-hide reset on all top/bottom bar touches.
+* Files touched:
+  - app/src/main/java/com/example/ui/screens/player/PlayerGestureModifier.kt
+  - app/src/main/java/com/example/ui/screens/PlaybackProgressRow.kt
+  - app/src/main/java/com/example/ui/screens/player/PlayerBottomBar.kt
+  - app/src/main/java/com/example/ui/screens/player/PlayerTopBar.kt
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_029.md
+* What was actually done:
+  - Stabilized `pointerInput` in `PlayerGestureModifier.kt`:
+    - Replaced unstable keys (`startPositionMs`, `isPlaying`, `currentBoostGainMb`, `showBrightnessSlider`) with stable `pointerInput(enabled)` and bound dynamic state via `rememberUpdatedState`.
+    - This eliminates mid-drag coroutine termination every 500ms and prevents premature cancellation of `pendingSingleTapJob`, ensuring single tap on the canvas reliably toggles controls on/off.
+  - Smooth Volume & Brightness Gestures:
+    - Maintained user's unified screen rule: vertical swipe controls Volume by default, or Brightness if the brightness slider is actively on screen.
+    - Updated volume gestures to trigger continuous `onVolumeUpdate` updates across all finger motion for fluid 60fps HUD slider response.
+  - Eliminated Paused Timeline Zero Glitch:
+    - In `PlaybackProgressRow.kt`, initialized `currentPosition` and `duration` directly from live `mediaController` rather than defaulting to `0L`.
+    - Prevented stale `playerSnapshot.currentPosition == 0L` from overriding live player position while paused.
+    - Passed live `fallbackPosition` and `fallbackDuration` from `PlayerBottomBar.kt`.
+  - Inactivity Timer & Tap Reset:
+    - Added `pointerInput(Unit) { detectTapGestures { onInteraction() } }` to `PlayerTopBar.kt` so tapping blank bar areas or title text keeps controls open and refreshes the 4-second timeout.
+    - Passed `onInteraction()` to the lock button in `PlayerBottomBar.kt`.
+    - Updated `LaunchedEffect` in `PlayerScreen.kt` to pause the 4-second controls auto-hide countdown whenever any settings, audio, subtitle, speed, or details dialog is open (`isAnyDialogOpen`).
+* How it was verified: AST balance check, `lint_applet` clean run, and `compile_applet` passing with 0 errors.
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: None.
+
+## Phase 98: Universal Media Notification Artwork Engine for Floating Video & Mini Player
+* Timestamp: 2026-10-22T18:05:00Z
+* One-line summary: Resolved missing media notification artwork for Floating Video and Mini Player by centralizing asynchronous thumbnail byte extraction and layout refreshes in PlaybackService.
+* Files touched:
+  - app/src/main/java/com/example/MainActivity.kt
+  - app/src/main/java/com/example/service/PlaybackService.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_029.md
+* What was actually done:
+  - Centralized artwork resolution in `PlaybackService.kt`:
+    - Created `ensureArtworkLoaded(mediaItem)` to asynchronously extract high-fidelity thumbnail bytes (`extractMediaThumbnailBytes`) on `Dispatchers.IO` whenever raw `artworkData` is absent.
+    - Attached extracted bytes (`PICTURE_TYPE_FRONT_COVER`) and `artworkUri` to the active `MediaItem` in ExoPlayer.
+    - Triggered `updateCustomLayout()` to force Media3's `MediaNotificationManager` to rebuild the notification with the newly injected artwork bitmap.
+  - Eliminated lifecycle startup race:
+    - Invoked `ensureArtworkLoaded` directly during `PlaybackService.onCreate()` and `onStartCommand()`, so media items initiated before service creation (such as direct Mini Player or Floating Video launch from `MainActivity`) still receive thumbnail extraction immediately.
+    - Hooked `ensureArtworkLoaded` into `showOverlay()`, `ACTION_UPDATE_NOTIFICATION`, and `ACTION_PLAY_FILE`.
+  - Added initial metadata parity:
+    - Added `.setDisplayTitle(displayName)` and `.setArtworkUri(targetUri)` in `MainActivity.kt` (`isPip` block) and `PlaybackService.kt` (`ACTION_PLAY_FILE` receiver) so URIs are available before async byte extraction finishes.
+  - Concurrent extraction safety:
+    - Protected extraction via `loadingArtworkMediaId` lock, preventing duplicate simultaneous decodes of the same media item across fast successive intents.
+* How it was verified: `lint_applet` and `compile_applet`.
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: None.
+
+## Phase 99: Main Player Fixed-Position Persistent Lock & Unlock System
+* Timestamp: 2026-10-22T18:50:00Z
+* One-line summary: Anchored lock/unlock button at fixed bottom-left coordinate in PlayerBottomBar and separated bottom bar into dedicated AnimatedVisibility to keep unlock button permanently visible when locked.
+* Files touched:
+  - app/src/main/java/com/example/ui/screens/player/PlayerBottomBar.kt
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_029.md
+* What was actually done:
+  - Fixed-Position Lock Anchoring in `PlayerBottomBar.kt`:
+    - Added `isLocked: Boolean = false` parameter.
+    - When `isLocked == true`: omitted `PlaybackProgressRow`, `PlayerTransportControls`, `PlayerRightTools`, and the 180dp bottom black gradient.
+    - Maintained the lock `IconButton` at the exact same bottom-left coordinate (`Alignment.CenterStart` in the controls row).
+    - Added dynamic icon switching between `Icons.Filled.Lock` (when locked) and `Icons.Filled.LockOpen` (when unlocked), backed by a 55% black translucent circular pill backdrop for readability over any video scene.
+  - Persistent Always-Visible Lock HUD in `PlayerScreen.kt`:
+    - Removed the disconnected mid-screen unlock button (`Alignment.CenterStart` at 50% screen height) from `PlayerScreen.kt`.
+    - Gated top and center overlay controls under `visible = showControls && !isInPipMode && !isLocked`.
+    - Placed `PlayerBottomBar` in its own dedicated `AnimatedVisibility(visible = (showControls || isLocked) && !isInPipMode)`.
+    - Guaranteed the unlock button never disappears after the 4-second controls timeout while locked.
+    - Configured `onLockClick` to toggle `isLocked` and reset `showControls = true` upon unlock.
+* How it was verified: `lint_applet` and `compile_applet`.
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: None.

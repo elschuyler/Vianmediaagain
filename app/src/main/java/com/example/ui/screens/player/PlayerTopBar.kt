@@ -45,6 +45,11 @@ fun PlayerTopBar(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
             .fillMaxWidth()
+            .pointerInput(Unit) {
+                detectTapGestures {
+                    onInteraction()
+                }
+            }
             .padding(horizontal = 4.dp, vertical = 0.dp)
     ) {
         IconButton(onClick = {
