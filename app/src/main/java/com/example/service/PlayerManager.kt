@@ -166,11 +166,11 @@ object PlayerManager {
             .setSkipSilenceEnabled(skipSilence)
             .build()
         
-        exoPlayer?.pauseAtEndOfMediaItems = false
+        exoPlayer?.pauseAtEndOfMediaItems = (exoPlayer?.repeatMode == Player.REPEAT_MODE_OFF)
         
         exoPlayer?.addListener(object : androidx.media3.common.Player.Listener {
             override fun onRepeatModeChanged(repeatMode: Int) {
-                exoPlayer?.pauseAtEndOfMediaItems = false
+                exoPlayer?.pauseAtEndOfMediaItems = (repeatMode == Player.REPEAT_MODE_OFF)
                 updateSnapshot()
             }
             override fun onPlaybackStateChanged(playbackState: Int) {

@@ -57,6 +57,10 @@ fun MiniPlayerOverlay(
     var folders by remember { mutableStateOf<List<com.example.data.MediaFolder>>(emptyList()) }
     val playlistDao = remember { com.example.data.AppDatabase.getDatabase(context).playlistDao() }
     var playlistsList by remember { mutableStateOf<List<com.example.data.Playlist>>(emptyList()) }
+    var explorerMode by remember { mutableStateOf("current") }
+    var selectedFolder by remember { mutableStateOf<com.example.data.MediaFolder?>(null) }
+    var selectedPlaylist by remember { mutableStateOf<com.example.data.Playlist?>(null) }
+    var selectedPlaylistItems by remember { mutableStateOf<List<com.example.data.PlaylistItem>>(emptyList()) }
     val coroutineScope = rememberCoroutineScope()
     
     LaunchedEffect(Unit) {
@@ -312,9 +316,9 @@ fun MiniPlayerOverlay(
                     }
                 }
 
-                // Second row: Shuffle, Loop, Refresh, Toggle Playlist
+                // Second row: Shuffle, Loop, Refresh, Volume (with reduced padding above and below)
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 0.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -336,6 +340,7 @@ fun MiniPlayerOverlay(
                                 Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
                                 else -> Player.REPEAT_MODE_OFF
                             }
+                            it.pauseAtEndOfMediaItems = (it.repeatMode == Player.REPEAT_MODE_OFF)
                         }
                     }) {
                         Icon(
@@ -347,18 +352,48 @@ fun MiniPlayerOverlay(
                     IconButton(onClick = { /* Refresh playlist logic */ }) {
                         Icon(Icons.Filled.Refresh, "Refresh", tint = MaterialTheme.colorScheme.onSurface)
                     }
-
+                    IconButton(onClick = {
+                        try {
+                            val audioManager = context.getSystemService(android.content.Context.AUDIO_SERVICE) as? android.media.AudioManager
+                            audioManager?.adjustStreamVolume(
+                                android.media.AudioManager.STREAM_MUSIC,
+                                android.media.AudioManager.ADJUST_SAME,
+                                android.media.AudioManager.FLAG_SHOW_UI
+                            )
+                        } catch (e: Exception) {
+                            com.example.LogKeeper.logError("MiniPlayerOverlay", "Failed to open volume slider", e)
+                        }
+                    }) {
+                        Icon(
+                            imageVector = Icons.Filled.VolumeUp,
+                            contentDescription = "Volume",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                 }
             }
             
             if (true) {
-                var explorerMode by remember { mutableStateOf("current") }
-                
-                // The playlist view header
-                Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.Start, verticalAlignment = Alignment.CenterVertically) {
-                    if (explorerMode != "root") {
-                        IconButton(onClick = { explorerMode = "root" }) {
-                            Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
+                // The playlist view header - full row clickable to go back one step, reduced padding above & below
+                val canGoBack = explorerMode != "root"
+                val handleBack: () -> Unit = {
+                    explorerMode = when (explorerMode) {
+                        "folder_contents" -> "folders"
+                        "playlist_contents" -> "playlists"
+                        else -> "root"
+                    }
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(if (canGoBack) Modifier.clickable { handleBack() } else Modifier)
+                        .padding(horizontal = 16.dp, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.Start,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (canGoBack) {
+                        IconButton(onClick = handleBack, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(20.dp))
                         }
                     }
                     Text(
@@ -366,11 +401,15 @@ fun MiniPlayerOverlay(
                             "root" -> "Library"
                             "current" -> "Now Playing"
                             "folders" -> "Folders"
+                            "folder_contents" -> (selectedFolder?.name ?: "Folder Items")
                             "playlists" -> "Saved Playlists"
+                            "playlist_contents" -> (selectedPlaylist?.name ?: "Playlist Items")
                             else -> "Library"
                         }, 
                         style = MaterialTheme.typography.titleSmall, 
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
 
@@ -393,7 +432,7 @@ fun MiniPlayerOverlay(
                                             else -> "playlists"
                                         }
                                     }
-                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                    .padding(horizontal = 16.dp, vertical = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(icons[index], contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(end = 16.dp))
@@ -419,7 +458,7 @@ fun MiniPlayerOverlay(
                                     .fillMaxWidth()
                                     .clickable { player?.seekToDefaultPosition(originalIndex) }
                                     .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
-                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                    .padding(horizontal = 16.dp, vertical = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
@@ -437,31 +476,10 @@ fun MiniPlayerOverlay(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable {
-                                        coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                                            val items = folder.mediaItems
-                                            val mediaItems = items.map { item ->
-                                                val meta = androidx.media3.common.MediaMetadata.Builder()
-                                                    .setTitle(item.name)
-                                                    .setDisplayTitle(item.name)
-                                                    .setArtworkUri(item.uri)
-                                                    .build()
-                                                androidx.media3.common.MediaItem.Builder()
-                                                    .setUri(item.uri.toString())
-                                                    .setMediaId(item.uri.toString())
-                                                    .setMediaMetadata(meta)
-                                                    .build()
-                                            }
-                                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                                com.example.service.PlayerManager.exoPlayer?.let { player ->
-                                                    player.setMediaItems(mediaItems, 0, 0)
-                                                    player.prepare()
-                                                    player.play()
-                                                }
-                                                explorerMode = "current"
-                                            }
-                                        }
+                                        selectedFolder = folder
+                                        explorerMode = "folder_contents"
                                     }
-                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                    .padding(horizontal = 16.dp, vertical = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(Icons.Filled.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(end = 16.dp))
@@ -479,6 +497,63 @@ fun MiniPlayerOverlay(
                                 }
                             }
                         }
+                    } else if (explorerMode == "folder_contents") {
+                        val currentFolderItems = selectedFolder?.mediaItems ?: emptyList()
+                        itemsIndexed(currentFolderItems) { index, item ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                            val mediaItems = currentFolderItems.map { mi ->
+                                                val meta = androidx.media3.common.MediaMetadata.Builder()
+                                                    .setTitle(mi.name)
+                                                    .setDisplayTitle(mi.name)
+                                                    .setArtworkUri(mi.uri)
+                                                    .build()
+                                                androidx.media3.common.MediaItem.Builder()
+                                                    .setUri(mi.uri.toString())
+                                                    .setMediaId(mi.uri.toString())
+                                                    .setMediaMetadata(meta)
+                                                    .build()
+                                            }
+                                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                                com.example.service.PlayerManager.exoPlayer?.let { p ->
+                                                    p.setMediaItems(mediaItems, index, 0)
+                                                    p.pauseAtEndOfMediaItems = (p.repeatMode == Player.REPEAT_MODE_OFF)
+                                                    p.prepare()
+                                                    p.play()
+                                                }
+                                            }
+                                        }
+                                    }
+                                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = if (item.mediaType == com.example.data.MediaType.VIDEO) Icons.Filled.Movie else Icons.Filled.AudioFile,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.padding(end = 12.dp).size(20.dp)
+                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = item.name,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    val sec = (item.duration / 1000) % 60
+                                    val min = (item.duration / 1000) / 60
+                                    Text(
+                                        text = String.format(java.util.Locale.US, "%02d:%02d", min, sec),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
                     } else if (explorerMode == "playlists") {
                         items(playlistsList) { playlistItem ->
                             Row(
@@ -487,31 +562,14 @@ fun MiniPlayerOverlay(
                                     .clickable {
                                         coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                                             val dbItems = playlistDao.getItemsForPlaylist(playlistItem.id).first()
-                                            val mediaItems = dbItems.map { item ->
-                                                val meta = androidx.media3.common.MediaMetadata.Builder()
-                                                    .setTitle(android.net.Uri.parse(item.mediaUri).lastPathSegment ?: "Unknown")
-                                                    .setDisplayTitle(android.net.Uri.parse(item.mediaUri).lastPathSegment ?: "Unknown")
-                                                    .setArtworkUri(android.net.Uri.parse(item.mediaUri))
-                                                    .build()
-                                                androidx.media3.common.MediaItem.Builder()
-                                                    .setUri(item.mediaUri)
-                                                    .setMediaId(item.mediaUri)
-                                                    .setMediaMetadata(meta)
-                                                    .build()
-                                            }
                                             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                                if (mediaItems.isNotEmpty()) {
-                                                    com.example.service.PlayerManager.exoPlayer?.let { player ->
-                                                        player.setMediaItems(mediaItems, 0, 0)
-                                                        player.prepare()
-                                                        player.play()
-                                                    }
-                                                    explorerMode = "current"
-                                                }
+                                                selectedPlaylist = playlistItem
+                                                selectedPlaylistItems = dbItems
+                                                explorerMode = "playlist_contents"
                                             }
                                         }
                                     }
-                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                    .padding(horizontal = 16.dp, vertical = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(Icons.Filled.PlaylistPlay, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(end = 16.dp))
@@ -519,6 +577,58 @@ fun MiniPlayerOverlay(
                                     text = playlistItem.name,
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    } else if (explorerMode == "playlist_contents") {
+                        itemsIndexed(selectedPlaylistItems) { index, item ->
+                            val titleName = remember(item.mediaUri) {
+                                android.net.Uri.parse(item.mediaUri).lastPathSegment ?: "Unknown"
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                            val mediaItems = selectedPlaylistItems.map { pi ->
+                                                val uri = android.net.Uri.parse(pi.mediaUri)
+                                                val name = uri.lastPathSegment ?: "Unknown"
+                                                val meta = androidx.media3.common.MediaMetadata.Builder()
+                                                    .setTitle(name)
+                                                    .setDisplayTitle(name)
+                                                    .setArtworkUri(uri)
+                                                    .build()
+                                                androidx.media3.common.MediaItem.Builder()
+                                                    .setUri(pi.mediaUri)
+                                                    .setMediaId(pi.mediaUri)
+                                                    .setMediaMetadata(meta)
+                                                    .build()
+                                            }
+                                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                                com.example.service.PlayerManager.exoPlayer?.let { p ->
+                                                    p.setMediaItems(mediaItems, index, 0)
+                                                    p.pauseAtEndOfMediaItems = (p.repeatMode == Player.REPEAT_MODE_OFF)
+                                                    p.prepare()
+                                                    p.play()
+                                                }
+                                            }
+                                        }
+                                    }
+                                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.AudioFile,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.padding(end = 12.dp).size(20.dp)
+                                )
+                                Text(
+                                    text = titleName,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }

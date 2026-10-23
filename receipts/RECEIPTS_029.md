@@ -117,3 +117,38 @@
 * How it was verified: `lint_applet` and `compile_applet`.
 * Any deviation from what was requested: None.
 * Any known issue or follow-up needed: None.
+
+## Phase 100: CI PlaybackService Scoping Resolution & Mini Player Explorer Upgrades
+* Timestamp: 2026-10-23T11:06:00Z
+* One-line summary: Resolved GitHub Actions CI compilation failure by moving ensureArtworkLoaded to class scope, enabled non-autoplay folder/playlist browsing in Mini Player, added system volume button, established 1-step full-row back navigation, reduced list item padding, and enforced pause after single track when loop is off.
+* Files touched:
+  - app/src/main/java/com/example/service/PlaybackService.kt
+  - app/src/main/java/com/example/service/PlayerManager.kt
+  - app/src/main/java/com/example/ui/components/MiniPlayerOverlay.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_029.md
+* What was actually done:
+  - CI PlaybackService Scoping Resolution:
+    - Fixed GitHub Actions compile failure (`Unresolved reference 'ensureArtworkLoaded'`) by cutting `ensureArtworkLoaded` and `loadingArtworkMediaId` from the anonymous `object : Player.Listener` block and declaring them as private member fields/methods of `PlaybackService`.
+    - Restored visibility to all outer service callers (`onCreate`, `showOverlay`, `onStartCommand`, `widgetCommandReceiver`, `ACTION_PLAY_FILE`) without altering artwork extraction logic.
+  - Mini Player Non-Autoplay Browsing:
+    - Decoupled folder and playlist navigation from immediate playback in `MiniPlayerOverlay.kt`.
+    - Tapping a folder in "Folders" now opens "folder_contents" showing its items without starting playback.
+    - Tapping a playlist in "Saved Playlists" now opens "playlist_contents" showing its items without starting playback.
+    - Playback is triggered strictly when an individual item is clicked/touched.
+  - System Volume HUD Button:
+    - Added an `IconButton` with `Icons.Filled.VolumeUp` to the second control row (`Shuffle`, `Loop`, `Refresh`).
+    - Configured it to invoke `AudioManager.adjustStreamVolume(STREAM_MUSIC, ADJUST_SAME, FLAG_SHOW_UI)` to reveal the native Android volume slider.
+    - Reduced padding above and below this button row (`vertical = 0.dp`).
+  - Hierarchical Full-Row Step-by-Step Back Navigation:
+    - Replaced the previous jump-to-root back button with hierarchical single-step navigation: `folder_contents` -> `folders` -> `root`; `playlist_contents` -> `playlists` -> `root`.
+    - Made the entire header Row clickable to navigate back, not just the back arrow icon.
+    - Reduced vertical padding on the header row (`vertical = 2.dp`).
+  - Compact Explorer List Item Padding:
+    - Reduced vertical padding on all explorer lists ("root", "current", "folders", "playlists", "folder_contents", "playlist_contents") down to `4.dp` for a tight, high-density layout.
+  - Stop Playback After Current Track When Loop Off:
+    - Set `pauseAtEndOfMediaItems = (repeatMode == Player.REPEAT_MODE_OFF)` in `PlayerManager.kt`, `PlaybackService.kt`, and `MiniPlayerOverlay.kt`.
+    - When loop mode is OFF and the selected file ends, ExoPlayer pauses and stops without advancing, keeping the Mini Player open in place so the next track can be chosen manually.
+* How it was verified: `lint_applet` and `compile_applet`.
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: None.

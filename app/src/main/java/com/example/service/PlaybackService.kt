@@ -215,56 +215,9 @@ override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?,
 
     ensureArtworkLoaded(mediaItem)
 }
-
-    private var loadingArtworkMediaId: String? = null
-
-    private fun ensureArtworkLoaded(mediaItem: androidx.media3.common.MediaItem?) {
-        if (mediaItem == null) return
-        if (mediaItem.mediaMetadata.artworkData != null) return
-        val currentMediaId = mediaItem.mediaId
-        if (currentMediaId.isEmpty() || loadingArtworkMediaId == currentMediaId) return
-
-        val targetUri = mediaItem.requestMetadata.mediaUri 
-            ?: mediaItem.localConfiguration?.uri 
-            ?: mediaItem.mediaMetadata.artworkUri
-            ?: currentMediaId.let { try { android.net.Uri.parse(it) } catch (e: Exception) { null } }
-
-        if (targetUri != null) {
-            loadingArtworkMediaId = currentMediaId
-            serviceScope.launch(Dispatchers.IO) {
-                try {
-                    val thumbBytes = com.example.data.extractMediaThumbnailBytes(applicationContext, targetUri)
-                    if (thumbBytes != null) {
-                        kotlinx.coroutines.withContext(Dispatchers.Main) {
-                            val player = PlayerManager.exoPlayer
-                            if (player != null && player.currentMediaItem?.mediaId == currentMediaId) {
-                                val activeItem = player.currentMediaItem
-                                val baseMeta = activeItem?.mediaMetadata ?: player.mediaMetadata
-                                val updatedMeta = baseMeta.buildUpon()
-                                    .setArtworkData(thumbBytes, androidx.media3.common.MediaMetadata.PICTURE_TYPE_FRONT_COVER)
-                                    .setArtworkUri(targetUri)
-                                    .build()
-                                val updatedItem = activeItem?.buildUpon()?.setMediaMetadata(updatedMeta)?.build()
-                                if (updatedItem != null) {
-                                    val currentIndex = player.currentMediaItemIndex
-                                    player.replaceMediaItem(currentIndex, updatedItem)
-                                    updateCustomLayout()
-                                    try { updateWidgetUI() } catch (e: Exception) {}
-                                }
-                            }
-                        }
-                    }
-                } catch (e: Exception) {
-                    com.example.LogKeeper.logError("PlaybackService", "Error extracting artwork in ensureArtworkLoaded", e)
-                } finally {
-                    loadingArtworkMediaId = null
-                }
-            }
-        }
-    }
 override fun onRepeatModeChanged(repeatMode: Int) {
     com.example.LogKeeper.log("PlaybackService: onRepeatModeChanged = $repeatMode", "PlaybackService")
-    PlayerManager.exoPlayer?.pauseAtEndOfMediaItems = false
+    PlayerManager.exoPlayer?.pauseAtEndOfMediaItems = (repeatMode == androidx.media3.common.Player.REPEAT_MODE_OFF)
     updateWidgetUI()
 }
 override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
@@ -1050,6 +1003,53 @@ composeView = null
             .build()
 
         mediaSession?.setCustomLayout(listOf(miniPlayerAction, closeAction))
+    }
+
+    private var loadingArtworkMediaId: String? = null
+
+    private fun ensureArtworkLoaded(mediaItem: androidx.media3.common.MediaItem?) {
+        if (mediaItem == null) return
+        if (mediaItem.mediaMetadata.artworkData != null) return
+        val currentMediaId = mediaItem.mediaId
+        if (currentMediaId.isEmpty() || loadingArtworkMediaId == currentMediaId) return
+
+        val targetUri = mediaItem.requestMetadata.mediaUri 
+            ?: mediaItem.localConfiguration?.uri 
+            ?: mediaItem.mediaMetadata.artworkUri
+            ?: currentMediaId.let { try { android.net.Uri.parse(it) } catch (e: Exception) { null } }
+
+        if (targetUri != null) {
+            loadingArtworkMediaId = currentMediaId
+            serviceScope.launch(Dispatchers.IO) {
+                try {
+                    val thumbBytes = com.example.data.extractMediaThumbnailBytes(applicationContext, targetUri)
+                    if (thumbBytes != null) {
+                        kotlinx.coroutines.withContext(Dispatchers.Main) {
+                            val player = PlayerManager.exoPlayer
+                            if (player != null && player.currentMediaItem?.mediaId == currentMediaId) {
+                                val activeItem = player.currentMediaItem
+                                val baseMeta = activeItem?.mediaMetadata ?: player.mediaMetadata
+                                val updatedMeta = baseMeta.buildUpon()
+                                    .setArtworkData(thumbBytes, androidx.media3.common.MediaMetadata.PICTURE_TYPE_FRONT_COVER)
+                                    .setArtworkUri(targetUri)
+                                    .build()
+                                val updatedItem = activeItem?.buildUpon()?.setMediaMetadata(updatedMeta)?.build()
+                                if (updatedItem != null) {
+                                    val currentIndex = player.currentMediaItemIndex
+                                    player.replaceMediaItem(currentIndex, updatedItem)
+                                    updateCustomLayout()
+                                    try { updateWidgetUI() } catch (e: Exception) {}
+                                }
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    com.example.LogKeeper.logError("PlaybackService", "Error extracting artwork in ensureArtworkLoaded", e)
+                } finally {
+                    loadingArtworkMediaId = null
+                }
+            }
+        }
     }
 
     override fun onStartCommand(intent: android.content.Intent?, flags: Int, startId: Int): Int {

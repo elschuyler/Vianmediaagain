@@ -222,6 +222,14 @@
   2. Persistent Always-Visible Lock HUD: Separated `PlayerBottomBar` into a dedicated `AnimatedVisibility(visible = (showControls || isLocked) && !isInPipMode)` in `PlayerScreen.kt`. While `isLocked == true`, the lock button remains permanently visible on screen without timing out after 4 seconds.
   3. Seamless Unlock Transitions: Tapping the lock button switches icon seamlessly between `Icons.Filled.Lock` (locked) and `Icons.Filled.LockOpen` (unlocked). In locked state, a 55% black translucent circular backdrop ensures crystal-clear visibility over any video frame. Unlocking immediately restores `showControls = true` and updates `controlsInteractionTrigger`, fading the full player controls back in place.
 
+- **Phase 100 (CI PlaybackService Scoping Resolution & Mini Player Explorer Upgrades)**:
+  1. CI PlaybackService Scoping Resolution: Resolved GitHub Actions CI compilation failure (`Unresolved reference 'ensureArtworkLoaded'`) caused by declaring `ensureArtworkLoaded` and `loadingArtworkMediaId` inside an anonymous `object : Player.Listener`. Relocated both as private member properties/functions of `PlaybackService`, restoring full resolution across `onCreate`, `showOverlay`, `onStartCommand`, `widgetCommandReceiver`, and `ACTION_PLAY_FILE` without changing artwork extraction functionality.
+  2. Mini Player Browsing Without Autoplay: Decoupled folder and playlist browsing from immediate playback. Tapping a folder in "Folders" now transitions to "folder_contents" to display files; tapping a playlist in "Saved Playlists" transitions to "playlist_contents" to display its items. Playback only initiates when the user explicitly taps an individual file.
+  3. System Volume HUD Trigger: Added an `Icons.Filled.VolumeUp` button to the second control row (`Shuffle`, `Loop`, `Refresh`) that triggers Android's system volume slider via `AudioManager.adjustStreamVolume(STREAM_MUSIC, ADJUST_SAME, FLAG_SHOW_UI)`.
+  4. Step-by-Step Full-Row Back Navigation: Replaced root-only back jumps with a hierarchical 1-step back mechanism (`folder_contents` -> `folders` -> `root`; `playlist_contents` -> `playlists` -> `root`). Made the entire header row clickable, not just the back arrow icon.
+  5. Compact List & Header Padding: Reduced vertical padding across explorer list items ("root", "current", "folders", "playlists", "folder_contents", "playlist_contents") down to `4.dp`, and reduced padding above and below the controls/header rows to optimize viewport density.
+  6. Stop Playback After Current Track When Loop Off: Configured `player.pauseAtEndOfMediaItems = (player.repeatMode == Player.REPEAT_MODE_OFF)`. When loop is OFF and a track finishes, ExoPlayer stops and pauses, leaving the Mini Player open in place without auto-advancing so the user can pick the next file manually.
+
 
 
 
