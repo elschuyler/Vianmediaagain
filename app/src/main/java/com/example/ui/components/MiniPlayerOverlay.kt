@@ -340,7 +340,7 @@ fun MiniPlayerOverlay(
                                 Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
                                 else -> Player.REPEAT_MODE_OFF
                             }
-                            it.pauseAtEndOfMediaItems = (it.repeatMode == Player.REPEAT_MODE_OFF)
+                            com.example.service.PlayerManager.exoPlayer?.pauseAtEndOfMediaItems = (it.repeatMode == Player.REPEAT_MODE_OFF)
                         }
                     }) {
                         Icon(

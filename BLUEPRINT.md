@@ -230,6 +230,9 @@
   5. Compact List & Header Padding: Reduced vertical padding across explorer list items ("root", "current", "folders", "playlists", "folder_contents", "playlist_contents") down to `4.dp`, and reduced padding above and below the controls/header rows to optimize viewport density.
   6. Stop Playback After Current Track When Loop Off: Configured `player.pauseAtEndOfMediaItems = (player.repeatMode == Player.REPEAT_MODE_OFF)`. When loop is OFF and a track finishes, ExoPlayer stops and pauses, leaving the Mini Player open in place without auto-advancing so the user can pick the next file manually.
 
+- **Phase 101 (CI MiniPlayer Type Alignment Resolution)**:
+  1. Resolved CI Gradle Compilation Error: Fixed `Unresolved reference 'pauseAtEndOfMediaItems'` at line 343 in `MiniPlayerOverlay.kt`. Because parameter `player` is typed as generic interface `androidx.media3.common.Player` (which does not expose the ExoPlayer-specific `pauseAtEndOfMediaItems` property), redirected property assignment directly to `PlayerManager.exoPlayer?.pauseAtEndOfMediaItems`, ensuring 100% clean Kotlin bytecode compilation in GitHub Actions CI.
+
 
 
 

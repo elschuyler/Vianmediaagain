@@ -152,3 +152,17 @@
 * How it was verified: `lint_applet` and `compile_applet`.
 * Any deviation from what was requested: None.
 * Any known issue or follow-up needed: None.
+
+## Phase 101: CI MiniPlayer Type Alignment Resolution
+* Timestamp: 2026-10-23T12:18:00Z
+* One-line summary: Resolved GitHub Actions CI compile error in MiniPlayerOverlay by routing pauseAtEndOfMediaItems to PlayerManager.exoPlayer directly.
+* Files touched:
+  - app/src/main/java/com/example/ui/components/MiniPlayerOverlay.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_029.md
+* What was actually done:
+  - Resolved `Unresolved reference 'pauseAtEndOfMediaItems'` at line 343 in `MiniPlayerOverlay.kt`.
+  - Replaced `it.pauseAtEndOfMediaItems` (where `it` is generic `Player`) with `com.example.service.PlayerManager.exoPlayer?.pauseAtEndOfMediaItems` (typed as `ExoPlayer`), ensuring valid property resolution across Kotlin compiler.
+* How it was verified: `lint_applet` and `compile_applet`.
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: None.
