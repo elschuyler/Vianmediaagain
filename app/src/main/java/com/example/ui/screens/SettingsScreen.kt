@@ -54,6 +54,7 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
             "notifications" -> NotificationsPage(onNavigateBack = { currentMenu = "main" })
             "data" -> DataManagementPage(onNavigateBack = { currentMenu = "main" })
             "developer" -> DeveloperSettingsPage(onNavigateBack = { currentMenu = "main" })
+            "about" -> AboutSettingsPage(onNavigateBack = { currentMenu = "main" })
         }
     }
 }
@@ -148,6 +149,14 @@ private fun MainSettingsMenu(onNavigate: (String) -> Unit, onNavigateBack: () ->
                     title = "Developer Settings",
                     subtitle = "Background logger, floating action button",
                     onClick = { onNavigate("developer") }
+                )
+            }
+            item {
+                SettingsListItem(
+                    icon = Icons.Filled.Info,
+                    title = "About",
+                    subtitle = "App information, creator credits, and build details",
+                    onClick = { onNavigate("about") }
                 )
             }
         }
@@ -817,3 +826,194 @@ private fun GeneralSettingsPage(onNavigateBack: () -> Unit) {
         }
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AboutSettingsPage(onNavigateBack: () -> Unit) {
+    val context = LocalContext.current
+    val versionName = remember {
+        try {
+            val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+            pInfo.versionName ?: "1.0"
+        } catch (e: Exception) {
+            "1.0"
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("About") },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            ElevatedCard(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.elevatedCardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                ),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Surface(
+                        modifier = Modifier.size(68.dp),
+                        shape = androidx.compose.foundation.shape.CircleShape,
+                        color = MaterialTheme.colorScheme.primaryContainer
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Filled.PlayCircle,
+                                contentDescription = "Vian Media",
+                                modifier = Modifier.size(40.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Text(
+                        text = "Vian Media",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Package: ${context.packageName}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Version $versionName",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            OutlinedCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Creator & Attribution",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Creator", style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            text = "Lewis",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Series", style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            text = "Viabhron",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("License", style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            text = "MIT License",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            OutlinedCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Engine & Platform",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Playback Engine", style = MaterialTheme.typography.bodyMedium)
+                        Text("Media3 / ExoPlayer", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("UI Framework", style = MaterialTheme.typography.bodyMedium)
+                        Text("Jetpack Compose (Material 3)", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Transcoding", style = MaterialTheme.typography.bodyMedium)
+                        Text("Mobile FFmpeg / Hardware Codecs", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        }
+    }
+}
+

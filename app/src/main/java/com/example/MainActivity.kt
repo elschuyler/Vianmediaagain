@@ -180,7 +180,12 @@ class MainActivity : ComponentActivity() {
                   com.example.service.PlayerManager.appendOrTransitionQueue(this, mediaItems)
                   android.widget.Toast.makeText(this, "Added ${mediaItems.size} item(s) to queue", android.widget.Toast.LENGTH_SHORT).show()
               } else {
-                  player.setMediaItems(mediaItems)
+                  val settings = com.example.data.SettingsManager.getInstance(applicationContext)
+                  val firstUriStr = uris.first()
+                  val firstName = com.example.ui.screens.getDisplayNameFromUri(this, android.net.Uri.parse(firstUriStr))
+                  val lastPos = settings.getPlaybackPosition(firstUriStr, firstName)
+                  val startPos = if (lastPos > 0 && !settings.isFinished(firstUriStr, firstName)) lastPos else 0L
+                  player.setMediaItems(mediaItems, 0, startPos)
                   player.prepare()
                   player.play()
               }
@@ -260,7 +265,10 @@ class MainActivity : ComponentActivity() {
 
               com.example.service.PlayerManager.initialize(this, false)
               val player = com.example.service.PlayerManager.exoPlayer
-              player?.setMediaItem(mediaItem)
+              val settings = com.example.data.SettingsManager.getInstance(applicationContext)
+              val lastPos = settings.getPlaybackPosition(targetUriStr, displayName)
+              val startPos = if (lastPos > 0 && !settings.isFinished(targetUriStr, displayName)) lastPos else 0L
+              player?.setMediaItem(mediaItem, startPos)
               player?.prepare()
               player?.play()
 

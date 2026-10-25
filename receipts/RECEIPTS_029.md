@@ -166,3 +166,65 @@
 * How it was verified: `lint_applet` and `compile_applet`.
 * Any deviation from what was requested: None.
 * Any known issue or follow-up needed: None.
+
+## Phase 102: Universal Cross-Player Timeline Resume Synchronization
+* Timestamp: 2026-10-23T12:31:00Z
+* One-line summary: Unified timeline position resume across Mini Player, Floating Video Player, and Notification Player by wiring SettingsManager playback position lookups into all cold-launch entry points.
+* Files touched:
+  - app/src/main/java/com/example/ui/components/MiniPlayerOverlay.kt
+  - app/src/main/java/com/example/MainActivity.kt
+  - app/src/main/java/com/example/service/PlaybackService.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_029.md
+* What was actually done:
+  - Wired `SettingsManager.getPlaybackPosition(uri, name)` and `isFinished()` checks into:
+    * `MiniPlayerOverlay.kt`: folder contents file tap (`setMediaItems(mediaItems, index, startPos)`)
+    * `MiniPlayerOverlay.kt`: playlist contents item tap (`setMediaItems(mediaItems, index, startPos)`)
+    * `MainActivity.kt`: `isPip` Floating Video Player start (`player.setMediaItem(mediaItem, startPos)`)
+    * `MainActivity.kt`: `isMini` Mini Player queue launch (`player.setMediaItems(mediaItems, 0, startPos)`)
+    * `PlaybackService.kt`: `ACTION_PLAY_FILE` widget / intent command (`player.setMediaItem(mediaItem, startPos)`)
+  - Guaranteed that pausing any file in Main Player, Mini Player, Floating Player, or Notification Player resumes from the exact saved position when opened from cold in any other player mode.
+* How it was verified: `lint_applet` and `compile_applet`.
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: None.
+
+## Phase 103: Brightness Slider Auto-Hide Decoupling & Inactivity Extension
+* Timestamp: 2026-10-24T15:00:00Z
+* One-line summary: Decoupled brightness slider auto-hide timer from controls overlay dismissal, extended slider inactivity window to 6000ms, and eliminated premature timer collision.
+* Files touched:
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_029.md
+* What was actually done:
+  - Eliminated the race condition where `showControls` 4000ms countdown hijacked and closed `showBrightnessSlider` prematurely:
+    * In Timer B (`LaunchedEffect(showControls, controlsInteractionTrigger, isAnyDialogOpen, showBrightnessSlider)`), added `!showBrightnessSlider` guard and removed `showBrightnessSlider = false` execution on controls timeout. Controls will not auto-hide while the brightness slider is open.
+    * In `PlayerLeftTools` brightness button callback (`onBrightnessClick`), refreshed both `brightnessInteractionTime` and `controlsInteractionTrigger` on toggle.
+    * In Timer A (`LaunchedEffect(showBrightnessSlider, brightnessInteractionTime, isAdjustingBrightness)`), extended idle auto-hide delay from 4000ms to 6000L, providing a relaxed 6-second window after the user stops dragging before dismissing the slider.
+  - Preserved synchronous explicit dismissal when the user taps the canvas backdrop.
+* How it was verified: `lint_applet` and `compile_applet`.
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: None.
+
+## Phase 104: Package Name Alignment (shura.media), App Name & Settings About Page
+* Timestamp: 2026-10-24T15:25:00Z
+* One-line summary: Configured applicationId to shura.media, verified Vian Media branding, and created dedicated Settings About Page with Creator Lewis attribution.
+* Files touched:
+  - app/build.gradle.kts
+  - app/src/main/res/values/strings.xml
+  - app/src/main/java/com/example/ui/screens/SettingsScreen.kt
+  - index.html
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_029.md
+* What was actually done:
+  - Updated `applicationId` in `app/build.gradle.kts` to `"shura.media"`, establishing `shura.media` as the official Android application package identifier across OS, installer, and Play Store without breaking internal Kotlin namespaces.
+  - Verified `app_name` in `app/src/main/res/values/strings.xml` set to `"Vian Media"` and synced HTML entrypoint titles.
+  - Implemented the requested `AboutSettingsPage` in `SettingsScreen.kt`:
+    * Added "About" entry to `MainSettingsMenu` with `Icons.Filled.Info`.
+    * Implemented `AboutSettingsPage` with Hero header card (app icon, "Vian Media", dynamic package name, version name).
+    * Added Creator & Attribution card explicitly crediting **Lewis** as Creator, Series **Viabhron**, and MIT License.
+    * Added Engine & Platform card detailing Media3/ExoPlayer, Jetpack Compose Material 3, and Mobile FFmpeg codecs.
+* How it was verified: `lint_applet` and `compile_applet`.
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: None.
+
+

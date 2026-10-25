@@ -233,6 +233,26 @@
 - **Phase 101 (CI MiniPlayer Type Alignment Resolution)**:
   1. Resolved CI Gradle Compilation Error: Fixed `Unresolved reference 'pauseAtEndOfMediaItems'` at line 343 in `MiniPlayerOverlay.kt`. Because parameter `player` is typed as generic interface `androidx.media3.common.Player` (which does not expose the ExoPlayer-specific `pauseAtEndOfMediaItems` property), redirected property assignment directly to `PlayerManager.exoPlayer?.pauseAtEndOfMediaItems`, ensuring 100% clean Kotlin bytecode compilation in GitHub Actions CI.
 
+- **Phase 102 (Universal Cross-Player Timeline Resume Synchronization)**:
+  1. Symmetrical Position Restoring Across All Player Modes: Closed the position restore gap between Main Player and secondary player entry points. Wired `SettingsManager.getPlaybackPosition()` and `isFinished()` validation into:
+     - Mini Player folder contents tap (`MiniPlayerOverlay.kt`)
+     - Mini Player playlist contents tap (`MiniPlayerOverlay.kt`)
+     - Floating Video Player external/in-app launch (`MainActivity.kt:isPip`)
+     - Mini Player queue launch (`MainActivity.kt:isMini`)
+     - Notification file play intent (`PlaybackService.kt:ACTION_PLAY_FILE`)
+  2. Finished Video Threshold Safety: Respected `SettingsManager.isFinished()` (> 99% duration watched) so completed tracks restart cleanly from 0:00 rather than opening on end credits.
+  3. Universal Continuity: Any media paused in Main Player, Mini Player, Floating Player, or Notification Player now seamlessly resumes at the exact second when opened in ANY player mode.
+- **Phase 103 (Brightness Slider Auto-Hide Decoupling & Inactivity Window Extension)**:
+  1. Timer Decoupling: Decoupled `showBrightnessSlider` from `showControls` auto-hide coroutine. Added `!showBrightnessSlider` to the controls countdown condition and removed `showBrightnessSlider = false` from controls dismissal, guaranteeing controls will not auto-hide while brightness is open.
+  2. Button Interaction Trigger: Refreshed both `brightnessInteractionTime` and `controlsInteractionTrigger` on brightness button click in `PlayerLeftTools`, eliminating the race condition where remaining controls idle time closed the slider prematurely.
+  3. Extended 6-Second Inactivity Window: Extended slider auto-hide timer (`delay(6000L)`) after user releases drag touch (`!isAdjustingBrightness`), providing a comfortable window to view and adjust brightness.
+  4. Preserved Canvas Tap Dismissal: Maintained synchronous dismissal when tapping empty canvas backdrop.
+- **Phase 104 (Package Name Alignment, App Name Branding & Settings About Page)**:
+  1. Package Name Alignment: Updated `applicationId = "shura.media"` in `app/build.gradle.kts` establishing `shura.media` as the official Android application package identifier across OS, installer, and Play Store without disrupting internal Kotlin namespaces.
+  2. App Name Branding: Confirmed `app_name` in `strings.xml` as `"Vian Media"` and synced HTML entrypoint titles.
+  3. Settings About Page: Implemented dedicated `AboutSettingsPage` in `SettingsScreen.kt` featuring an app hero card, Creator & Attribution card explicitly crediting **Lewis** as Creator (Series **Viabhron** / MIT License), and Engine card detailing ExoPlayer, Compose M3, and Mobile FFmpeg. Added navigation entry to `MainSettingsMenu`.
+
+
 
 
 

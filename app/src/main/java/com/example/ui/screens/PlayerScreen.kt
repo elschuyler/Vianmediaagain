@@ -301,10 +301,10 @@ fun PlayerScreen(
         }
     }
 
-    // Auto-hide brightness slider synchronously with controls after inactivity
+    // Auto-hide brightness slider after inactivity (extended from 4s to 6s for relaxed interaction)
     LaunchedEffect(showBrightnessSlider, brightnessInteractionTime, isAdjustingBrightness) {
         if (showBrightnessSlider && !isAdjustingBrightness) {
-            kotlinx.coroutines.delay(4000)
+            kotlinx.coroutines.delay(6000L)
             showBrightnessSlider = false
         }
     }
@@ -579,11 +579,10 @@ fun PlayerScreen(
     val isAnyDialogOpen = showPlayerSettingsDialog || showDetailsDialog || showSleepTimerDialog ||
             showSpeedDialog || showAudioDialog || showSubtitleDialog || showTopMenu
 
-    LaunchedEffect(showControls, controlsInteractionTrigger, isAnyDialogOpen) {
-        if (showControls && !isAnyDialogOpen) {
+    LaunchedEffect(showControls, controlsInteractionTrigger, isAnyDialogOpen, showBrightnessSlider) {
+        if (showControls && !isAnyDialogOpen && !showBrightnessSlider) {
             kotlinx.coroutines.delay(4000)
             showControls = false
-            showBrightnessSlider = false
         }
     }
 
@@ -1622,9 +1621,8 @@ fun PlayerScreen(
                             isBrightnessSliderVisible = showBrightnessSlider,
                             onBrightnessClick = {
                                 showBrightnessSlider = !showBrightnessSlider
-                                if (showBrightnessSlider) {
-                                    brightnessInteractionTime = System.currentTimeMillis()
-                                }
+                                brightnessInteractionTime = System.currentTimeMillis()
+                                controlsInteractionTrigger = System.currentTimeMillis()
                             },
                             onRotateClick = {
                                 val currentOrientation = context.findActivity()?.requestedOrientation

@@ -1174,7 +1174,10 @@ composeView = null
                                     .build()
                             )
                             .build()
-                        player.setMediaItem(mediaItem)
+                        val settings = com.example.data.SettingsManager.getInstance(applicationContext)
+                        val lastPos = settings.getPlaybackPosition(uriStr, fileName)
+                        val startPos = if (lastPos > 0 && !settings.isFinished(uriStr, fileName)) lastPos else 0L
+                        player.setMediaItem(mediaItem, startPos)
                         player.prepare()
                         player.play()
                         ensureArtworkLoaded(mediaItem)

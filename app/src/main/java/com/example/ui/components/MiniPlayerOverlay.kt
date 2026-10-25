@@ -518,8 +518,12 @@ fun MiniPlayerOverlay(
                                                     .build()
                                             }
                                             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                                val settings = com.example.data.SettingsManager.getInstance(context)
+                                                val targetItem = currentFolderItems[index]
+                                                val lastPos = settings.getPlaybackPosition(targetItem.uri.toString(), targetItem.name)
+                                                val startPos = if (lastPos > 0 && !settings.isFinished(targetItem.uri.toString(), targetItem.name)) lastPos else 0L
                                                 com.example.service.PlayerManager.exoPlayer?.let { p ->
-                                                    p.setMediaItems(mediaItems, index, 0)
+                                                    p.setMediaItems(mediaItems, index, startPos)
                                                     p.pauseAtEndOfMediaItems = (p.repeatMode == Player.REPEAT_MODE_OFF)
                                                     p.prepare()
                                                     p.play()
@@ -605,8 +609,13 @@ fun MiniPlayerOverlay(
                                                     .build()
                                             }
                                             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                                val settings = com.example.data.SettingsManager.getInstance(context)
+                                                val targetItem = selectedPlaylistItems[index]
+                                                val targetName = android.net.Uri.parse(targetItem.mediaUri).lastPathSegment ?: "Unknown"
+                                                val lastPos = settings.getPlaybackPosition(targetItem.mediaUri, targetName)
+                                                val startPos = if (lastPos > 0 && !settings.isFinished(targetItem.mediaUri, targetName)) lastPos else 0L
                                                 com.example.service.PlayerManager.exoPlayer?.let { p ->
-                                                    p.setMediaItems(mediaItems, index, 0)
+                                                    p.setMediaItems(mediaItems, index, startPos)
                                                     p.pauseAtEndOfMediaItems = (p.repeatMode == Player.REPEAT_MODE_OFF)
                                                     p.prepare()
                                                     p.play()

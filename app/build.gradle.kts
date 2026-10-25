@@ -11,7 +11,7 @@ android {
   compileSdk = 36
 
   defaultConfig {
-    applicationId = "com.shura.vianbrmedia.cecbba.test"
+    applicationId = "shura.media"
     minSdk = 24
     targetSdk = 35
     versionCode = 1
