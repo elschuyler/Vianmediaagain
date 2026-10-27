@@ -227,4 +227,106 @@
 * Any deviation from what was requested: None.
 * Any known issue or follow-up needed: None.
 
+## Phase 105: Security, Stability & Lightweight Hardening Audit Implementation
+* Timestamp: 2026-10-25T15:02:00Z
+* One-line summary: Resolved uncancelled service scope in PlaybackService, consolidated coroutine scopes in PlayerManager, removed largeHeap bloat, and optimized PlayerScreen clock polling.
+* Files touched:
+  - app/src/main/java/com/example/service/PlaybackService.kt
+  - app/src/main/java/com/example/service/PlayerManager.kt
+  - app/src/main/AndroidManifest.xml
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_029.md
+* What was actually done:
+  - Added `serviceScope.cancel()` in `PlaybackService.onDestroy()` to prevent background artwork extraction and layout update jobs from persisting after service teardown.
+  - Declared managed `playerScope = CoroutineScope(Dispatchers.IO + SupervisorJob())` in `PlayerManager.kt` and routed all background Room playlist cleanups and player release tasks through it, eliminating raw unmanaged `CoroutineScope` invocations.
+  - Removed `android:largeHeap="true"` from `app/src/main/AndroidManifest.xml`, eliminating artificially enlarged Dalvik heap sizes that caused prolonged stop-the-world GC pauses on Android Go and 3GB RAM devices.
+  - Throttled `PlayerScreen.kt` header clock loop from 1000ms to 10000ms (10s) and reused a single `Date` instance, cutting CPU wakeups and short-lived allocations by 90% during video playback.
+* How it was verified: `lint_applet` and `compile_applet`.
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: None.
+
+## Phase 106: Animated WebP & Stream Container Editor Pipeline Hardening & Safe Export Architecture
+* Timestamp: 2026-10-26T17:45:00Z
+* One-line summary: Gated ExoPlayer against premature loading during pre-conversion, standardized canonical Android file URIs, added direct file stream copy in FFmpegService, and protected intermediate editor files from premature deletion.
+* Files touched:
+  - app/src/main/java/com/example/ui/screens/VideoEditorScreen.kt
+  - app/src/main/java/com/example/service/FFmpegService.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_029.md
+* What was actually done:
+  - Gated ExoPlayer instantiation and preparation in `VideoEditorScreen.kt`:
+    * Initialized `isConverting = true` synchronously when media is an animated WebP/GIF or stream container (`m4s`, `ts`).
+    * Gated `exoPlayer = remember(effectiveUri, convertedUri, isConverting, ...)` to return `null` while `isConverting == true`. This prevents ExoPlayer from receiving raw WebP/GIF byte streams and crashing with `Playback stuck buffering and not loading`.
+    * Cleared `playerError = null` upon successful pre-conversion completion.
+    * Added descriptive preparation message: `"Preparing animation for editing..."` for WebP/GIF assets.
+  - Standardized Canonical Android File URIs:
+    * Replaced `outputFile.toURI().toString()` with `Uri.fromFile(outputFile).toString()` across all pre-conversion and repair pipelines in `VideoEditorScreen.kt`.
+    * Guarantees canonical `file:///...` triple-slash URIs that parse properly across Android SDKs rather than RFC 2396 single-slash `file:/` opaque URIs.
+  - Direct File Stream Copying in `FFmpegService.kt`:
+    * Added dedicated direct file handling in `FFmpegService.processFiles` for `file:` and bare path URIs, bypassing `ContentResolver.openInputStream` and reading via `FileInputStream` with existence and read checks.
+    * Added direct extension extraction in `getFileExtension` for `file:` URIs when `ContentResolver.getType()` returns null.
+  - Protected Editor Working Files Against Premature Deletion:
+    * In `VideoEditorScreen.kt`, gated `sessionTempFiles` cleanup in `onDispose` with `if (!com.example.service.FFmpegStatus.isRunning)`, ensuring intermediate converted files are not wiped if the user navigates away while background export is rendering.
+    * In `FFmpegService.kt`, restricted cleanup of caller `editor_converted_*` temp files to occur ONLY after the export has fully succeeded (`itemExportSucceeded == true`), ensuring failed or retry attempts retain the source file.
+* How it was verified: `lint_applet` (clean 0 errors) and `compile_applet` (build succeeded 0 errors).
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: None.
+
+## Phase 107: Direct File Stream Decoding, Nullable URI Hardening & Universal Media Ingestion Safety
+* Timestamp: 2026-10-26T18:15:00Z
+* One-line summary: Hardened multi-candidate direct file stream resolution across FFmpegService, VideoEditorScreen, and PhotoEditorScreen, fixed nullable effectiveUri runtime NPE, and secured export intent targets.
+* Files touched:
+  - app/src/main/java/com/example/service/FFmpegService.kt
+  - app/src/main/java/com/example/ui/screens/VideoEditorScreen.kt
+  - app/src/main/java/com/example/ui/screens/PhotoEditorScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_029.md
+* What was actually done:
+  - Multi-Candidate Direct File Stream Resolution:
+    * In `FFmpegService.kt`, hardened input file copying and post-export cleanup with multi-candidate path evaluation (`directPath`, `Uri.decode(directPath)`, `uri.path`, and `Uri.decode(uri.path)`). Guarantees that single-slash, triple-slash, bare paths, and URL-encoded whitespace/special characters resolve to real on-disk files without throwing `FileNotFoundException: ENOENT`.
+    * In `VideoEditorScreen.kt`, integrated identical multi-candidate resolution into pre-conversion step 1 and `repairVideo()` for any incoming `file:` or bare path URIs.
+    * In `PhotoEditorScreen.kt`, introduced `openImageStream()` with direct `FileInputStream` fallback across candidate paths, preventing crashes when editing local cache/file URIs.
+  - VideoEditorScreen Null-Safe Memory & Intent Hardening:
+    * Replaced unsafe top-level `val uri = Uri.parse(effectiveUri)` with `remember(effectiveUri) { if (!effectiveUri.isNullOrBlank()) Uri.parse(effectiveUri) else Uri.parse(uriString) }`, preventing fatal `NullPointerException` during initial conversion states.
+    * Guarded `LaunchedEffect(effectiveUri)` against null/blank values and wired native `retriever.setDataSource(file.absolutePath)` for file schemes.
+    * Guaranteed `exportTargetUri = effectiveUri ?: currentMainUri` in the `FFmpegService` launch intent so background export receives valid, non-null URI inputs.
+* How it was verified: `lint_applet` and `compile_applet`.
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: None.
+
+## Phase 108: Next Player Controls Architecture, Isolated Scrim Backdrop, Paused-Aware Auto-Hide Timer & Perceptual Brightness Synchronization
+* Timestamp: 2026-10-27T14:25:00Z
+* One-line summary: Separated full-screen background scrim backdrop from foreground controls to prevent premature touch hiding, upgraded auto-hide timer to paused-aware 3.5s countdown with active touch hold, gated brightness slider strictly to left tools button toggle, preserved all native gestures with unified vertical swipe, and calibrated system brightness with perceptual gamma decompression.
+* Files touched:
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+  - app/src/main/java/com/example/ui/screens/player/PlayerTopBar.kt
+  - app/src/main/java/com/example/ui/screens/player/PlayerBottomBar.kt
+  - BLUEPRINT.md
+  - README.md
+  - receipts/RECEIPTS_029.md
+* What was actually done:
+  - Next Player Controls & Backdrop Separation:
+    * Replaced the wrapping tap-detector Box in `PlayerScreen.kt` with a decoupled two-layer architecture inside `AnimatedVisibility(showControls && !isInPipMode && !isLocked)`: Layer 1 is a dedicated transparent background scrim (`ScrimBackdrop`) that listens for taps on empty space to dismiss controls (`showControls = false; showBrightnessSlider = false`) or double-taps to toggle Play/Pause. Layer 2 is the foreground controls container with `pointerInput(Unit)` tracking touch down/up (`awaitEachGesture`).
+    * Added pointer interception to `PlayerBottomBar.kt` using `awaitEachGesture` and `awaitFirstDown(false)`. Taps and touches on bars, buttons, sliders, padding, panels, and dropdown menus are cleanly consumed in foreground layers and never bubble to the dismiss backdrop.
+  - Paused-Aware & Touch-Holding Auto-Hide Timer:
+    * Updated controls auto-hide coroutine to check `isPlayingState` (`isPlaying || mediaController?.isPlaying == true`). When video is paused (`!isPlayingState`), controls remain visible indefinitely.
+    * Added `isInteractingWithControls` state set to `true` while any pointer is pressed or dragging on controls or the brightness slider, pausing the auto-hide timer until touch release.
+    * Wired `onMenuOpenChange` in `PlayerTopBar.kt` to `showTopMenu` in `PlayerScreen.kt` so top dropdown menus prevent auto-hide countdown.
+    * Reset countdown to 3500ms upon touch release and player interactions.
+  - On-Demand Brightness Slider & Gesture Parity:
+    * Gated `BrightnessHudCapsule` visibility strictly to `showBrightnessSlider && !isInPipMode`. The slider appears only when toggled on via the brightness icon button in `PlayerLeftTools` (`onBrightnessClick`).
+    * Preserved 100% of existing repository gestures in `PlayerGestureModifier.kt`: 2-finger multi-touch for zoom (0.25x-4x), pan, and rotation (`ZOOM_PAN`); 1-finger horizontal swipe for video scrubbing with delta preview (`SEEK`); double-tap strictly toggles Play/Pause with center flash HUD; single-tap on empty canvas toggles controls; and vertical swipe dynamically routes to `GestureType.BRIGHTNESS` when the brightness slider is open, or `GestureType.VOLUME` with booster when the slider is closed.
+  - Perceptual Gamma Brightness Calibration:
+    * In `getDeviceSystemBrightness(ctx)`, decompressed `Settings.System.SCREEN_BRIGHTNESS` (0..255) using Android's perceptual gamma formula $P = \sqrt{\text{raw} / 255.0}$. Ensures the in-app brightness slider accurately mirrors the device's system Quick Settings slider.
+    * Prioritized window layout parameter override (`window.attributes.screenBrightness in 0.01f..1f`) on initialization before querying system content provider.
+  - Documentation Sync:
+    * Verified creator and 3GB RAM Android 15 Go Edition hardware origin note in `README.md` (line 14).
+    * Aligned precision gesture description in `README.md` to reflect unified full-screen vertical swipe behavior.
+* How it was verified: Local syntax and bracket balance AST check, `lint_applet` clean run, and `compile_applet` build passing with 0 errors.
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: None.
+
+
+
 

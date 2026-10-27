@@ -87,10 +87,29 @@ fun PhotoEditorScreen(uriString: String, onNavigateBack: () -> Unit) {
         withContext(Dispatchers.IO) {
             try {
                 val parsedUri = Uri.parse(uriString)
+                fun openImageStream(): java.io.InputStream? {
+                    return if (parsedUri.scheme == "file" || uriString.startsWith("file:") || uriString.startsWith("/")) {
+                        val directPath = when {
+                            uriString.startsWith("file://") -> uriString.removePrefix("file://")
+                            uriString.startsWith("file:/") -> uriString.removePrefix("file:")
+                            uriString.startsWith("file:") -> uriString.removePrefix("file:")
+                            else -> parsedUri.path ?: uriString
+                        }
+                        val candidate1 = java.io.File(directPath)
+                        val candidate2 = java.io.File(Uri.decode(directPath))
+                        val candidate3 = parsedUri.path?.let { java.io.File(it) }
+                        val candidate4 = parsedUri.path?.let { java.io.File(Uri.decode(it)) }
+                        val src = listOfNotNull(candidate1, candidate2, candidate3, candidate4).firstOrNull { it.exists() && it.canRead() }
+                            ?: candidate1
+                        if (src.exists() && src.canRead()) src.inputStream() else null
+                    } else {
+                        context.contentResolver.openInputStream(parsedUri)
+                    }
+                }
                 val options = BitmapFactory.Options().apply {
                     inJustDecodeBounds = true
                 }
-                context.contentResolver.openInputStream(parsedUri)?.use { stream ->
+                openImageStream()?.use { stream ->
                     BitmapFactory.decodeStream(stream, null, options)
                 }
                 
@@ -105,7 +124,7 @@ fun PhotoEditorScreen(uriString: String, onNavigateBack: () -> Unit) {
                 options.inJustDecodeBounds = false
 
                 var loadedBitmap: Bitmap? = null
-                context.contentResolver.openInputStream(parsedUri)?.use { stream ->
+                openImageStream()?.use { stream ->
                     loadedBitmap = BitmapFactory.decodeStream(stream, null, options)
                 }
                 if (loadedBitmap != null) {

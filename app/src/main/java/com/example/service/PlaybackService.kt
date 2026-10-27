@@ -1090,6 +1090,9 @@ composeView = null
             mediaSession = null
         }
         lifecycleRegistry.handleLifecycleEvent(androidx.lifecycle.Lifecycle.Event.ON_DESTROY)
+        try {
+            serviceScope.cancel()
+        } catch (e: Exception) {}
         resetSessionFloatingState()
         hideOverlay()
         if (instance == this) {

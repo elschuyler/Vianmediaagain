@@ -88,6 +88,7 @@ object PlayerManager {
     private val _playbackState = MutableStateFlow(PlayerSnapshot())
     val playbackState: StateFlow<PlayerSnapshot> = _playbackState.asStateFlow()
 
+    private val playerScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO + kotlinx.coroutines.SupervisorJob())
     private var progressTickerJob: Job? = null
     private var appContext: Context? = null
 
@@ -178,7 +179,7 @@ object PlayerManager {
                 if (playbackState == androidx.media3.common.Player.STATE_ENDED || playbackState == androidx.media3.common.Player.STATE_IDLE) {
                     val count = exoPlayer?.mediaItemCount ?: 0
                     if (playbackState == androidx.media3.common.Player.STATE_ENDED || count == 0) {
-                        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                        playerScope.launch {
                             try {
                                 val db = com.example.data.AppDatabase.getDatabase(context)
                                 val dao = db.playlistDao()
@@ -225,7 +226,7 @@ object PlayerManager {
                 updateSnapshot()
                 if (events.contains(androidx.media3.common.Player.EVENT_TIMELINE_CHANGED)) {
                     if (player.mediaItemCount == 0) {
-                        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                        playerScope.launch {
                             try {
                                 val db = com.example.data.AppDatabase.getDatabase(context)
                                 val dao = db.playlistDao()
@@ -490,7 +491,7 @@ object PlayerManager {
         _playbackState.value = PlayerSnapshot()
         val player = exoPlayer
         exoPlayer = null
-        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default).launch {
+        playerScope.launch {
             try {
                 player?.let { p ->
                     val hasError = (p.playerError != null)

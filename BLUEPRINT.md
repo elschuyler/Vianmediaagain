@@ -251,6 +251,34 @@
   1. Package Name Alignment: Updated `applicationId = "shura.media"` in `app/build.gradle.kts` establishing `shura.media` as the official Android application package identifier across OS, installer, and Play Store without disrupting internal Kotlin namespaces.
   2. App Name Branding: Confirmed `app_name` in `strings.xml` as `"Vian Media"` and synced HTML entrypoint titles.
   3. Settings About Page: Implemented dedicated `AboutSettingsPage` in `SettingsScreen.kt` featuring an app hero card, Creator & Attribution card explicitly crediting **Lewis** as Creator (Series **Viabhron** / MIT License), and Engine card detailing ExoPlayer, Compose M3, and Mobile FFmpeg. Added navigation entry to `MainSettingsMenu`.
+- **Phase 106 (Animated WebP & Stream Container Editor Pipeline Hardening & Safe Export Architecture)**:
+  1. Gated ExoPlayer Against Premature Loading: Initialized `isConverting` synchronously based on format detection (`image/webp`, `image/gif`, `m4s`, `ts`) and gated `exoPlayer` creation until `convertedUri != null`. Completely eliminates ExoPlayer buffering timeout exceptions (`Playback stuck buffering and not loading`) and bogus error popups when opening animated WebP images.
+  2. Canonical Android File URIs: Replaced all `outputFile.toURI().toString()` calls (which produced single-slash `file:/` URIs) with `Uri.fromFile(outputFile).toString()` (producing canonical triple-slash `file:///` URIs) across all pre-conversion and repair pipelines.
+  3. Direct File Stream Copying in FFmpegService: Enhanced `FFmpegService.processFiles` to detect `file:` URIs and copy them directly via `FileInputStream` rather than failing inside `ContentResolver.openInputStream`. Added support for bare paths, `file:/`, and `file://`.
+  4. Protected Editor Temp Files: Prevented `VideoEditorScreen`'s `DisposableEffect.onDispose` from deleting intermediate session files while `FFmpegStatus.isRunning` is active.
+  5. Conditional Post-Export Cleanup: Hardened `FFmpegService` cleanup to only remove caller `editor_converted_*` temp files if the export succeeded (`itemExportSucceeded == true`), ensuring failed or cancelled jobs retain source files for retry.
+  6. Enhanced File Extension & MIME Detection: Updated `getFileExtension` in `FFmpegService` to extract extension directly from file path for file URIs where `ContentResolver.getType()` returns null.
+- **Phase 107 (Direct File Stream Decoding, Nullable URI Hardening & Universal Media Ingestion Safety)**:
+  1. Universal Direct File Stream Decoding: Hardened `FFmpegService`, `VideoEditorScreen`, and `PhotoEditorScreen` with multi-candidate URI and filesystem path resolution (testing raw directPath, `Uri.decode(directPath)`, `uri.path`, and `Uri.decode(uri.path)`). Eliminates `FileNotFoundException: ENOENT` across all file scheme variants (`file:///`, `file:/`, `file:`, bare paths, and URL-encoded whitespace).
+  2. Null-Safe State Memory in VideoEditorScreen: Replaced unremembered, unsafe `Uri.parse(effectiveUri)` with `remember(effectiveUri) { if (!effectiveUri.isNullOrBlank()) Uri.parse(effectiveUri) else Uri.parse(uriString) }`, eliminating runtime `NullPointerException` during initial pre-conversion states.
+  3. Safe MediaMetadataRetriever Pipeline: Guarded `LaunchedEffect(effectiveUri)` with `if (effectiveUri.isNullOrBlank()) return@LaunchedEffect` and routed local file paths directly via `retriever.setDataSource(file.absolutePath)` to avoid redundant ContentResolver bridge overhead.
+  4. Non-Null Export Intent Target: Guaranteed `VideoEditorScreen` export always falls back to `currentMainUri` if `effectiveUri` is blank, ensuring background `FFmpegService` intents receive valid, non-null URI lists.
+  5. PhotoEditor File Scheme Parity: Added `openImageStream()` helper in `PhotoEditorScreen` supporting direct `FileInputStream` fallback for imported `file:` URIs, preventing decoding crashes during photo edits.
+- **Phase 108 (Next Player Controls Architecture, Isolated Scrim Backdrop, Paused-Aware Auto-Hide Timer & Perceptual Brightness Synchronization)**:
+  1. Next Player Controls & Backdrop Separation: Decoupled full-screen tap-to-hide backdrop scrim from foreground controls. Background scrim intercepts empty space single-taps to dismiss controls and double-taps to toggle Play/Pause, while all controls (TopBar, BottomBar, LeftTools, RightTools, Brightness Slider, dialogs, and dropdown menus) absorb pointer events so taps on buttons and UI components never trigger premature dismissal.
+  2. Paused-Aware & Active-Interaction Auto-Hide Timer: Updated controls countdown to strictly require `isPlaying == true`. When media is paused (`!isPlaying`), controls remain visible indefinitely. Auto-hide is held during active touch interactions (`isInteractingWithControls`), open dialogs (`isAnyDialogOpen`), dropdown menus (`showTopMenu`), or visible brightness slider. When playing and idle, controls auto-hide after 3500ms.
+  3. Brightness Slider On-Demand Visibility: Gated `BrightnessHudCapsule` to appear strictly when toggled via the brightness button in `PlayerLeftTools` (`showBrightnessSlider && !isInPipMode`). Ambient vertical swipe alone no longer forces the slider onto the canvas when it is closed.
+  4. Unified Gesture Parity: Preserved 100% of the repository's native gestures:
+     - Multi-touch (2 fingers): Zoom (0.25x - 4x), Pan, and Rotate (`ZOOM_PAN`).
+     - Horizontal swipe (1 finger): Video scrubbing/seek with delta time badge (`SEEK`).
+     - Vertical swipe (1 finger):
+       * When brightness slider is active (`showBrightnessSlider == true`): screen brightness adjustment (`BRIGHTNESS`).
+       * When brightness slider is inactive (`showBrightnessSlider == false`): media volume & audio booster adjustment (`VOLUME`).
+     - Double-tap: Video Play/Pause toggle with animated center HUD badge.
+     - Single-tap: On empty video canvas -> toggles controls visibility; on backdrop scrim -> dismisses controls and slider.
+  5. Perceptual Gamma Brightness Calibration: Applied inverse quadratic gamma decompression ($P = \sqrt{\text{raw} / 255.0}$) when reading `Settings.System.SCREEN_BRIGHTNESS` on Android, ensuring the in-app slider accurately mirrors the system Quick Settings slider. Window brightness overrides are read first before querying system settings.
+
+
 
 
 

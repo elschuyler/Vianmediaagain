@@ -1,6 +1,8 @@
 package com.example.ui.screens.player
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -67,7 +69,12 @@ fun PlayerBottomBar(
                 onHeightMeasured(coordinates.size.height.toFloat())
             }
             .pointerInput(Unit) {
-                detectTapGestures {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    onInteraction()
+                    do {
+                        val event = awaitPointerEvent()
+                    } while (event.changes.any { it.pressed })
                     onInteraction()
                 }
             }

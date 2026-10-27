@@ -159,7 +159,9 @@ fun getDeviceSystemBrightness(ctx: Context): Float {
             ctx.contentResolver,
             android.provider.Settings.System.SCREEN_BRIGHTNESS
         )
-        (brightnessInt / 255f).coerceIn(0.01f, 1f)
+        // Android framework perceptual gamma decompression matching Quick Settings slider (P = sqrt(raw / 255.0))
+        val normalized = (brightnessInt.toDouble() / 255.0).coerceIn(0.0, 1.0)
+        kotlin.math.sqrt(normalized).toFloat().coerceIn(0.01f, 1f)
     } catch (e: Exception) {
         0.5f
     }
@@ -255,9 +257,11 @@ fun PlayerScreen(
     var showBrightnessSlider by remember { mutableStateOf(false) }
     var brightnessInteractionTime by remember { mutableLongStateOf(0L) }
     var isAdjustingBrightness by remember { mutableStateOf(false) }
+    var isInteractingWithControls by remember { mutableStateOf(false) }
     val initialBrightness = remember {
-        val winBrightness = context.findActivity()?.window?.attributes?.screenBrightness ?: -1f
-        if (winBrightness >= 0f) winBrightness else getDeviceSystemBrightness(context)
+        val win = context.findActivity()?.window
+        val winBrightness = win?.attributes?.screenBrightness ?: -1f
+        if (winBrightness in 0.01f..1f) winBrightness else getDeviceSystemBrightness(context)
     }
     var currentBrightness by remember { mutableFloatStateOf(initialBrightness) }
     var showVolumeHud by remember { mutableStateOf(false) }
@@ -276,9 +280,11 @@ fun PlayerScreen(
 
     LaunchedEffect(Unit) {
         val sdf = java.text.SimpleDateFormat("hh:mm a", java.util.Locale.US)
+        val date = java.util.Date()
         while (true) {
-            timeStr = sdf.format(java.util.Date()).lowercase(java.util.Locale.US)
-            kotlinx.coroutines.delay(1000)
+            date.time = System.currentTimeMillis()
+            timeStr = sdf.format(date).lowercase(java.util.Locale.US)
+            kotlinx.coroutines.delay(10000L)
         }
     }
 
@@ -579,10 +585,12 @@ fun PlayerScreen(
     val isAnyDialogOpen = showPlayerSettingsDialog || showDetailsDialog || showSleepTimerDialog ||
             showSpeedDialog || showAudioDialog || showSubtitleDialog || showTopMenu
 
-    LaunchedEffect(showControls, controlsInteractionTrigger, isAnyDialogOpen, showBrightnessSlider) {
-        if (showControls && !isAnyDialogOpen && !showBrightnessSlider) {
-            kotlinx.coroutines.delay(4000)
+    val isPlayingState = isPlaying || mediaController?.isPlaying == true
+    LaunchedEffect(showControls, controlsInteractionTrigger, isAnyDialogOpen, showBrightnessSlider, isPlayingState, isInteractingWithControls) {
+        if (showControls && isPlayingState && !isAnyDialogOpen && !showBrightnessSlider && !isInteractingWithControls) {
+            kotlinx.coroutines.delay(3500L)
             showControls = false
+            showBrightnessSlider = false
         }
     }
 
@@ -1218,7 +1226,11 @@ fun PlayerScreen(
             durationMs = mediaController?.duration?.coerceAtLeast(1L) ?: 1L,
             isPlaying = mediaController?.isPlaying == true,
             currentBrightness = currentBrightness,
-            getDeviceBrightness = { getDeviceSystemBrightness(context) },
+            getDeviceBrightness = {
+                val win = context.findActivity()?.window
+                val winBrightness = win?.attributes?.screenBrightness ?: -1f
+                if (winBrightness in 0.01f..1f) winBrightness else getDeviceSystemBrightness(context)
+            },
             onSingleTap = {
                 if (showControls) {
                     showControls = false
@@ -1424,7 +1436,9 @@ fun PlayerScreen(
             exit = androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(200)),
             modifier = Modifier.fillMaxSize()
         ) {
-            Box(
+            Box(modifier = Modifier.fillMaxSize()) {
+                // Layer 1: Background Scrim Backdrop (captures taps on empty video area to dismiss controls & slider)
+                Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .pointerInput(Unit) {
@@ -1459,18 +1473,26 @@ fun PlayerScreen(
                                 }
                             )
                         }
-                ) {
-                    // Top controls container (traps taps so controls remain visible)
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .align(Alignment.TopCenter)
-                            .pointerInput(Unit) {
-                                detectTapGestures {
-                                    controlsInteractionTrigger = System.currentTimeMillis()
-                                }
+                )
+
+                // Layer 2: Top controls container (traps taps and touch drags so controls remain visible)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.TopCenter)
+                        .pointerInput(Unit) {
+                            awaitEachGesture {
+                                val down = awaitFirstDown(requireUnconsumed = false)
+                                isInteractingWithControls = true
+                                controlsInteractionTrigger = System.currentTimeMillis()
+                                do {
+                                    val event = awaitPointerEvent()
+                                } while (event.changes.any { it.pressed })
+                                isInteractingWithControls = false
+                                controlsInteractionTrigger = System.currentTimeMillis()
                             }
-                    ) {
+                        }
+                ) {
                         // Top controls background
                         Box(modifier = Modifier
                             .fillMaxWidth()
@@ -1597,6 +1619,12 @@ fun PlayerScreen(
                             },
                             onInteraction = {
                                 controlsInteractionTrigger = System.currentTimeMillis()
+                            },
+                            onMenuOpenChange = { isOpen ->
+                                showTopMenu = isOpen
+                                if (isOpen) {
+                                    controlsInteractionTrigger = System.currentTimeMillis()
+                                }
                             }
                         )
 
@@ -1829,7 +1857,7 @@ fun PlayerScreen(
         }
 
         androidx.compose.animation.AnimatedVisibility(
-            visible = (showBrightnessSlider || activeGesture == GestureType.BRIGHTNESS) && !isInPipMode,
+            visible = showBrightnessSlider && !isInPipMode,
             enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.scaleIn(initialScale = 0.9f),
             exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.scaleOut(targetScale = 0.9f),
             modifier = Modifier
@@ -1853,6 +1881,7 @@ fun PlayerScreen(
                 },
                 onDragStateChange = { isDragging ->
                     isAdjustingBrightness = isDragging
+                    isInteractingWithControls = isDragging
                     brightnessInteractionTime = System.currentTimeMillis()
                     controlsInteractionTrigger = System.currentTimeMillis()
                     if (!isDragging) {

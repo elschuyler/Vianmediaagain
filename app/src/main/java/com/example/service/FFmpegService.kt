@@ -115,14 +115,38 @@ class FFmpegService : Service() {
                 break
             }
             val uri = Uri.parse(uriStr)
+            val isFileUri = uri.scheme == "file" || uriStr.startsWith("file:") || uriStr.startsWith("/")
             
             // 1. Copy to cache for FFmpeg processing
             val tempInFile = java.io.File(cacheDir, "ffmpeg_in_${System.currentTimeMillis()}.${getFileExtension(uri)}")
             try {
-                contentResolver.openInputStream(uri)?.use { input ->
-                    tempInFile.outputStream().use { output ->
-                        input.copyTo(output)
+                if (isFileUri) {
+                    val directPath = when {
+                        uriStr.startsWith("file://") -> uriStr.removePrefix("file://")
+                        uriStr.startsWith("file:/") -> uriStr.removePrefix("file:")
+                        uriStr.startsWith("file:") -> uriStr.removePrefix("file:")
+                        else -> uri.path ?: uriStr
                     }
+                    val candidate1 = java.io.File(directPath)
+                    val candidate2 = java.io.File(Uri.decode(directPath))
+                    val candidate3 = uri.path?.let { java.io.File(it) }
+                    val candidate4 = uri.path?.let { java.io.File(Uri.decode(it)) }
+                    val src = listOfNotNull(candidate1, candidate2, candidate3, candidate4).firstOrNull { it.exists() && it.canRead() }
+                        ?: candidate1
+                    if (!src.exists() || !src.canRead()) {
+                        throw java.io.FileNotFoundException("Direct input file not found or unreadable: $directPath")
+                    }
+                    src.inputStream().use { input ->
+                        tempInFile.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                } else {
+                    contentResolver.openInputStream(uri)?.use { input ->
+                        tempInFile.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    } ?: throw java.io.FileNotFoundException("Unable to open input stream for content URI: $uriStr")
                 }
             } catch (e: Exception) {
                 LogKeeper.logError("FFmpegService", "Failed to copy input file: $uriStr", e)
@@ -133,7 +157,13 @@ class FFmpegService : Service() {
             var actualInputFile = tempInFile
             val pngFramesDir: java.io.File? = null
             
-            val inputMimeType = contentResolver.getType(uri) ?: "video/mp4"
+            val inputMimeType = if (isFileUri) {
+                val p = uri.path ?: uriStr
+                val ext = p.substringAfterLast('.', "").lowercase()
+                getMimeType(ext)
+            } else {
+                contentResolver.getType(uri) ?: "video/mp4"
+            }
             if (inputMimeType == "image/webp") {
                 val framesDir = java.io.File(cacheDir, "ffmpeg_frames_${System.currentTimeMillis()}")
                 framesDir.mkdirs()
@@ -262,6 +292,7 @@ class FFmpegService : Service() {
                 break
             }
 
+            var itemExportSucceeded = false
             if (ReturnCode.isSuccess(returnCode)) {
                 LogKeeper.log("FFmpeg processing succeeded.", "FFmpegService")
             
@@ -307,6 +338,7 @@ class FFmpegService : Service() {
                     } catch (e: Exception) {}
                     LogKeeper.log("Saved to output folder", "FFmpegService")
                     FFmpegStatus.lastOutputUri = finalUri?.toString()
+                    itemExportSucceeded = true
                 } catch (e: Exception) {
                     LogKeeper.logError("FFmpegService", "Failed to copy output file to SAF", e)
                 }
@@ -322,12 +354,21 @@ class FFmpegService : Service() {
             if (actualInputFile != tempInFile && actualInputFile.exists()) actualInputFile.delete()
             pngFramesDir?.deleteRecursively()
             if (tempOutFile.exists()) tempOutFile.delete()
-            // Zero-Memory: Delete any internal cache temp files passed as input (e.g. editor_converted_*)
-            if (uri.scheme == "file" || uriStr.startsWith("file://")) {
+            // Zero-Memory: Delete any internal editor converted temp files ONLY if export succeeded
+            if (itemExportSucceeded && isFileUri) {
                 try {
-                    val p = uri.path ?: uriStr.removePrefix("file://")
-                    val f = java.io.File(p)
-                    if (f.exists() && f.parentFile?.absolutePath == cacheDir.absolutePath) {
+                    val p = when {
+                        uriStr.startsWith("file://") -> uriStr.removePrefix("file://")
+                        uriStr.startsWith("file:/") -> uriStr.removePrefix("file:")
+                        uriStr.startsWith("file:") -> uriStr.removePrefix("file:")
+                        else -> uri.path ?: uriStr
+                    }
+                    val candidate1 = java.io.File(p)
+                    val candidate2 = java.io.File(Uri.decode(p))
+                    val candidate3 = uri.path?.let { java.io.File(it) }
+                    val candidate4 = uri.path?.let { java.io.File(Uri.decode(it)) }
+                    val f = listOfNotNull(candidate1, candidate2, candidate3, candidate4).firstOrNull { it.exists() }
+                    if (f != null && f.name.startsWith("editor_converted_") && f.parentFile?.absolutePath == cacheDir.absolutePath) {
                         f.delete()
                     }
                 } catch (e: Exception) {}
@@ -346,6 +387,12 @@ class FFmpegService : Service() {
     }
     
     private fun getFileExtension(uri: Uri): String {
+        val uriStr = uri.toString()
+        if (uri.scheme == "file" || uriStr.startsWith("file:") || uriStr.startsWith("/")) {
+            val p = uri.path ?: uriStr
+            val ext = p.substringAfterLast('.', "").substringBefore('?').lowercase()
+            if (ext.isNotBlank()) return ext
+        }
         val mimeType = contentResolver.getType(uri) ?: return "mp4"
         return android.webkit.MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType) ?: "mp4"
     }

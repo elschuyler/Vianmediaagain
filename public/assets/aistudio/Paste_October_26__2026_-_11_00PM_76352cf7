@@ -1,0 +1,1457 @@
+[23:00:07.117] [Navigation] main
+[23:00:07.117] [PlayerManager] [PlayerManager] Initializing PlayerManager ExoPlayer
+[23:00:07.117] [System] [System] LogCatcher initialized. Storage ready.
+[23:00:07.117] [VideoEditor] [VideoEditor] ExoPlayer released from video editor
+[23:00:07.117] [FFmpegService] [FFmpegService] Completed FFmpeg batch for 1 file(s)
+[23:00:07.117] [FFmpegService] [FFmpegService] Saved to output folder
+[23:00:07.117] [FFmpegService] [FFmpegService] FFmpeg processing succeeded.
+[23:00:07.117] [FFmpegService] [FFmpegService] Executing FFmpeg command
+[23:00:07.117] [FFmpegService] [FFmpegService] Starting FFmpeg batch for 1 file(s)
+[23:00:07.117] [VideoEditor] -y -ss 0.53 -to 3.174 -i %INPUT% -vf "scale=w=360:h=640:force_original_aspect_ratio=decrease:flags=lanczos,scale=trunc(iw/2)*2:trunc(ih/2)*2"  -r 30 -vcodec libx264 -crf 26 -preset medium -metadata:s:v:0 rotate=0 %OUTPUT%
+[23:00:07.117] [VideoEditor] mp4, Resolution: 640x360, FPS: 30, Preset: medium, Quality level: 0.5 (CRF 26)
+[23:00:07.117] [VideoEditor] [VideoEditor] ExoPlayer is READY.
+[23:00:07.117] [VideoEditor] [VideoEditor] ExoPlayer is READY.
+[23:00:07.117] [VideoEditor] [VideoEditor] ExoPlayer is READY.
+[23:00:07.117] [VideoEditor] [VideoEditor] ExoPlayer is READY.
+[23:00:07.117] [VideoEditor] [VideoEditor] ExoPlayer is READY.
+[23:00:07.117] [VideoEditor] [VideoEditor] ExoPlayer is READY.
+[23:00:07.117] [VideoEditor] [VideoEditor] ExoPlayer is READY.
+[23:00:07.117] [VideoEditor] [VideoEditor] ExoPlayer is READY.
+[23:00:07.117] [VideoEditor] [VideoEditor] ExoPlayer is READY.
+[23:00:07.117] [VideoEditor] [VideoEditor] ExoPlayer is READY.
+[23:00:07.117] [PlaybackService] ACTION_HIDE_OVERLAY
+[23:00:07.117] [PlayerManager] [PlayerManager] Initializing PlayerManager ExoPlayer
+[23:00:07.117] [VideoEditor] mimeType=video/mp4 ext=mp4 containerType=STANDARD
+[23:00:07.117] [VideoEditor] 1.0x
+[23:00:07.117] [VideoEditor] [VideoEditor] ExoPlayer initialized for video editor
+[23:00:07.117] [EditorActivity] [EditorActivity] EditorActivity launched with 1 uris, detectedType=video
+[23:00:07.117] [System] [System] LogCatcher initialized. Storage ready.
+[23:00:07.117] [PlayerManager] Handled ExoPlayer release background job
+[23:00:07.117] [PlaybackService] cleaning up notification and session
+[23:00:07.117] [PlaybackService] [PlaybackService] onTaskRemoved called, cleaning up.
+[23:00:07.117] [Navigation] main
+[23:00:07.117] [VideoEditor] [VideoEditor] ExoPlayer released from video editor
+[23:00:07.117] [FFmpegService] [FFmpegService] Completed FFmpeg batch for 1 file(s)
+[23:00:07.116] ERROR [FFmpegService]: Failed to copy input file: file:[REDACTED_PATH]
+java.io.FileNotFoundException: [REDACTED_PATH] open failed: ENOENT (No such file or directory)
+	at libcore.io.IoBridge.open(IoBridge.java:569)
+	at java.io.FileInputStream.<init>(FileInputStream.java:179)
+	at java.io.FileInputStream.<init>(FileInputStream.java:133)
+	at android.content.ContentResolver.openInputStream(ContentResolver.java:1526)
+	at com.example.service.FFmpegService.processFiles(FFmpegService.kt:122)
+	at com.example.service.FFmpegService.access$processFiles(FFmpegService.kt:33)
+	at com.example.service.FFmpegService$onStartCommand$1.invokeSuspend(FFmpegService.kt:96)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:33)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:100)
+	at kotlinx.coroutines.internal.LimitedDispatcher$Worker.run(LimitedDispatcher.kt:124)
+	at kotlinx.coroutines.scheduling.TaskImpl.run(Tasks.kt:89)
+	at kotlinx.coroutines.scheduling.CoroutineScheduler.runSafely(CoroutineScheduler.kt:586)
+	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.executeTask(CoroutineScheduler.kt:820)
+	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.runWorker(CoroutineScheduler.kt:717)
+	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.run(CoroutineScheduler.kt:704)
+Caused by: android.system.ErrnoException: open failed: ENOENT (No such file or directory)
+	at libcore.io.Linux.open(Native Method)
+	at libcore.io.ForwardingOs.open(ForwardingOs.java:410)
+	at libcore.io.BlockGuardOs.open(BlockGuardOs.java:274)
+	at libcore.io.ForwardingOs.open(ForwardingOs.java:410)
+	at android.app.ActivityThread$AndroidOs.open(ActivityThread.java:8774)
+	at libcore.io.IoBridge.open(IoBridge.java:555)
+	... 14 more
+[23:00:07.116] [FFmpegService] [FFmpegService] Starting FFmpeg batch for 1 file(s)
+[23:00:07.116] [VideoEditor] -y -ss 0.587 -to 3.414 -i %INPUT% -vf "setpts=PTS/2.0,scale=w=360:h=640:force_original_aspect_ratio=decrease:flags=lanczos,scale=trunc(iw/2)*2:trunc(ih/2)*2,fps=30" -loop 0 %OUTPUT%
+[23:00:07.116] [VideoEditor] gif, Resolution: 640x360, FPS: 30, Preset: ultrafast, Quality level: 0.5 (CRF 26)
+[23:00:07.116] ERROR [FFmpegService]: Failed to copy input file: file:[REDACTED_PATH]
+java.io.FileNotFoundException: [REDACTED_PATH] open failed: ENOENT (No such file or directory)
+	at libcore.io.IoBridge.open(IoBridge.java:569)
+	at java.io.FileInputStream.<init>(FileInputStream.java:179)
+	at java.io.FileInputStream.<init>(FileInputStream.java:133)
+	at android.content.ContentResolver.openInputStream(ContentResolver.java:1526)
+	at com.example.service.FFmpegService.processFiles(FFmpegService.kt:122)
+	at com.example.service.FFmpegService.access$processFiles(FFmpegService.kt:33)
+	at com.example.service.FFmpegService$onStartCommand$1.invokeSuspend(FFmpegService.kt:96)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:33)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:100)
+	at kotlinx.coroutines.internal.LimitedDispatcher$Worker.run(LimitedDispatcher.kt:124)
+	at kotlinx.coroutines.scheduling.TaskImpl.run(Tasks.kt:89)
+	at kotlinx.coroutines.scheduling.CoroutineScheduler.runSafely(CoroutineScheduler.kt:586)
+	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.executeTask(CoroutineScheduler.kt:820)
+	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.runWorker(CoroutineScheduler.kt:717)
+	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.run(CoroutineScheduler.kt:704)
+Caused by: android.system.ErrnoException: open failed: ENOENT (No such file or directory)
+	at libcore.io.Linux.open(Native Method)
+	at libcore.io.ForwardingOs.open(ForwardingOs.java:410)
+	at libcore.io.BlockGuardOs.open(BlockGuardOs.java:274)
+	at libcore.io.ForwardingOs.open(ForwardingOs.java:410)
+	at android.app.ActivityThread$AndroidOs.open(ActivityThread.java:8774)
+	at libcore.io.IoBridge.open(IoBridge.java:555)
+	... 14 more
+[23:00:07.116] [FFmpegService] [FFmpegService] Completed FFmpeg batch for 1 file(s)
+[23:00:07.116] [FFmpegService] [FFmpegService] Starting FFmpeg batch for 1 file(s)
+[23:00:07.116] [VideoEditor] -y -ss 0.587 -to 3.414 -i %INPUT% -vf "setpts=PTS/2.0,scale=w=360:h=640:force_original_aspect_ratio=decrease:flags=lanczos,scale=trunc(iw/2)*2:trunc(ih/2)*2,fps=30" -loop 0 %OUTPUT%
+[23:00:07.116] [VideoEditor] gif, Resolution: 640x360, FPS: 30, Preset: medium, Quality level: 0.5 (CRF 26)
+[23:00:07.116] [FFmpegService] [FFmpegService] Completed FFmpeg batch for 1 file(s)
+[23:00:07.116] ERROR [FFmpegService]: Failed to copy input file: file:[REDACTED_PATH]
+java.io.FileNotFoundException: [REDACTED_PATH] open failed: ENOENT (No such file or directory)
+	at libcore.io.IoBridge.open(IoBridge.java:569)
+	at java.io.FileInputStream.<init>(FileInputStream.java:179)
+	at java.io.FileInputStream.<init>(FileInputStream.java:133)
+	at android.content.ContentResolver.openInputStream(ContentResolver.java:1526)
+	at com.example.service.FFmpegService.processFiles(FFmpegService.kt:122)
+	at com.example.service.FFmpegService.access$processFiles(FFmpegService.kt:33)
+	at com.example.service.FFmpegService$onStartCommand$1.invokeSuspend(FFmpegService.kt:96)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:33)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:100)
+	at kotlinx.coroutines.internal.LimitedDispatcher$Worker.run(LimitedDispatcher.kt:124)
+	at kotlinx.coroutines.scheduling.TaskImpl.run(Tasks.kt:89)
+	at kotlinx.coroutines.scheduling.CoroutineScheduler.runSafely(CoroutineScheduler.kt:586)
+	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.executeTask(CoroutineScheduler.kt:820)
+	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.runWorker(CoroutineScheduler.kt:717)
+	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.run(CoroutineScheduler.kt:704)
+Caused by: android.system.ErrnoException: open failed: ENOENT (No such file or directory)
+	at libcore.io.Linux.open(Native Method)
+	at libcore.io.ForwardingOs.open(ForwardingOs.java:410)
+	at libcore.io.BlockGuardOs.open(BlockGuardOs.java:274)
+	at libcore.io.ForwardingOs.open(ForwardingOs.java:410)
+	at android.app.ActivityThread$AndroidOs.open(ActivityThread.java:8774)
+	at libcore.io.IoBridge.open(IoBridge.java:555)
+	... 14 more
+[23:00:07.116] [FFmpegService] [FFmpegService] Starting FFmpeg batch for 1 file(s)
+[23:00:07.116] [VideoEditor] -y -ss 0.587 -to 3.414 -i %INPUT% -vf "setpts=PTS/2.0,scale=w=360:h=640:force_original_aspect_ratio=decrease:flags=lanczos,scale=trunc(iw/2)*2:trunc(ih/2)*2"  -r 30 -vcodec libx264 -crf 26 -preset medium -metadata:s:v:0 rotate=0 %OUTPUT%
+[23:00:07.116] [VideoEditor] mp4, Resolution: 640x360, FPS: 30, Preset: medium, Quality level: 0.5 (CRF 26)
+[23:00:07.116] [FFmpegService] [FFmpegService] Completed FFmpeg batch for 1 file(s)
+[23:00:07.116] ERROR [FFmpegService]: Failed to copy input file: file:[REDACTED_PATH]
+java.io.FileNotFoundException: [REDACTED_PATH] open failed: ENOENT (No such file or directory)
+	at libcore.io.IoBridge.open(IoBridge.java:569)
+	at java.io.FileInputStream.<init>(FileInputStream.java:179)
+	at java.io.FileInputStream.<init>(FileInputStream.java:133)
+	at android.content.ContentResolver.openInputStream(ContentResolver.java:1526)
+	at com.example.service.FFmpegService.processFiles(FFmpegService.kt:122)
+	at com.example.service.FFmpegService.access$processFiles(FFmpegService.kt:33)
+	at com.example.service.FFmpegService$onStartCommand$1.invokeSuspend(FFmpegService.kt:96)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:33)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:100)
+	at kotlinx.coroutines.internal.LimitedDispatcher$Worker.run(LimitedDispatcher.kt:124)
+	at kotlinx.coroutines.scheduling.TaskImpl.run(Tasks.kt:89)
+	at kotlinx.coroutines.scheduling.CoroutineScheduler.runSafely(CoroutineScheduler.kt:586)
+	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.executeTask(CoroutineScheduler.kt:820)
+	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.runWorker(CoroutineScheduler.kt:717)
+	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.run(CoroutineScheduler.kt:704)
+Caused by: android.system.ErrnoException: open failed: ENOENT (No such file or directory)
+	at libcore.io.Linux.open(Native Method)
+	at libcore.io.ForwardingOs.open(ForwardingOs.java:410)
+	at libcore.io.BlockGuardOs.open(BlockGuardOs.java:274)
+	at libcore.io.ForwardingOs.open(ForwardingOs.java:410)
+	at android.app.ActivityThread$AndroidOs.open(ActivityThread.java:8774)
+	at libcore.io.IoBridge.open(IoBridge.java:555)
+	... 14 more
+[23:00:07.116] [FFmpegService] [FFmpegService] Starting FFmpeg batch for 1 file(s)
+[23:00:07.116] [VideoEditor] -y -ss 0.587 -to 3.414 -i %INPUT% -vf "setpts=PTS/2.0,scale=w=360:h=640:force_original_aspect_ratio=decrease:flags=lanczos,scale=trunc(iw/2)*2:trunc(ih/2)*2"  -r 30 -vcodec libx264 -crf 26 -preset medium -metadata:s:v:0 rotate=0 %OUTPUT%
+[23:00:07.116] [VideoEditor] mp4, Resolution: 640x360, FPS: 30, Preset: medium, Quality level: 0.5 (CRF 26)
+[23:00:07.116] [VideoEditor] [VideoEditor] ExoPlayer is READY.
+[23:00:07.115] [VideoEditor] [VideoEditor] ExoPlayer is READY.
+[23:00:07.115] [VideoEditor] [VideoEditor] ExoPlayer is READY.
+[23:00:07.115] [VideoEditor] 2.0x
+[23:00:07.115] [VideoEditor] [VideoEditor] ExoPlayer is READY.
+[23:00:07.115] [VideoEditor] [VideoEditor] ExoPlayer is READY.
+[23:00:07.115] [VideoEditor] [VideoEditor] ExoPlayer is READY.
+[23:00:07.115] [VideoEditor] [VideoEditor] ExoPlayer is READY.
+[23:00:07.115] [VideoEditor] [VideoEditor] ExoPlayer is READY.
+[23:00:07.115] [VideoEditor] [VideoEditor] ExoPlayer is READY.
+[23:00:07.115] [VideoEditor] [VideoEditor] ExoPlayer is READY.
+[23:00:07.115] [VideoEditor] [VideoEditor] ExoPlayer is READY.
+[23:00:07.115] [VideoEditor] [VideoEditor] ExoPlayer initialized for video editor
+[23:00:07.115] [VideoEditor] [VideoEditor] ExoPlayer released from video editor
+[23:00:07.115] [VideoEditor] [VideoEditor] Pre-conversion complete
+[23:00:07.115] ERROR [VideoEditor]: Player error: Unexpected runtime error
+androidx.media3.exoplayer.ExoPlaybackException: Unexpected runtime error
+	at androidx.media3.exoplayer.ExoPlayerImplInternal.handleMessage(ExoPlayerImplInternal.java:721)
+	at android.os.Handler.dispatchMessage(Handler.java:103)
+	at android.os.Looper.loopOnce(Looper.java:246)
+	at android.os.Looper.loop(Looper.java:334)
+	at android.os.HandlerThread.run(HandlerThread.java:85)
+Caused by: java.lang.IllegalStateException: Playback stuck buffering and not loading
+	at androidx.media3.exoplayer.ExoPlayerImplInternal.doSomeWork(ExoPlayerImplInternal.java:1224)
+	at androidx.media3.exoplayer.ExoPlayerImplInternal.handleMessage(ExoPlayerImplInternal.java:562)
+	... 4 more
+[23:00:07.115] [VideoEditor] mimeType=image/webp ext=webp containerType=STANDARD
+[23:00:07.115] [VideoEditor] 1.0x
+[23:00:07.115] [PlaybackService] ACTION_HIDE_OVERLAY
+[23:00:07.115] [PlayerManager] [PlayerManager] Initializing PlayerManager ExoPlayer
+[23:00:07.115] [VideoEditor] [VideoEditor] ExoPlayer initialized for video editor
+[23:00:07.115] [EditorActivity] [EditorActivity] EditorActivity launched with 1 uris, detectedType=video
+[23:00:07.115] [System] [System] LogCatcher initialized. Storage ready.
+[23:00:07.115] [PlayerScreen] ON_DESTROY
+[23:00:07.115] [PlayerScreen] ON_STOP
+[23:00:07.115] [PlayerManager] Handled ExoPlayer release background job
+[23:00:07.115] [PlayerManager] Flushed progress to storage (229555 ms)
+[23:00:07.115] [PlaybackService] cleaning up notification and session
+[23:00:07.115] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.115] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.115] [PlayerManager] Flushed progress to storage (229555 ms)
+[23:00:07.115] [PlayerScreen] ON_PAUSE
+[23:00:07.115] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.114] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.114] [PlayerManager] Flushed progress to storage (229555 ms)
+[23:00:07.114] [PlaybackService] [PlaybackService] Playback ended with repeatMode OFF -> stopping service & removing notification
+[23:00:07.114] [PlaybackService] STATE_ENDED
+[23:00:07.114] [PlayerScreen] [PlayerScreen] Player reached STATE_ENDED with no loop/next -> navigating back
+[23:00:07.114] [PlayerScreen] PlaybackState changed to: STATE_ENDED
+[23:00:07.114] [PlaybackService] null
+[23:00:07.114] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.114] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.114] [PlaybackService] STATE_READY
+[23:00:07.114] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.114] [PlaybackService] null
+[23:00:07.114] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.114] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.114] [PlayerScreen] PositionDiscontinuity from 227980ms to 229541ms (reason: 1)
+[23:00:07.114] [PlaybackService] STATE_BUFFERING
+[23:00:07.114] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.114] [PlayerScreen] PositionDiscontinuity from 224663ms to 227980ms (reason: 1)
+[23:00:07.114] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.114] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.114] [PlayerManager] Flushed progress to storage (224663 ms)
+[23:00:07.114] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.114] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.114] [PlaybackService] null
+[23:00:07.114] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.114] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.114] [PlaybackService] STATE_READY
+[23:00:07.114] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.114] [PlaybackService] null
+[23:00:07.114] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.113] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.113] [PlayerScreen] PositionDiscontinuity from 214914ms to 223182ms (reason: 1)
+[23:00:07.113] [PlaybackService] STATE_BUFFERING
+[23:00:07.113] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.113] [PlayerScreen] PositionDiscontinuity from 212626ms to 214914ms (reason: 1)
+[23:00:07.113] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.113] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.113] [PlayerManager] Flushed progress to storage (212626 ms)
+[23:00:07.113] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.113] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.113] [PlaybackService] null
+[23:00:07.113] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.113] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.113] [PlaybackService] STATE_READY
+[23:00:07.113] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.113] [PlaybackService] null
+[23:00:07.113] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.113] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.113] [PlayerScreen] PositionDiscontinuity from 120244ms to 124780ms (reason: 1)
+[23:00:07.113] [PlaybackService] STATE_BUFFERING
+[23:00:07.113] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.113] [PlayerScreen] PositionDiscontinuity from 118305ms to 120244ms (reason: 1)
+[23:00:07.113] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.113] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.113] [PlayerManager] Flushed progress to storage (118305 ms)
+[23:00:07.113] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.113] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.113] [PlayerScreen] [PlayerScreen] Speed toggled to 1.2x
+[23:00:07.113] [PlaybackService] null
+[23:00:07.113] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.113] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.113] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.112] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.112] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.112] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.112] [PlayerManager] Flushed progress to storage (5619 ms)
+[23:00:07.112] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.112] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.112] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.112] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.112] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.112] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.112] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.112] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.112] [PlayerManager] Flushed progress to storage (5612 ms)
+[23:00:07.112] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.112] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.112] [PlaybackService] null
+[23:00:07.112] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.112] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.112] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.112] [PlaybackService] STATE_READY
+[23:00:07.112] [PlaybackService] null
+[23:00:07.112] [PlaybackService] null
+[23:00:07.112] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.112] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.112] [PlayerScreen] PositionDiscontinuity from 0ms to 0ms (reason: 1)
+[23:00:07.112] [PlaybackService] STATE_BUFFERING
+[23:00:07.112] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.112] [PlayerScreen] PositionDiscontinuity from 128ms to 0ms (reason: 1)
+[23:00:07.112] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.112] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.112] [PlayerManager] Flushed progress to storage (128 ms)
+[23:00:07.112] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.111] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.111] [PlaybackService] onTimelineChanged (itemCount=1)
+[23:00:07.111] [PlaybackService] null
+[23:00:07.111] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.111] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.111] [PlaybackService] STATE_READY
+[23:00:07.111] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.111] [PlayerScreen] onTracksChanged
+[23:00:07.111] [PlaybackService] onTimelineChanged (itemCount=1)
+[23:00:07.111] [PlaybackService] onTimelineChanged (itemCount=1)
+[23:00:07.111] [PlaybackService] ACTION_HIDE_OVERLAY
+[23:00:07.111] [PlayerScreen] rot=0 w=256 h=144 isPortrait=false
+[23:00:07.111] [PlayerScreen] ON_RESUME
+[23:00:07.111] [PlayerScreen] ON_CREATE
+[23:00:07.111] [PlayerScreen] ON_START
+[23:00:07.111] [PlayerScreen] [PlayerScreen] Starting player session
+[23:00:07.111] [PlayerManager] [PlayerManager] Initializing PlayerManager ExoPlayer
+[23:00:07.111] [System] [System] LogCatcher initialized. Storage ready.
+[23:00:07.111] [PlayerScreen] ON_DESTROY
+[23:00:07.111] [PlayerScreen] ON_STOP
+[23:00:07.111] [PlayerManager] Handled ExoPlayer release background job
+[23:00:07.111] [PlayerManager] Flushed progress to storage (1923623 ms)
+[23:00:07.111] [PlaybackService] cleaning up notification and session
+[23:00:07.111] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.111] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.111] [PlayerManager] Flushed progress to storage (1923623 ms)
+[23:00:07.111] [PlayerScreen] ON_PAUSE
+[23:00:07.111] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.111] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.110] [PlayerManager] Flushed progress to storage (1923623 ms)
+[23:00:07.110] [PlaybackService] [PlaybackService] Playback ended with repeatMode OFF -> stopping service & removing notification
+[23:00:07.110] [PlaybackService] STATE_ENDED
+[23:00:07.110] [PlayerScreen] [PlayerScreen] Player reached STATE_ENDED with no loop/next -> navigating back
+[23:00:07.110] [PlayerScreen] PlaybackState changed to: STATE_ENDED
+[23:00:07.110] [PlaybackService] null
+[23:00:07.110] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.110] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.110] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.110] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.110] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.110] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.110] [PlayerManager] Flushed progress to storage (1409304 ms)
+[23:00:07.110] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.110] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.110] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.110] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.110] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.110] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.110] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.110] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.110] [PlayerManager] Flushed progress to storage (1409281 ms)
+[23:00:07.110] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.110] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.110] [PlaybackService] null
+[23:00:07.110] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.110] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.110] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.110] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.109] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.109] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.109] [PlayerManager] Flushed progress to storage (1139274 ms)
+[23:00:07.109] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.109] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.109] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.109] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.109] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.109] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.109] [PlaybackService] STATE_READY
+[23:00:07.109] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.109] [PlayerScreen] PositionDiscontinuity from 1141981ms to 1139274ms (reason: 1)
+[23:00:07.109] [PlaybackService] STATE_BUFFERING
+[23:00:07.109] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.109] [PlayerScreen] PositionDiscontinuity from 1143478ms to 1141981ms (reason: 1)
+[23:00:07.109] [PlaybackService] STATE_READY
+[23:00:07.109] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.109] [PlayerScreen] PositionDiscontinuity from 1143478ms to 1143478ms (reason: 1)
+[23:00:07.109] [PlaybackService] STATE_BUFFERING
+[23:00:07.109] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.109] [PlayerScreen] PositionDiscontinuity from 1146624ms to 1143478ms (reason: 1)
+[23:00:07.109] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.109] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.109] [PlayerManager] Flushed progress to storage (1146610 ms)
+[23:00:07.109] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.109] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.109] [PlaybackService] null
+[23:00:07.109] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.109] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.108] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.108] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.108] [PlaybackService] STATE_READY
+[23:00:07.108] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.108] [PlayerScreen] PositionDiscontinuity from 658036ms to 652402ms (reason: 1)
+[23:00:07.108] [PlaybackService] STATE_BUFFERING
+[23:00:07.108] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.108] [PlayerScreen] PositionDiscontinuity from 659739ms to 658036ms (reason: 1)
+[23:00:07.108] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.108] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.108] [PlayerManager] Flushed progress to storage (659724 ms)
+[23:00:07.108] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.108] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.108] [PlaybackService] null
+[23:00:07.108] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.108] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.108] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.108] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.108] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.108] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.108] [PlayerManager] Flushed progress to storage (70587 ms)
+[23:00:07.108] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.108] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.108] [PlaybackService] null
+[23:00:07.108] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.108] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.108] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.108] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.108] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.107] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.107] [PlayerManager] Flushed progress to storage (69195 ms)
+[23:00:07.107] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.107] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.107] [PlayerScreen] [PlayerScreen] Speed toggled to 1.2x
+[23:00:07.107] [PlaybackService] null
+[23:00:07.107] [PlaybackService] onTimelineChanged (itemCount=1)
+[23:00:07.107] [PlaybackService] null
+[23:00:07.107] [PlaybackService] onPlayWhenReadyChanged = false, reason = 2
+[23:00:07.107] [PlaybackService] null
+[23:00:07.107] [PlaybackService] ACTION_HIDE_OVERLAY
+[23:00:07.107] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.107] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.107] [PlaybackService] STATE_READY
+[23:00:07.107] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.107] [PlaybackService] null
+[23:00:07.107] [PlayerScreen] onTracksChanged
+[23:00:07.107] [PlaybackService] onTimelineChanged (itemCount=1)
+[23:00:07.107] [PlaybackService] onTimelineChanged (itemCount=1)
+[23:00:07.107] [PlaybackService] ACTION_HIDE_OVERLAY
+[23:00:07.107] [PlayerScreen] rot=0 w=256 h=144 isPortrait=false
+[23:00:07.107] [PlayerScreen] ON_RESUME
+[23:00:07.107] [PlayerScreen] ON_CREATE
+[23:00:07.107] [PlayerScreen] ON_START
+[23:00:07.107] [PlayerScreen] [PlayerScreen] Starting player session
+[23:00:07.107] [PlayerManager] [PlayerManager] Initializing PlayerManager ExoPlayer
+[23:00:07.107] [PlayerScreen] ON_DESTROY
+[23:00:07.107] [PlayerScreen] ON_STOP
+[23:00:07.107] [PlayerManager] Handled ExoPlayer release background job
+[23:00:07.106] [PlayerManager] Flushed progress to storage (733452 ms)
+[23:00:07.106] [PlaybackService] cleaning up notification and session
+[23:00:07.106] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.106] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.106] [PlayerManager] Flushed progress to storage (733452 ms)
+[23:00:07.106] [PlayerScreen] ON_PAUSE
+[23:00:07.106] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.106] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.106] [PlayerManager] Flushed progress to storage (733452 ms)
+[23:00:07.106] [PlaybackService] [PlaybackService] Playback ended with repeatMode OFF -> stopping service & removing notification
+[23:00:07.106] [PlaybackService] STATE_ENDED
+[23:00:07.106] [PlayerScreen] [PlayerScreen] Player reached STATE_ENDED with no loop/next -> navigating back
+[23:00:07.106] [PlayerScreen] PlaybackState changed to: STATE_ENDED
+[23:00:07.106] [PlaybackService] null
+[23:00:07.106] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.106] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.106] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.106] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.106] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.106] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.106] [PlayerManager] Flushed progress to storage (307662 ms)
+[23:00:07.106] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.106] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.106] [PlaybackService] null
+[23:00:07.106] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.106] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.106] [PlaybackService] STATE_READY
+[23:00:07.106] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.106] [PlaybackService] null
+[23:00:07.105] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.105] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.105] [PlayerScreen] PositionDiscontinuity from 307771ms to 299796ms (reason: 1)
+[23:00:07.105] [PlaybackService] STATE_BUFFERING
+[23:00:07.105] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.105] [PlayerScreen] PositionDiscontinuity from 309125ms to 307771ms (reason: 1)
+[23:00:07.105] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.105] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.105] [PlayerManager] Flushed progress to storage (309125 ms)
+[23:00:07.105] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.105] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.105] [PlaybackService] null
+[23:00:07.105] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.105] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.105] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.105] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.105] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.105] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.105] [PlayerManager] Flushed progress to storage (277019 ms)
+[23:00:07.105] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.105] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.105] [PlaybackService] null
+[23:00:07.105] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.105] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.105] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.105] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.105] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.105] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.105] [PlayerManager] Flushed progress to storage (55878 ms)
+[23:00:07.104] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.104] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.104] [PlaybackService] null
+[23:00:07.104] [PlaybackService] onTimelineChanged (itemCount=1)
+[23:00:07.104] [PlaybackService] null
+[23:00:07.104] [PlaybackService] null
+[23:00:07.104] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.104] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.104] [PlaybackService] STATE_READY
+[23:00:07.104] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.104] [PlaybackService] null
+[23:00:07.104] [PlayerScreen] onTracksChanged
+[23:00:07.104] [PlaybackService] onTimelineChanged (itemCount=1)
+[23:00:07.104] [PlaybackService] onTimelineChanged (itemCount=1)
+[23:00:07.104] [PlaybackService] ACTION_HIDE_OVERLAY
+[23:00:07.104] [PlayerScreen] rot=0 w=256 h=144 isPortrait=false
+[23:00:07.104] [PlayerScreen] ON_RESUME
+[23:00:07.104] [PlayerScreen] ON_CREATE
+[23:00:07.104] [PlayerScreen] ON_START
+[23:00:07.104] [PlayerScreen] [PlayerScreen] Starting player session
+[23:00:07.104] [PlayerManager] [PlayerManager] Initializing PlayerManager ExoPlayer
+[23:00:07.104] [System] [System] LogCatcher initialized. Storage ready.
+[23:00:07.104] [PlayerScreen] ON_DESTROY
+[23:00:07.104] [PlayerScreen] ON_STOP
+[23:00:07.104] [PlayerManager] Handled ExoPlayer release background job
+[23:00:07.104] [PlayerManager] Flushed progress to storage (176949 ms)
+[23:00:07.104] [PlaybackService] cleaning up notification and session
+[23:00:07.104] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.104] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.103] [PlayerManager] Flushed progress to storage (176949 ms)
+[23:00:07.103] [PlayerScreen] ON_PAUSE
+[23:00:07.103] [PlaybackService] null
+[23:00:07.103] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.103] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.103] [PlayerManager] Flushed progress to storage (176949 ms)
+[23:00:07.103] [PlaybackService] [PlaybackService] Playback ended with repeatMode OFF -> stopping service & removing notification
+[23:00:07.103] [PlaybackService] STATE_ENDED
+[23:00:07.103] [PlayerScreen] [PlayerScreen] Player reached STATE_ENDED with no loop/next -> navigating back
+[23:00:07.103] [PlayerScreen] PlaybackState changed to: STATE_ENDED
+[23:00:07.103] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.103] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.103] [PlaybackService] STATE_READY
+[23:00:07.103] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.103] [PlaybackService] null
+[23:00:07.103] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.103] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.103] [PlayerScreen] PositionDiscontinuity from 163198ms to 176921ms (reason: 1)
+[23:00:07.103] [PlaybackService] STATE_BUFFERING
+[23:00:07.103] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.103] [PlayerScreen] PositionDiscontinuity from 158933ms to 163198ms (reason: 1)
+[23:00:07.103] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.103] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.103] [PlayerManager] Flushed progress to storage (158933 ms)
+[23:00:07.103] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.103] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.103] [PlaybackService] null
+[23:00:07.103] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.103] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.103] [PlaybackService] STATE_READY
+[23:00:07.102] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.102] [PlaybackService] null
+[23:00:07.102] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.102] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.102] [PlayerScreen] PositionDiscontinuity from 148363ms to 158533ms (reason: 1)
+[23:00:07.102] [PlaybackService] STATE_BUFFERING
+[23:00:07.102] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.102] [PlayerScreen] PositionDiscontinuity from 147039ms to 148363ms (reason: 1)
+[23:00:07.102] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.102] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.102] [PlayerManager] Flushed progress to storage (147039 ms)
+[23:00:07.102] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.102] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.102] [PlaybackService] null
+[23:00:07.102] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.102] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.102] [PlaybackService] STATE_READY
+[23:00:07.102] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.102] [PlaybackService] null
+[23:00:07.102] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.102] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.102] [PlayerScreen] PositionDiscontinuity from 140708ms to 146488ms (reason: 1)
+[23:00:07.102] [PlaybackService] STATE_BUFFERING
+[23:00:07.102] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.102] [PlayerScreen] PositionDiscontinuity from 138294ms to 140708ms (reason: 1)
+[23:00:07.102] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.102] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.101] [PlayerManager] Flushed progress to storage (138294 ms)
+[23:00:07.101] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.101] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.101] [PlaybackService] null
+[23:00:07.101] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.101] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.101] [PlaybackService] STATE_READY
+[23:00:07.101] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.101] [PlaybackService] null
+[23:00:07.101] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.101] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.101] [PlayerScreen] PositionDiscontinuity from 47715ms to 54446ms (reason: 1)
+[23:00:07.101] [PlaybackService] STATE_BUFFERING
+[23:00:07.101] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.101] [PlayerScreen] PositionDiscontinuity from 46160ms to 47715ms (reason: 1)
+[23:00:07.101] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.101] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.101] [PlayerManager] Flushed progress to storage (46160 ms)
+[23:00:07.101] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.101] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.101] [PlaybackService] null
+[23:00:07.101] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.101] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.101] [PlaybackService] STATE_READY
+[23:00:07.101] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.101] [PlaybackService] null
+[23:00:07.101] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.101] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.101] [PlayerScreen] PositionDiscontinuity from 2536ms to 10365ms (reason: 1)
+[23:00:07.100] [PlaybackService] STATE_BUFFERING
+[23:00:07.100] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.100] [PlayerScreen] PositionDiscontinuity from 1210ms to 2536ms (reason: 1)
+[23:00:07.100] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.100] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.100] [PlayerManager] Flushed progress to storage (1210 ms)
+[23:00:07.100] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.100] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.100] [PlaybackService] null
+[23:00:07.100] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.100] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.100] [PlaybackService] null
+[23:00:07.100] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.100] [PlaybackService] STATE_READY
+[23:00:07.100] [PlaybackService] onPlayWhenReadyChanged = false, reason = 2
+[23:00:07.100] [PlaybackService] null
+[23:00:07.100] [PlaybackService] null
+[23:00:07.100] [PlaybackService] onTimelineChanged (itemCount=1)
+[23:00:07.100] [PlayerScreen] onTracksChanged
+[23:00:07.100] [PlaybackService] onTimelineChanged (itemCount=1)
+[23:00:07.100] [PlaybackService] onTimelineChanged (itemCount=1)
+[23:00:07.100] [PlaybackService] ACTION_HIDE_OVERLAY
+[23:00:07.100] [PlayerScreen] rot=0 w=1920 h=1080 isPortrait=false
+[23:00:07.099] [PlayerScreen] ON_RESUME
+[23:00:07.099] [PlayerScreen] ON_START
+[23:00:07.099] [PlayerScreen] ON_CREATE
+[23:00:07.099] [PlayerScreen] [PlayerScreen] Starting player session
+[23:00:07.099] [PlayerManager] [PlayerManager] Initializing PlayerManager ExoPlayer
+[23:00:07.099] [PlayerScreen] ON_DESTROY
+[23:00:07.099] [PlayerScreen] ON_STOP
+[23:00:07.099] [PlayerManager] Handled ExoPlayer release background job
+[23:00:07.099] [PlayerManager] Flushed progress to storage (251610 ms)
+[23:00:07.099] [PlaybackService] cleaning up notification and session
+[23:00:07.099] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.099] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.099] [PlayerManager] Flushed progress to storage (251610 ms)
+[23:00:07.099] [PlayerScreen] ON_PAUSE
+[23:00:07.099] [PlaybackService] null
+[23:00:07.099] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.099] [PlayerManager] Flushed progress to storage (251610 ms)
+[23:00:07.099] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.099] [PlaybackService] [PlaybackService] Playback ended with repeatMode OFF -> stopping service & removing notification
+[23:00:07.099] [PlaybackService] STATE_ENDED
+[23:00:07.099] [PlayerScreen] [PlayerScreen] Player reached STATE_ENDED with no loop/next -> navigating back
+[23:00:07.099] [PlayerScreen] PlaybackState changed to: STATE_ENDED
+[23:00:07.099] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.099] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.099] [PlaybackService] STATE_READY
+[23:00:07.099] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.099] [PlaybackService] null
+[23:00:07.099] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.099] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.098] [PlayerScreen] PositionDiscontinuity from 250983ms to 251581ms (reason: 1)
+[23:00:07.098] [PlaybackService] STATE_BUFFERING
+[23:00:07.098] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.098] [PlayerScreen] PositionDiscontinuity from 247714ms to 250983ms (reason: 1)
+[23:00:07.098] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.098] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.098] [PlayerManager] Flushed progress to storage (247714 ms)
+[23:00:07.098] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.098] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.098] [PlaybackService] null
+[23:00:07.098] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.098] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.098] [PlaybackService] STATE_READY
+[23:00:07.098] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.098] [PlaybackService] null
+[23:00:07.098] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.098] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.098] [PlayerScreen] PositionDiscontinuity from 233925ms to 245925ms (reason: 1)
+[23:00:07.098] [PlaybackService] STATE_BUFFERING
+[23:00:07.098] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.098] [PlayerScreen] PositionDiscontinuity from 231510ms to 233925ms (reason: 1)
+[23:00:07.098] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.098] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.098] [PlayerManager] Flushed progress to storage (231510 ms)
+[23:00:07.098] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.098] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.098] [PlaybackService] null
+[23:00:07.098] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.098] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.097] [PlaybackService] STATE_READY
+[23:00:07.097] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.097] [PlaybackService] null
+[23:00:07.097] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.097] [PlayerScreen] PositionDiscontinuity from 217238ms to 229530ms (reason: 1)
+[23:00:07.097] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.097] [PlaybackService] STATE_BUFFERING
+[23:00:07.097] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.097] [PlayerScreen] PositionDiscontinuity from 215411ms to 217238ms (reason: 1)
+[23:00:07.097] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.097] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.097] [PlayerManager] Flushed progress to storage (215411 ms)
+[23:00:07.097] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.097] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.097] [PlaybackService] null
+[23:00:07.097] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.097] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.097] [PlaybackService] STATE_READY
+[23:00:07.097] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.097] [PlaybackService] null
+[23:00:07.097] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.097] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.097] [PlayerScreen] PositionDiscontinuity from 203970ms to 213335ms (reason: 1)
+[23:00:07.097] [PlaybackService] STATE_BUFFERING
+[23:00:07.097] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.097] [PlayerScreen] PositionDiscontinuity from 202334ms to 203970ms (reason: 1)
+[23:00:07.097] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.097] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.096] [PlayerManager] Flushed progress to storage (202334 ms)
+[23:00:07.096] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.096] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.096] [PlaybackService] null
+[23:00:07.096] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.096] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.096] [PlaybackService] STATE_READY
+[23:00:07.096] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.096] [PlaybackService] null
+[23:00:07.096] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.096] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.096] [PlayerScreen] PositionDiscontinuity from 169505ms to 176236ms (reason: 1)
+[23:00:07.096] [PlaybackService] STATE_BUFFERING
+[23:00:07.096] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.096] [PlayerScreen] PositionDiscontinuity from 168298ms to 169505ms (reason: 1)
+[23:00:07.096] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.096] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.096] [PlayerManager] Flushed progress to storage (168298 ms)
+[23:00:07.096] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.096] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.096] [PlaybackService] null
+[23:00:07.096] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.096] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.096] [PlaybackService] STATE_READY
+[23:00:07.096] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.096] [PlaybackService] null
+[23:00:07.096] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.096] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.096] [PlayerScreen] PositionDiscontinuity from 162315ms to 167583ms (reason: 1)
+[23:00:07.095] [PlaybackService] STATE_BUFFERING
+[23:00:07.095] [PlayerScreen] PositionDiscontinuity from 160960ms to 162315ms (reason: 1)
+[23:00:07.095] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.095] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.095] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.095] [PlayerManager] Flushed progress to storage (160960 ms)
+[23:00:07.095] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.095] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.095] [PlaybackService] null
+[23:00:07.095] [PlaybackService] STATE_READY
+[23:00:07.095] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.095] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.095] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.095] [PlaybackService] null
+[23:00:07.095] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.095] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.095] [PlayerScreen] PositionDiscontinuity from 133850ms to 125436ms (reason: 1)
+[23:00:07.095] [PlaybackService] STATE_BUFFERING
+[23:00:07.095] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.095] [PlayerScreen] PositionDiscontinuity from 135831ms to 133850ms (reason: 1)
+[23:00:07.095] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.095] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.095] [PlayerManager] Flushed progress to storage (135831 ms)
+[23:00:07.095] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.095] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.095] [PlaybackService] null
+[23:00:07.095] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.095] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.095] [PlaybackService] STATE_READY
+[23:00:07.094] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.094] [PlaybackService] null
+[23:00:07.094] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.094] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.094] [PlayerScreen] PositionDiscontinuity from 143329ms to 134476ms (reason: 1)
+[23:00:07.094] [PlaybackService] STATE_BUFFERING
+[23:00:07.094] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.094] [PlayerScreen] PositionDiscontinuity from 144876ms to 143329ms (reason: 1)
+[23:00:07.094] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.094] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.094] [PlayerManager] Flushed progress to storage (144876 ms)
+[23:00:07.094] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.094] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.094] [PlaybackService] null
+[23:00:07.094] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.094] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.094] [PlaybackService] STATE_READY
+[23:00:07.094] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.094] [PlaybackService] null
+[23:00:07.094] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.094] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.094] [PlayerScreen] PositionDiscontinuity from 130027ms to 141514ms (reason: 1)
+[23:00:07.094] [PlaybackService] STATE_BUFFERING
+[23:00:07.094] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.094] [PlayerScreen] PositionDiscontinuity from 128125ms to 130027ms (reason: 1)
+[23:00:07.094] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.094] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.094] [PlayerManager] Flushed progress to storage (128125 ms)
+[23:00:07.093] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.093] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.093] [PlaybackService] null
+[23:00:07.093] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.093] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.093] [PlaybackService] STATE_READY
+[23:00:07.093] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.093] [PlaybackService] null
+[23:00:07.093] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.093] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.093] [PlayerScreen] PositionDiscontinuity from 117164ms to 127554ms (reason: 1)
+[23:00:07.093] [PlaybackService] STATE_BUFFERING
+[23:00:07.093] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.093] [PlayerScreen] PositionDiscontinuity from 115471ms to 117164ms (reason: 1)
+[23:00:07.093] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.093] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.093] [PlayerManager] Flushed progress to storage (115471 ms)
+[23:00:07.093] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.093] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.093] [PlaybackService] null
+[23:00:07.093] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.093] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.093] [PlaybackService] STATE_READY
+[23:00:07.093] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.093] [PlaybackService] null
+[23:00:07.093] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.093] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.093] [PlayerScreen] PositionDiscontinuity from 107343ms to 114586ms (reason: 1)
+[23:00:07.093] [PlaybackService] STATE_BUFFERING
+[23:00:07.092] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.092] [PlayerScreen] PositionDiscontinuity from 105476ms to 107343ms (reason: 1)
+[23:00:07.092] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.092] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.092] [PlayerManager] Flushed progress to storage (105476 ms)
+[23:00:07.092] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.092] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.092] [PlaybackService] null
+[23:00:07.092] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.092] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.092] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.092] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.092] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.092] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.092] [PlayerManager] Flushed progress to storage (81516 ms)
+[23:00:07.092] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.092] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.092] [PlaybackService] null
+[23:00:07.092] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.092] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.092] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.092] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.092] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.092] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.092] [PlayerManager] Flushed progress to storage (65535 ms)
+[23:00:07.092] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.092] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.092] [PlaybackService] null
+[23:00:07.092] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.091] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.091] [PlaybackService] STATE_READY
+[23:00:07.091] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.091] [PlaybackService] null
+[23:00:07.091] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.091] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.091] [PlayerScreen] PositionDiscontinuity from 64963ms to 53476ms (reason: 1)
+[23:00:07.091] [PlaybackService] STATE_BUFFERING
+[23:00:07.091] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.091] [PlayerScreen] PositionDiscontinuity from 69762ms to 64963ms (reason: 1)
+[23:00:07.091] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.091] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.091] [PlayerManager] Flushed progress to storage (69762 ms)
+[23:00:07.091] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.091] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.091] [PlaybackService] null
+[23:00:07.091] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.091] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.091] [PlaybackService] STATE_READY
+[23:00:07.091] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.091] [PlaybackService] null
+[23:00:07.091] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.091] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.091] [PlayerScreen] PositionDiscontinuity from 5300ms to 7417ms (reason: 1)
+[23:00:07.091] [PlaybackService] STATE_BUFFERING
+[23:00:07.091] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.091] [PlayerScreen] PositionDiscontinuity from 3032ms to 5300ms (reason: 1)
+[23:00:07.091] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.090] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.090] [PlayerManager] Flushed progress to storage (3032 ms)
+[23:00:07.090] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.090] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.090] [PlaybackService] null
+[23:00:07.090] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.090] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.090] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.090] [PlaybackService] STATE_READY
+[23:00:07.090] [PlayerScreen] onTracksChanged
+[23:00:07.090] [PlaybackService] onTimelineChanged (itemCount=1)
+[23:00:07.090] [PlaybackService] null
+[23:00:07.090] [PlaybackService] null
+[23:00:07.090] [PlaybackService] ACTION_HIDE_OVERLAY
+[23:00:07.090] [PlaybackService] null
+[23:00:07.090] [PlaybackService] onTimelineChanged (itemCount=1)
+[23:00:07.090] [PlaybackService] onTimelineChanged (itemCount=1)
+[23:00:07.090] [PlaybackService] ACTION_HIDE_OVERLAY
+[23:00:07.090] [PlayerScreen] rot=0 w=1920 h=1080 isPortrait=false
+[23:00:07.090] [PlayerScreen] ON_RESUME
+[23:00:07.090] [PlayerScreen] ON_START
+[23:00:07.090] [PlayerScreen] ON_CREATE
+[23:00:07.090] [PlayerScreen] [PlayerScreen] Starting player session
+[23:00:07.090] [Navigation] main
+[23:00:07.090] [PlayerManager] [PlayerManager] Initializing PlayerManager ExoPlayer
+[23:00:07.090] [System] [System] LogCatcher initialized. Storage ready.
+[23:00:07.090] [PlayerScreen] ON_DESTROY
+[23:00:07.090] [PlayerScreen] ON_STOP
+[23:00:07.090] [PlayerManager] Handled ExoPlayer release background job
+[23:00:07.089] [PlayerManager] Flushed progress to storage (348953 ms)
+[23:00:07.089] [PlaybackService] cleaning up notification and session
+[23:00:07.089] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.089] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.089] [PlayerManager] Flushed progress to storage (348953 ms)
+[23:00:07.089] [PlayerScreen] ON_PAUSE
+[23:00:07.089] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.089] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.089] [PlayerManager] Flushed progress to storage (348953 ms)
+[23:00:07.089] [PlaybackService] [PlaybackService] Playback ended with repeatMode OFF -> stopping service & removing notification
+[23:00:07.089] [PlaybackService] STATE_ENDED
+[23:00:07.089] [PlayerScreen] [PlayerScreen] Player reached STATE_ENDED with no loop/next -> navigating back
+[23:00:07.089] [PlayerScreen] PlaybackState changed to: STATE_ENDED
+[23:00:07.089] [PlaybackService] null
+[23:00:07.089] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.089] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.089] [PlaybackService] STATE_READY
+[23:00:07.089] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.089] [PlaybackService] null
+[23:00:07.089] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.089] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.089] [PlayerScreen] PositionDiscontinuity from 340963ms to 348941ms (reason: 1)
+[23:00:07.089] [PlaybackService] STATE_BUFFERING
+[23:00:07.089] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.089] [PlayerScreen] PositionDiscontinuity from 336872ms to 340963ms (reason: 1)
+[23:00:07.089] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.089] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.089] [PlayerManager] Flushed progress to storage (336872 ms)
+[23:00:07.089] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.088] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.088] [PlayerScreen] [PlayerScreen] Speed toggled to 1.2x
+[23:00:07.088] [PlaybackService] null
+[23:00:07.088] [PlaybackService] onTimelineChanged (itemCount=1)
+[23:00:07.088] [PlaybackService] null
+[23:00:07.088] [PlaybackService] null
+[23:00:07.088] [PlaybackService] onPlayWhenReadyChanged = false, reason = 2
+[23:00:07.088] [PlaybackService] null
+[23:00:07.088] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.088] [PlaybackService] STATE_READY
+[23:00:07.088] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.088] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.088] [PlaybackService] ACTION_HIDE_OVERLAY
+[23:00:07.088] [PlaybackService] null
+[23:00:07.088] [PlayerScreen] onTracksChanged
+[23:00:07.088] [PlaybackService] onTimelineChanged (itemCount=1)
+[23:00:07.088] [PlaybackService] onTimelineChanged (itemCount=1)
+[23:00:07.088] [PlaybackService] ACTION_HIDE_OVERLAY
+[23:00:07.088] [PlayerScreen] rot=0 w=256 h=144 isPortrait=false
+[23:00:07.088] [PlayerScreen] ON_RESUME
+[23:00:07.088] [PlayerScreen] ON_START
+[23:00:07.088] [PlayerScreen] ON_CREATE
+[23:00:07.088] [PlayerScreen] [PlayerScreen] Starting player session
+[23:00:07.088] [PlayerManager] [PlayerManager] Initializing PlayerManager ExoPlayer
+[23:00:07.088] [PlayerScreen] ON_DESTROY
+[23:00:07.088] [PlayerScreen] ON_STOP
+[23:00:07.088] [PlayerManager] Handled ExoPlayer release background job
+[23:00:07.088] [PlayerManager] Flushed progress to storage (696131 ms)
+[23:00:07.088] [PlaybackService] cleaning up notification and session
+[23:00:07.087] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.087] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.087] [PlayerManager] Flushed progress to storage (696131 ms)
+[23:00:07.087] [PlayerScreen] ON_PAUSE
+[23:00:07.087] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.087] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.087] [PlayerManager] Flushed progress to storage (696131 ms)
+[23:00:07.087] [PlaybackService] [PlaybackService] Playback ended with repeatMode OFF -> stopping service & removing notification
+[23:00:07.087] [PlaybackService] STATE_ENDED
+[23:00:07.087] [PlayerScreen] [PlayerScreen] Player reached STATE_ENDED with no loop/next -> navigating back
+[23:00:07.087] [PlayerScreen] PlaybackState changed to: STATE_ENDED
+[23:00:07.087] [PlaybackService] null
+[23:00:07.087] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.087] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.087] [PlaybackService] STATE_READY
+[23:00:07.087] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.087] [PlaybackService] null
+[23:00:07.087] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.087] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.087] [PlayerScreen] PositionDiscontinuity from 687517ms to 696121ms (reason: 1)
+[23:00:07.087] [PlaybackService] STATE_BUFFERING
+[23:00:07.087] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.087] [PlayerScreen] PositionDiscontinuity from 682931ms to 687517ms (reason: 1)
+[23:00:07.087] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.087] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.087] [PlayerManager] Flushed progress to storage (682931 ms)
+[23:00:07.087] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.087] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.087] [PlaybackService] null
+[23:00:07.087] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.086] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.086] [PlaybackService] STATE_READY
+[23:00:07.086] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.086] [PlaybackService] null
+[23:00:07.086] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.086] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.086] [PlayerScreen] PositionDiscontinuity from 276611ms to 262197ms (reason: 1)
+[23:00:07.086] [PlaybackService] STATE_BUFFERING
+[23:00:07.086] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.086] [PlayerScreen] PositionDiscontinuity from 278089ms to 276611ms (reason: 1)
+[23:00:07.086] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.086] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.086] [PlayerManager] Flushed progress to storage (278089 ms)
+[23:00:07.086] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.086] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.086] [PlaybackService] null
+[23:00:07.086] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.086] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.086] [PlaybackService] STATE_READY
+[23:00:07.086] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.086] [PlaybackService] null
+[23:00:07.086] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.086] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.086] [PlayerScreen] PositionDiscontinuity from 251112ms to 261868ms (reason: 1)
+[23:00:07.086] [PlaybackService] STATE_BUFFERING
+[23:00:07.086] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.085] [PlayerScreen] PositionDiscontinuity from 249268ms to 251112ms (reason: 1)
+[23:00:07.085] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.085] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.085] [PlayerManager] Flushed progress to storage (249268 ms)
+[23:00:07.085] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.085] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.085] [PlaybackService] null
+[23:00:07.085] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.085] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.085] [PlaybackService] STATE_READY
+[23:00:07.085] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.085] [PlaybackService] null
+[23:00:07.085] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.085] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.085] [PlayerScreen] PositionDiscontinuity from 236080ms to 248811ms (reason: 1)
+[23:00:07.085] [PlaybackService] STATE_BUFFERING
+[23:00:07.085] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.085] [PlayerScreen] PositionDiscontinuity from 234673ms to 236080ms (reason: 1)
+[23:00:07.085] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.085] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.085] [PlayerManager] Flushed progress to storage (234673 ms)
+[23:00:07.085] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.085] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.085] [PlaybackService] null
+[23:00:07.085] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.085] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.085] [PlaybackService] STATE_READY
+[23:00:07.085] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.084] [PlaybackService] null
+[23:00:07.084] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.084] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.084] [PlayerScreen] PositionDiscontinuity from 223118ms to 234386ms (reason: 1)
+[23:00:07.084] [PlaybackService] STATE_BUFFERING
+[23:00:07.084] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.084] [PlayerScreen] PositionDiscontinuity from 220899ms to 223118ms (reason: 1)
+[23:00:07.084] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.084] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.084] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.084] [PlayerManager] Flushed progress to storage (220899 ms)
+[23:00:07.084] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.084] [PlaybackService] null
+[23:00:07.084] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.084] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.084] [PlaybackService] STATE_READY
+[23:00:07.084] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.084] [PlaybackService] null
+[23:00:07.084] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.084] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.084] [PlayerScreen] PositionDiscontinuity from 213975ms to 220121ms (reason: 1)
+[23:00:07.084] [PlaybackService] STATE_BUFFERING
+[23:00:07.084] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.084] [PlayerScreen] PositionDiscontinuity from 212192ms to 213975ms (reason: 1)
+[23:00:07.084] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.084] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.084] [PlayerManager] Flushed progress to storage (212192 ms)
+[23:00:07.084] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.083] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.083] [PlaybackService] null
+[23:00:07.083] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.083] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.083] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.083] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.083] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.083] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.083] [PlayerManager] Flushed progress to storage (209269 ms)
+[23:00:07.083] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.083] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.083] [PlaybackService] null
+[23:00:07.083] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.083] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.083] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.083] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.083] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.083] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.083] [PlayerManager] Flushed progress to storage (207025 ms)
+[23:00:07.083] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.083] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.083] [PlaybackService] null
+[23:00:07.083] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.083] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.083] [PlaybackService] STATE_READY
+[23:00:07.083] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.082] [PlaybackService] null
+[23:00:07.082] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.082] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.082] [PlayerScreen] PositionDiscontinuity from 209515ms to 206589ms (reason: 1)
+[23:00:07.082] [PlaybackService] STATE_BUFFERING
+[23:00:07.082] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.082] [PlayerScreen] PositionDiscontinuity from 210961ms to 209515ms (reason: 1)
+[23:00:07.082] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.082] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.082] [PlayerManager] Flushed progress to storage (210961 ms)
+[23:00:07.082] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.082] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.082] [PlaybackService] null
+[23:00:07.082] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.082] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.082] [PlaybackService] STATE_READY
+[23:00:07.082] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.082] [PlaybackService] null
+[23:00:07.082] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.082] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.081] [PlayerScreen] PositionDiscontinuity from 185879ms to 193854ms (reason: 1)
+[23:00:07.081] [PlaybackService] STATE_BUFFERING
+[23:00:07.081] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.081] [PlayerScreen] PositionDiscontinuity from 184681ms to 185879ms (reason: 1)
+[23:00:07.081] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.081] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.081] [PlayerManager] Flushed progress to storage (184681 ms)
+[23:00:07.081] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.081] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.081] [PlaybackService] null
+[23:00:07.081] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.081] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.081] [PlaybackService] STATE_READY
+[23:00:07.080] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.080] [PlaybackService] null
+[23:00:07.080] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.080] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.080] [PlayerScreen] PositionDiscontinuity from 178068ms to 184141ms (reason: 1)
+[23:00:07.080] [PlaybackService] STATE_BUFFERING
+[23:00:07.080] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.080] [PlayerScreen] PositionDiscontinuity from 176790ms to 178068ms (reason: 1)
+[23:00:07.080] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.080] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.080] [PlayerManager] Flushed progress to storage (176790 ms)
+[23:00:07.080] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.080] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.080] [PlaybackService] null
+[23:00:07.080] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.080] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.080] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.079] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.079] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.079] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.079] [PlayerManager] Flushed progress to storage (138615 ms)
+[23:00:07.079] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.079] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.079] [PlaybackService] null
+[23:00:07.079] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.079] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.079] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.079] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.079] [PlayerScreen] [PlayerScreen] Play/Pause button clicked (currently isPlaying=false)
+[23:00:07.079] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.079] [PlayerManager] Flushed progress to storage (19421 ms)
+[23:00:07.079] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.079] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.079] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.079] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.079] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.079] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.079] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.079] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.079] [PlayerManager] Flushed progress to storage (19421 ms)
+[23:00:07.079] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.079] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.079] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.079] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.078] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.078] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.078] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.078] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.078] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.078] [PlayerManager] Flushed progress to storage (19421 ms)
+[23:00:07.078] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.078] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.078] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.078] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.078] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.078] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.078] [PlaybackService] STATE_READY
+[23:00:07.078] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.078] [PlayerScreen] PositionDiscontinuity from 34421ms to 19421ms (reason: 1)
+[23:00:07.078] [PlaybackService] STATE_BUFFERING
+[23:00:07.078] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.078] [PlayerScreen] PositionDiscontinuity from 37500ms to 34421ms (reason: 1)
+[23:00:07.078] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.078] [PlaybackService] STATE_READY
+[23:00:07.078] [PlaybackService] STATE_BUFFERING
+[23:00:07.078] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.078] [PlayerScreen] PositionDiscontinuity from 39623ms to 37500ms (reason: 1)
+[23:00:07.078] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.078] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.078] [PlayerManager] Flushed progress to storage (39623 ms)
+[23:00:07.078] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.077] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.077] [PlaybackService] null
+[23:00:07.077] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.077] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.077] [PlaybackService] STATE_READY
+[23:00:07.077] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.077] [PlaybackService] null
+[23:00:07.077] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.077] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.077] [PlayerScreen] PositionDiscontinuity from 48486ms to 35608ms (reason: 1)
+[23:00:07.077] [PlaybackService] STATE_BUFFERING
+[23:00:07.077] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.077] [PlayerScreen] PositionDiscontinuity from 49699ms to 48486ms (reason: 1)
+[23:00:07.077] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.077] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.077] [PlayerManager] Flushed progress to storage (49699 ms)
+[23:00:07.077] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.077] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.077] [PlaybackService] null
+[23:00:07.077] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.077] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.077] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.077] [PlaybackService] STATE_READY
+[23:00:07.077] [PlaybackService] null
+[23:00:07.076] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.076] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.076] [PlayerScreen] PositionDiscontinuity from 26944ms to 44358ms (reason: 1)
+[23:00:07.076] [PlaybackService] STATE_BUFFERING
+[23:00:07.076] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.076] [PlayerScreen] PositionDiscontinuity from 24073ms to 26944ms (reason: 1)
+[23:00:07.076] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.076] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.076] [PlayerManager] Flushed progress to storage (24073 ms)
+[23:00:07.076] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.076] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.075] [PlaybackService] null
+[23:00:07.075] [PlaybackService] onTimelineChanged (itemCount=1)
+[23:00:07.075] [PlaybackService] null
+[23:00:07.075] [PlaybackService] null
+[23:00:07.075] [PlaybackService] null
+[23:00:07.075] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.075] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.075] [PlaybackService] STATE_READY
+[23:00:07.075] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.075] [PlayerScreen] onTracksChanged
+[23:00:07.075] [PlaybackService] onTimelineChanged (itemCount=1)
+[23:00:07.075] [PlaybackService] onTimelineChanged (itemCount=1)
+[23:00:07.075] [PlaybackService] ACTION_HIDE_OVERLAY
+[23:00:07.075] [PlayerScreen] rot=0 w=256 h=144 isPortrait=false
+[23:00:07.075] [PlayerScreen] ON_RESUME
+[23:00:07.075] [PlayerScreen] ON_START
+[23:00:07.075] [PlayerScreen] ON_CREATE
+[23:00:07.075] [PlayerScreen] [PlayerScreen] Starting player session
+[23:00:07.075] [PlayerManager] [PlayerManager] Initializing PlayerManager ExoPlayer
+[23:00:07.075] [System] [System] LogCatcher initialized. Storage ready.
+[23:00:07.075] [PlayerScreen] ON_DESTROY
+[23:00:07.075] [PlayerScreen] ON_STOP
+[23:00:07.075] [PlayerScreen] ON_PAUSE
+[23:00:07.075] [PlayerManager] Handled ExoPlayer release background job
+[23:00:07.074] [PlaybackService] cleaning up notification and session
+[23:00:07.074] [PlayerScreen] onTracksChanged
+[23:00:07.074] [PlayerScreen] onMediaItemTransition (reason: PLAYLIST_CHANGED)
+[23:00:07.074] [PlaybackService] onMediaItemTransition (reason: PLAYLIST_CHANGED)
+[23:00:07.074] [PlayerScreen] PositionDiscontinuity from 467460ms to 0ms (reason: 4)
+[23:00:07.074] [PlaybackService] onTimelineChanged (itemCount=0)
+[23:00:07.074] [PlayerScreen] PlaybackState changed to: STATE_IDLE
+[23:00:07.074] [PlaybackService] STATE_IDLE
+[23:00:07.074] [PlayerScreen] [PlayerScreen] BackHandler triggered in PlayerScreen (bgPlay=false)
+[23:00:07.074] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.074] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.074] [PlayerManager] Flushed progress to storage (467455 ms)
+[23:00:07.074] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.074] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.074] [PlayerScreen] rot=0 w=256 h=144 isPortrait=false
+[23:00:07.074] [PlayerScreen] 256x144 rot=0. isPortrait=false
+[23:00:07.074] [PlaybackService] null
+[23:00:07.074] [PlayerScreen] ON_RESUME
+[23:00:07.074] [PlayerScreen] ON_START
+[23:00:07.074] [PlayerScreen] ON_CREATE
+[23:00:07.074] [PlayerScreen] [PlayerScreen] Starting player session
+[23:00:07.074] [PlayerManager] Flushed progress to storage (298507 ms)
+[23:00:07.074] [PlaybackService] null
+[23:00:07.074] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.073] [PlaybackService] STATE_READY
+[23:00:07.073] [PlaybackService] null
+[23:00:07.073] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.073] [PlayerManager] Flushed progress to storage (147059 ms)
+[23:00:07.073] [PlaybackService] STATE_BUFFERING
+[23:00:07.073] [PlayerManager] Flushed progress to storage (118766 ms)
+[23:00:07.073] [PlayerScreen] ON_DESTROY
+[23:00:07.073] [PlayerScreen] Preserving video surface for floating video overlay
+[23:00:07.073] [PlayerScreen] ON_STOP
+[23:00:07.073] [PlayerManager] Flushed progress to storage (117874 ms)
+[23:00:07.073] [PlayerScreen] ON_PAUSE
+[23:00:07.073] [PlaybackService] ACTION_VIDEO_OVERLAY
+[23:00:07.073] [PlayerScreen] [PlayerScreen] Speed toggled to 1.2x
+[23:00:07.073] [PlaybackService] null
+[23:00:07.073] [PlaybackService] onTimelineChanged (itemCount=1)
+[23:00:07.073] [PlaybackService] null
+[23:00:07.073] [PlaybackService] null
+[23:00:07.073] [PlaybackService] ACTION_HIDE_OVERLAY
+[23:00:07.073] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.073] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.073] [PlaybackService] STATE_READY
+[23:00:07.073] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.073] [PlaybackService] null
+[23:00:07.073] [PlayerScreen] onTracksChanged
+[23:00:07.073] [PlaybackService] onTimelineChanged (itemCount=1)
+[23:00:07.072] [PlaybackService] onTimelineChanged (itemCount=1)
+[23:00:07.072] [PlaybackService] ACTION_HIDE_OVERLAY
+[23:00:07.072] [PlayerScreen] rot=0 w=256 h=144 isPortrait=false
+[23:00:07.072] [PlayerScreen] ON_RESUME
+[23:00:07.072] [PlayerScreen] ON_START
+[23:00:07.072] [PlayerScreen] ON_CREATE
+[23:00:07.072] [PlayerScreen] [PlayerScreen] Starting player session
+[23:00:07.072] [PlayerManager] [PlayerManager] Initializing PlayerManager ExoPlayer
+[23:00:07.072] [System] [System] LogCatcher initialized. Storage ready.
+[23:00:07.072] [Navigation] main
+[23:00:07.072] [PlayerManager] [PlayerManager] Initializing PlayerManager ExoPlayer
+[23:00:07.072] [System] [System] LogCatcher initialized. Storage ready.
+[23:00:07.072] [VideoEditor] [VideoEditor] ExoPlayer released from video editor
+[23:00:07.072] [VideoEditor] [VideoEditor] ExoPlayer is READY.
+[23:00:07.072] [VideoEditor] [VideoEditor] ExoPlayer is READY.
+[23:00:07.072] [PlayerManager] Handled ExoPlayer release background job
+[23:00:07.072] [PlaybackService] cleaning up notification and session
+[23:00:07.072] [PlaybackService] [PlaybackService] onTaskRemoved called, cleaning up.
+[23:00:07.072] [VideoEditor] [VideoEditor] ExoPlayer is READY.
+[23:00:07.072] [VideoEditor] mimeType=video/webm ext=webm containerType=STANDARD
+[23:00:07.072] [VideoEditor] 1.0x
+[23:00:07.072] [PlaybackService] ACTION_HIDE_OVERLAY
+[23:00:07.072] [VideoEditor] [VideoEditor] ExoPlayer initialized for video editor
+[23:00:07.072] [PlayerManager] [PlayerManager] Initializing PlayerManager ExoPlayer
+[23:00:07.072] [EditorActivity] [EditorActivity] EditorActivity launched with 1 uris, detectedType=video
+[23:00:07.072] [System] [System] LogCatcher initialized. Storage ready.
+[23:00:07.072] [PlayerManager] Handled ExoPlayer release background job
+[23:00:07.072] [PlaybackService] cleaning up notification and session
+[23:00:07.071] [PlaybackService] onMediaItemTransition (reason: PLAYLIST_CHANGED)
+[23:00:07.071] [PlaybackService] onTimelineChanged (itemCount=0)
+[23:00:07.071] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.071] [PlayerManager] Flushed progress to storage (164287 ms)
+[23:00:07.071] [PlaybackService] STATE_IDLE
+[23:00:07.071] [PlayerManager] [PlayerManager] Video surface successfully cleared for audio-only remote operation
+[23:00:07.071] [PlayerManager] [PlayerManager] Video surface successfully cleared for audio-only remote operation
+[23:00:07.071] [PlayerManager] Flushed progress to storage (157642 ms)
+[23:00:07.071] [PlayerManager] Flushed progress to storage (151331 ms)
+[23:00:07.071] [PlayerScreen] ON_DESTROY
+[23:00:07.071] [PlayerScreen] Preserving video surface for floating video overlay
+[23:00:07.071] [PlayerScreen] ON_STOP
+[23:00:07.071] [PlayerManager] Flushed progress to storage (150695 ms)
+[23:00:07.071] [PlayerScreen] ON_PAUSE
+[23:00:07.071] [PlaybackService] ACTION_VIDEO_OVERLAY
+[23:00:07.071] [PlaybackService] null
+[23:00:07.071] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.071] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.071] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.071] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.071] [PlayerScreen] Resuming playback (wasPlayingBeforePause=true)
+[23:00:07.071] [PlayerScreen] ON_RESUME
+[23:00:07.071] [PlayerScreen] ON_START
+[23:00:07.071] [PlayerScreen] ON_STOP
+[23:00:07.071] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.071] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.070] [PlayerManager] Flushed progress to storage (143194 ms)
+[23:00:07.070] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.070] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.070] [PlayerManager] Flushed progress to storage (143183 ms)
+[23:00:07.070] [PlayerScreen] ON_PAUSE
+[23:00:07.070] [PlaybackService] null
+[23:00:07.070] [PlaybackService] null
+[23:00:07.070] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.070] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.070] [PlaybackService] STATE_READY
+[23:00:07.070] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.070] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.070] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.070] [PlayerScreen] PositionDiscontinuity from 135512ms to 135512ms (reason: 1)
+[23:00:07.070] [PlaybackService] STATE_BUFFERING
+[23:00:07.070] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.070] [PlayerScreen] PositionDiscontinuity from 39501ms to 135512ms (reason: 1)
+[23:00:07.070] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.070] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.070] [PlayerManager] Flushed progress to storage (39501 ms)
+[23:00:07.070] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.070] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.070] [PlaybackService] null
+[23:00:07.070] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.070] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.070] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.069] [PlaybackService] STATE_READY
+[23:00:07.069] [PlaybackService] null
+[23:00:07.069] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.069] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.069] [PlayerScreen] PositionDiscontinuity from 29681ms to 36851ms (reason: 1)
+[23:00:07.069] [PlaybackService] STATE_BUFFERING
+[23:00:07.069] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.069] [PlayerScreen] PositionDiscontinuity from 27886ms to 29681ms (reason: 1)
+[23:00:07.069] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.069] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.069] [PlayerManager] Flushed progress to storage (27886 ms)
+[23:00:07.069] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.069] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.069] [PlaybackService] null
+[23:00:07.069] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.069] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.069] [PlaybackService] STATE_READY
+[23:00:07.069] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.069] [PlaybackService] null
+[23:00:07.069] [PlaybackService] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.069] [PlayerScreen] onPlayWhenReadyChanged = true, reason = 1
+[23:00:07.069] [PlayerScreen] PositionDiscontinuity from 4661ms to 14612ms (reason: 1)
+[23:00:07.068] [PlaybackService] STATE_BUFFERING
+[23:00:07.068] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[23:00:07.068] [PlayerScreen] PositionDiscontinuity from 2720ms to 4661ms (reason: 1)
+[23:00:07.068] [PlaybackService] onIsPlayingChanged = false
+[23:00:07.068] [PlayerScreen] onIsPlayingChanged = false
+[23:00:07.068] [PlayerManager] Flushed progress to storage (2720 ms)
+[23:00:07.068] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.068] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[23:00:07.068] [PlaybackService] null
+[23:00:07.068] [PlayerScreen] onIsPlayingChanged = true
+[23:00:07.068] [PlaybackService] onIsPlayingChanged = true
+[23:00:07.068] [PlaybackService] STATE_READY
+[23:00:07.068] [PlayerScreen] PlaybackState changed to: STATE_READY
+[23:00:07.068] [PlayerScreen] onTracksChanged
+[23:00:07.068] [PlaybackService] onTimelineChanged (itemCount=1)
+[23:00:07.068] [PlaybackService] null
+[23:00:07.068] [PlaybackService] null
+[23:00:07.068] [PlaybackService] ACTION_HIDE_OVERLAY
+[23:00:07.068] [PlaybackService] null
+[23:00:07.068] [PlaybackService] onTimelineChanged (itemCount=1)
+[23:00:07.068] [PlaybackService] onTimelineChanged (itemCount=1)
+[23:00:07.068] [PlaybackService] ACTION_HIDE_OVERLAY
+[23:00:07.068] [PlayerScreen] rot=0 w=256 h=144 isPortrait=false
+[23:00:07.067] [PlayerScreen] ON_RESUME
+[23:00:07.067] [PlayerScreen] ON_START
+[23:00:07.067] [PlayerScreen] ON_CREATE
+[23:00:07.067] [PlayerScreen] [PlayerScreen] Starting player session
+[23:00:07.067] [Navigation] main
+[23:00:07.067] [App] [App] Permissions granted by user
+[23:00:07.067] [App] ${permissionsToRequest.joinToString()}
+[23:00:07.067] [Navigation] welcome
+[23:00:07.067] [PlayerManager] [PlayerManager] Initializing PlayerManager ExoPlayer
+[23:00:07.067] [System] [System] LogCatcher initialized. Storage ready.

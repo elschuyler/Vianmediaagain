@@ -22,8 +22,7 @@ A clean, ultra-lightweight, all-in-one Media Player, Creative Editors Suite, and
 * **Dedicated Task Architecture**: Isolated `PlayerActivity` with zero-latency video preparation, completely separated from the library.
 * **Precision Gestures**:
   * Double-tap anywhere on screen strictly toggles **Play / Pause**.
-  * Vertical swipe on the left edge for **Media Volume**.
-  * Vertical swipe on the right edge for **System Screen Brightness** (synchronized directly to device backlight).
+  * Vertical swipe controls **Media Volume & Audio Booster** by default, or **Screen Brightness** when the on-screen brightness slider is active.
   * Horizontal swipe across the canvas to **scrub and seek** with real-time delta preview.
   * Multi-touch pinch-to-zoom, translation pan, and **canvas rotation** (`graphicsLayer`).
 * **Playback Suite**: Single-tap speed cycling (`1.0x` -> `1.2x` -> `2.0x` -> `0.5x` -> `0.25x`) and full dialog, multi-track audio & subtitle selection, A-B repeat looping, configurable sleep timer, aspect ratio cycling (Fit, Fill, Stretch, 16:9, 4:3), one-tap UI Lock, and a dedicated center Stop button.

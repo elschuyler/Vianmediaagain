@@ -37,9 +37,14 @@ fun PlayerTopBar(
     onEditClick: () -> Unit,
     onPlayerSettingsClick: () -> Unit,
     onInteraction: () -> Unit = {},
+    onMenuOpenChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showTopMenu by remember { mutableStateOf(false) }
+
+    LaunchedEffect(showTopMenu) {
+        onMenuOpenChange(showTopMenu)
+    }
 
     Row(
         verticalAlignment = Alignment.CenterVertically,

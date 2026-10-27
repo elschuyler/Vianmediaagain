@@ -256,9 +256,13 @@ fun VideoEditorScreen(
     var currentMainUri by remember(uriString) { mutableStateOf(uriString) }
     val initialUri = remember(currentMainUri) { Uri.parse(currentMainUri) }
     val mimeType = remember(currentMainUri) { context.contentResolver.getType(initialUri) }
+    val extRawInitial = remember(uriString) { uriString.substringAfterLast('.', "").substringBefore('?').lowercase() }
+    val initialRequiresConversion = remember(uriString, mimeType) {
+        mimeType == "image/gif" || mimeType == "image/webp" || extRawInitial in setOf("m4s", "ts", "m2ts", "mts", "tp", "trp")
+    }
 
     var convertedUri by remember { mutableStateOf<String?>(null) }
-    var isConverting by remember { mutableStateOf(false) }
+    var isConverting by remember { mutableStateOf(initialRequiresConversion) }
     var exportedPreviewUri by remember { mutableStateOf<String?>(null) }
     var wasExporting by remember { mutableStateOf(false) }
     
@@ -273,7 +277,7 @@ fun VideoEditorScreen(
         }
     }
 
-    val effectiveUri = convertedUri ?: currentMainUri
+    val effectiveUri = convertedUri ?: if (!initialRequiresConversion) currentMainUri else null
     val effectiveMimeType = if (convertedUri != null) "video/mp4" else mimeType
 
     // Zero-Memory: Track session temporary files and delete them on screen exit
@@ -284,12 +288,14 @@ fun VideoEditorScreen(
             com.example.service.PlayerManager.exoPlayer?.pause()
         } catch (e: Exception) {}
         onDispose {
-            sessionTempFiles.forEach { file ->
-                try {
-                    if (file.isDirectory) file.deleteRecursively() else file.delete()
-                } catch (e: Exception) {}
+            if (!com.example.service.FFmpegStatus.isRunning) {
+                sessionTempFiles.forEach { file ->
+                    try {
+                        if (file.isDirectory) file.deleteRecursively() else file.delete()
+                    } catch (e: Exception) {}
+                }
+                sessionTempFiles.clear()
             }
-            sessionTempFiles.clear()
         }
     }
 
@@ -315,7 +321,7 @@ fun VideoEditorScreen(
             joinDurationMs = 0L
         }
     }
-    val uri = Uri.parse(effectiveUri)
+    val uri = remember(effectiveUri) { if (!effectiveUri.isNullOrBlank()) Uri.parse(effectiveUri) else Uri.parse(uriString) }
 
     LaunchedEffect(uriString) {
         val targetUri = Uri.parse(uriString)
@@ -341,8 +347,27 @@ fun VideoEditorScreen(
                 }
                 val inputFile = withContext(Dispatchers.IO) {
                     val f = java.io.File(context.cacheDir, "editor_in_${System.currentTimeMillis()}.$ext")
-                    context.contentResolver.openInputStream(targetUri)?.use { input ->
-                        f.outputStream().use { output -> input.copyTo(output) }
+                    val isFileTarget = targetUri.scheme == "file" || uriString.startsWith("file:") || uriString.startsWith("/")
+                    if (isFileTarget) {
+                        val directPath = when {
+                            uriString.startsWith("file://") -> uriString.removePrefix("file://")
+                            uriString.startsWith("file:/") -> uriString.removePrefix("file:")
+                            uriString.startsWith("file:") -> uriString.removePrefix("file:")
+                            else -> targetUri.path ?: uriString
+                        }
+                        val candidate1 = java.io.File(directPath)
+                        val candidate2 = java.io.File(Uri.decode(directPath))
+                        val candidate3 = targetUri.path?.let { java.io.File(it) }
+                        val candidate4 = targetUri.path?.let { java.io.File(Uri.decode(it)) }
+                        val src = listOfNotNull(candidate1, candidate2, candidate3, candidate4).firstOrNull { it.exists() && it.canRead() }
+                            ?: candidate1
+                        src.inputStream().use { input ->
+                            f.outputStream().use { output -> input.copyTo(output) }
+                        }
+                    } else {
+                        context.contentResolver.openInputStream(targetUri)?.use { input ->
+                            f.outputStream().use { output -> input.copyTo(output) }
+                        }
                     }
                     f
                 }
@@ -428,7 +453,8 @@ fun VideoEditorScreen(
                             val cmd = "-y -framerate $calculatedFps -i '${framesDir.absolutePath}/frame_%04d.png' -vf \"scale=trunc(iw/2)*2:trunc(ih/2)*2\" -vcodec libx264 -crf 23 -preset ultrafast -pix_fmt yuv420p -metadata:s:v:0 rotate=0 '${outputFile.absolutePath}'"
                             val session = com.arthenica.ffmpegkit.FFmpegKit.execute(cmd)
                             if (com.arthenica.ffmpegkit.ReturnCode.isSuccess(session.returnCode) && outputFile.exists()) {
-                                convertedUri = outputFile.toURI().toString()
+                                convertedUri = Uri.fromFile(outputFile).toString()
+                                playerError = null
                                 LogKeeper.log("Pre-conversion complete", "VideoEditor")
                             } else {
                                 LogKeeper.logError("VideoEditor", "FFmpeg PNG→MP4 failed: ${session.returnCode}\nLogs: ${session.allLogsAsString}", Exception())
@@ -441,7 +467,8 @@ fun VideoEditorScreen(
                         val cmd = "-y -i '${inputFile.absolutePath}' -vf \"scale=trunc(iw/2)*2:trunc(ih/2)*2\" -vcodec libx264 -crf 23 -preset ultrafast -pix_fmt yuv420p -metadata:s:v:0 rotate=0 '${outputFile.absolutePath}'"
                         val session = com.arthenica.ffmpegkit.FFmpegKit.execute(cmd)
                         if (com.arthenica.ffmpegkit.ReturnCode.isSuccess(session.returnCode) && outputFile.exists()) {
-                            convertedUri = outputFile.toURI().toString()
+                            convertedUri = Uri.fromFile(outputFile).toString()
+                            playerError = null
                             LogKeeper.log("Pre-conversion complete", "VideoEditor")
                         } else {
                             LogKeeper.logError("VideoEditor", "FFmpeg GIF/WEBP→MP4 failed: ${session.returnCode}\nLogs: ${session.allLogsAsString}", Exception())
@@ -475,7 +502,8 @@ fun VideoEditorScreen(
                         }
                         
                         if (tier1Valid) {
-                            convertedUri = outputFile.toURI().toString()
+                            convertedUri = Uri.fromFile(outputFile).toString()
+                            playerError = null
                             LogKeeper.log("Tier 1 fast remux succeeded for $containerType (${outputFile.length()} bytes)", "VideoEditor")
                         } else {
                             // Tier 2: Fallback Transcode with Constant Frame Rate (CFR) & Audio Sample Alignment
@@ -486,7 +514,8 @@ fun VideoEditorScreen(
                             val transcodeCmd = "-y -fflags +genpts+igndts -avoid_negative_ts make_zero -i '${inputFile.absolutePath}' -vf \"fps=30,setpts=PTS-STARTPTS\" -af \"aresample=async=1000:first_pts=0\" -c:v libx264 -preset ultrafast -crf 22 -c:a aac -b:a 192k -movflags +faststart '${outputFile.absolutePath}'"
                             val session2 = com.arthenica.ffmpegkit.FFmpegKit.execute(transcodeCmd)
                             if (com.arthenica.ffmpegkit.ReturnCode.isSuccess(session2.returnCode) && outputFile.exists() && outputFile.length() > 2048L) {
-                                convertedUri = outputFile.toURI().toString()
+                                convertedUri = Uri.fromFile(outputFile).toString()
+                                playerError = null
                                 LogKeeper.log("Tier 2 CFR transcode succeeded for $containerType", "VideoEditor")
                             } else {
                                 LogKeeper.logError("VideoEditor", "Both Tier 1 and Tier 2 failed for $containerType:\nLogs: ${session2.allLogsAsString}", Exception())
@@ -515,8 +544,28 @@ fun VideoEditorScreen(
             try {
                 val inputFile = withContext(Dispatchers.IO) {
                     val f = java.io.File(context.cacheDir, "editor_in_${System.currentTimeMillis()}.mp4")
-                    context.contentResolver.openInputStream(Uri.parse(uriString))?.use { input ->
-                        f.outputStream().use { output -> input.copyTo(output) }
+                    val repUri = Uri.parse(uriString)
+                    val isFileTarget = repUri.scheme == "file" || uriString.startsWith("file:") || uriString.startsWith("/")
+                    if (isFileTarget) {
+                        val directPath = when {
+                            uriString.startsWith("file://") -> uriString.removePrefix("file://")
+                            uriString.startsWith("file:/") -> uriString.removePrefix("file:")
+                            uriString.startsWith("file:") -> uriString.removePrefix("file:")
+                            else -> repUri.path ?: uriString
+                        }
+                        val candidate1 = java.io.File(directPath)
+                        val candidate2 = java.io.File(android.net.Uri.decode(directPath))
+                        val candidate3 = repUri.path?.let { java.io.File(it) }
+                        val candidate4 = repUri.path?.let { java.io.File(android.net.Uri.decode(it)) }
+                        val src = listOfNotNull(candidate1, candidate2, candidate3, candidate4).firstOrNull { it.exists() && it.canRead() }
+                            ?: candidate1
+                        src.inputStream().use { input ->
+                            f.outputStream().use { output -> input.copyTo(output) }
+                        }
+                    } else {
+                        context.contentResolver.openInputStream(repUri)?.use { input ->
+                            f.outputStream().use { output -> input.copyTo(output) }
+                        }
                     }
                     f
                 }
@@ -526,7 +575,8 @@ fun VideoEditorScreen(
                     val cmd = "-y -fflags +genpts+igndts -avoid_negative_ts make_zero -i '${inputFile.absolutePath}' -vf \"fps=30,setpts=PTS-STARTPTS\" -af \"aresample=async=1000:first_pts=0\" -c:v libx264 -preset ultrafast -crf 22 -c:a aac -b:a 192k -metadata:s:v:0 rotate=0 '${outputFile.absolutePath}'"
                     val session = com.arthenica.ffmpegkit.FFmpegKit.execute(cmd)
                     if (com.arthenica.ffmpegkit.ReturnCode.isSuccess(session.returnCode) && outputFile.exists()) {
-                        convertedUri = outputFile.toURI().toString()
+                        convertedUri = Uri.fromFile(outputFile).toString()
+                        playerError = null
                         LogKeeper.log("Repair complete", "VideoEditor")
                     } else {
                         LogKeeper.logError("VideoEditor", "FFmpeg repair failed: ${session.returnCode}\nLogs: ${session.allLogsAsString}", Exception())
@@ -555,9 +605,28 @@ fun VideoEditorScreen(
     
     
     LaunchedEffect(effectiveUri) {
+        if (effectiveUri.isNullOrBlank()) return@LaunchedEffect
         try {
             val retriever = android.media.MediaMetadataRetriever()
-            retriever.setDataSource(context, android.net.Uri.parse(effectiveUri.toString()))
+            val parsed = android.net.Uri.parse(effectiveUri)
+            val isFile = parsed.scheme == "file" || effectiveUri.startsWith("file:") || effectiveUri.startsWith("/")
+            if (isFile) {
+                val directPath = when {
+                    effectiveUri.startsWith("file://") -> effectiveUri.removePrefix("file://")
+                    effectiveUri.startsWith("file:/") -> effectiveUri.removePrefix("file:")
+                    effectiveUri.startsWith("file:") -> effectiveUri.removePrefix("file:")
+                    else -> parsed.path ?: effectiveUri
+                }
+                val candidate1 = java.io.File(directPath)
+                val candidate2 = java.io.File(android.net.Uri.decode(directPath))
+                val candidate3 = parsed.path?.let { java.io.File(it) }
+                val candidate4 = parsed.path?.let { java.io.File(android.net.Uri.decode(it)) }
+                val src = listOfNotNull(candidate1, candidate2, candidate3, candidate4).firstOrNull { it.exists() && it.canRead() }
+                    ?: candidate1
+                retriever.setDataSource(src.absolutePath)
+            } else {
+                retriever.setDataSource(context, parsed)
+            }
             val timeString = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
             if (timeString != null) {
                 val dur = timeString.toLong()
@@ -589,42 +658,46 @@ fun VideoEditorScreen(
         } catch (e: Exception) {}
     }
 
-    val exoPlayer = remember(effectiveUri, editState.joinVideoUris, editState.joinVideoUri, editState.joinAtEnd) {
-        val uriToUse = convertedUri ?: effectiveUri?.toString()
-        if (uriToUse == null) null
-        else androidx.media3.exoplayer.ExoPlayer.Builder(context).build().apply {
-            val items = mutableListOf<androidx.media3.common.MediaItem>()
-            val mainItem = androidx.media3.common.MediaItem.fromUri(android.net.Uri.parse(uriToUse))
-            val joins = if (editState.joinVideoUris.isNotEmpty()) editState.joinVideoUris else listOfNotNull(editState.joinVideoUri)
-            val joinItems = joins.map { androidx.media3.common.MediaItem.fromUri(android.net.Uri.parse(it)) }
-            
-            if (joinItems.isNotEmpty() && !editState.joinAtEnd) {
-                items.addAll(joinItems)
-            }
-            items.add(mainItem)
-            if (joinItems.isNotEmpty() && editState.joinAtEnd) {
-                items.addAll(joinItems)
-            }
-            
-            setMediaItems(items)
-            repeatMode = androidx.media3.common.Player.REPEAT_MODE_ALL
-            prepare()
-            playWhenReady = true
-            addListener(object : androidx.media3.common.Player.Listener {
-                override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
-                    if (videoSize.width > 0 && videoSize.height > 0) {
-                        @Suppress("DEPRECATION")
-                        val rot = videoSize.unappliedRotationDegrees
-                        if (rot == 90 || rot == 270) {
-                            videoWidth = videoSize.height
-                            videoHeight = videoSize.width
-                        } else if (videoWidth <= 1 || videoHeight <= 1) {
-                            videoWidth = videoSize.width
-                            videoHeight = videoSize.height
+    val exoPlayer = remember(effectiveUri, convertedUri, isConverting, editState.joinVideoUris, editState.joinVideoUri, editState.joinAtEnd) {
+        if (isConverting) {
+            null
+        } else {
+            val uriToUse = convertedUri ?: effectiveUri?.toString()
+            if (uriToUse == null) null
+            else androidx.media3.exoplayer.ExoPlayer.Builder(context).build().apply {
+                val items = mutableListOf<androidx.media3.common.MediaItem>()
+                val mainItem = androidx.media3.common.MediaItem.fromUri(android.net.Uri.parse(uriToUse))
+                val joins = if (editState.joinVideoUris.isNotEmpty()) editState.joinVideoUris else listOfNotNull(editState.joinVideoUri)
+                val joinItems = joins.map { androidx.media3.common.MediaItem.fromUri(android.net.Uri.parse(it)) }
+                
+                if (joinItems.isNotEmpty() && !editState.joinAtEnd) {
+                    items.addAll(joinItems)
+                }
+                items.add(mainItem)
+                if (joinItems.isNotEmpty() && editState.joinAtEnd) {
+                    items.addAll(joinItems)
+                }
+                
+                setMediaItems(items)
+                repeatMode = androidx.media3.common.Player.REPEAT_MODE_ALL
+                prepare()
+                playWhenReady = true
+                addListener(object : androidx.media3.common.Player.Listener {
+                    override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
+                        if (videoSize.width > 0 && videoSize.height > 0) {
+                            @Suppress("DEPRECATION")
+                            val rot = videoSize.unappliedRotationDegrees
+                            if (rot == 90 || rot == 270) {
+                                videoWidth = videoSize.height
+                                videoHeight = videoSize.width
+                            } else if (videoWidth <= 1 || videoHeight <= 1) {
+                                videoWidth = videoSize.width
+                                videoHeight = videoSize.height
+                            }
                         }
                     }
-                }
-            })
+                })
+            }
         }
     }
     val bgAudioPlayer = remember(editState.addedAudioUri) {
@@ -718,10 +791,11 @@ fun VideoEditorScreen(
     }
 
     if (isConverting) {
+        val convertingMessage = if (mimeType == "image/webp" || mimeType == "image/gif") "Preparing animation for editing..." else "Optimizing stream for editing..."
         Box(modifier = Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 CircularProgressIndicator(color = Color.White)
-                Text("Optimizing stream for editing...", color = Color.White)
+                Text(convertingMessage, color = Color.White)
             }
         }
         return
@@ -3364,8 +3438,9 @@ fun VideoEditorScreen(
                         } catch (e: Exception) {}
 
                         // 3. Start FFmpegService
+                        val exportTargetUri = effectiveUri ?: currentMainUri
                         val intent = android.content.Intent(context, com.example.service.FFmpegService::class.java).apply {
-                            putStringArrayListExtra("uris", arrayListOf(effectiveUri))
+                            putStringArrayListExtra("uris", arrayListOf(exportTargetUri))
                             putStringArrayListExtra("original_names", arrayListOf(com.example.ui.screens.getDisplayNameFromUri(context, initialUri)))
                             putExtra("commandTemplate", cmd)
                             putExtra("outputExt", format)
