@@ -277,6 +277,10 @@
      - Double-tap: Video Play/Pause toggle with animated center HUD badge.
      - Single-tap: On empty video canvas -> toggles controls visibility; on backdrop scrim -> dismisses controls and slider.
   5. Perceptual Gamma Brightness Calibration: Applied inverse quadratic gamma decompression ($P = \sqrt{\text{raw} / 255.0}$) when reading `Settings.System.SCREEN_BRIGHTNESS` on Android, ensuring the in-app slider accurately mirrors the system Quick Settings slider. Window brightness overrides are read first before querying system settings.
+- **Phase 109 (CI Kotlin Lexical Scoping Resolution & VideoEditor Error State Hoisting)**:
+  1. Resolved CI Compilation Failure in GitHub Actions: Resolved 4 fatal compiler errors during `:app:compileDebugKotlin` (`Unresolved reference 'playerError'`) by hoisting `var playerError by remember { mutableStateOf<String?>(null) }` up to line 266 in `VideoEditorScreen.kt`, positioned immediately adjacent to `convertedUri` and `isConverting`.
+  2. Sequential Local Variable Declaration Compliance: Eliminated the forward-reference condition where `LaunchedEffect(uriString)` (lines 326–536) attempted to set `playerError = null` prior to the variable's previous declaration at line 538.
+  3. Preserved Full Error Workflow Integrity: Maintained all existing usages in `repairVideo()`, ExoPlayer `onPlayerError` listener, and the "Unsupported Format" repair `AlertDialog` without behavior deviation.
 
 
 

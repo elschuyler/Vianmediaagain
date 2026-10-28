@@ -263,6 +263,7 @@ fun VideoEditorScreen(
 
     var convertedUri by remember { mutableStateOf<String?>(null) }
     var isConverting by remember { mutableStateOf(initialRequiresConversion) }
+    var playerError by remember { mutableStateOf<String?>(null) }
     var exportedPreviewUri by remember { mutableStateOf<String?>(null) }
     var wasExporting by remember { mutableStateOf(false) }
     
@@ -535,7 +536,6 @@ fun VideoEditorScreen(
         }
     }
 
-    var playerError by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     fun repairVideo() {
         scope.launch {

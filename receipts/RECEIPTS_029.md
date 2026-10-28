@@ -327,6 +327,23 @@
 * Any deviation from what was requested: None.
 * Any known issue or follow-up needed: None.
 
+## Phase 109: CI Kotlin Lexical Scoping Resolution & VideoEditor Error State Hoisting
+* Timestamp: 2026-10-28T03:45:00Z
+* One-line summary: Resolved GitHub Actions CI compilation failure by hoisting playerError state declaration above LaunchedEffect in VideoEditorScreen, resolving 4 unresolved reference errors in compileDebugKotlin.
+* Files touched:
+  - app/src/main/java/com/example/ui/screens/VideoEditorScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_029.md
+* What was actually done:
+  - Hoisted `var playerError by remember { mutableStateOf<String?>(null) }` up to line 266 in `VideoEditorScreen.kt`, positioned immediately adjacent to `convertedUri` and `isConverting`.
+  - Removed the out-of-order declaration from line 538.
+  - Satisfied Kotlin's strict forward-declaration requirement for local function variables, resolving the 4 fatal `Unresolved reference 'playerError'` errors at lines 457, 471, 506, and 518 during `:app:compileDebugKotlin` in the GitHub Actions APK workflow.
+  - Retained 100% of existing behavior in `repairVideo()`, ExoPlayer `onPlayerError` listener, and the "Unsupported Format" repair `AlertDialog`.
+* How it was verified: `lint_applet` (clean 0 errors) and `compile_applet` (build succeeded 0 errors).
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: None.
+
+
 
 
 
