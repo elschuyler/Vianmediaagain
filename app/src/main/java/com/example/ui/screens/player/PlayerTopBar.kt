@@ -28,6 +28,8 @@ import androidx.compose.ui.unit.sp
 fun PlayerTopBar(
     title: String,
     playbackSpeed: Float,
+    showTopMenu: Boolean,
+    onShowTopMenuChange: (Boolean) -> Unit,
     onNavigateBack: () -> Unit,
     onSpeedClick: () -> Unit,
     onSpeedLongClick: () -> Unit,
@@ -37,14 +39,8 @@ fun PlayerTopBar(
     onEditClick: () -> Unit,
     onPlayerSettingsClick: () -> Unit,
     onInteraction: () -> Unit = {},
-    onMenuOpenChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    var showTopMenu by remember { mutableStateOf(false) }
-
-    LaunchedEffect(showTopMenu) {
-        onMenuOpenChange(showTopMenu)
-    }
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -130,18 +126,18 @@ fun PlayerTopBar(
         Box {
             IconButton(onClick = {
                 onInteraction()
-                showTopMenu = true
+                onShowTopMenuChange(true)
             }) {
                 Icon(Icons.Filled.MoreVert, contentDescription = "More options", tint = Color.White)
             }
             DropdownMenu(
                 expanded = showTopMenu,
-                onDismissRequest = { showTopMenu = false }
+                onDismissRequest = { onShowTopMenuChange(false) }
             ) {
                 DropdownMenuItem(
                     text = { Text("Details") },
                     onClick = {
-                        showTopMenu = false
+                        onShowTopMenuChange(false)
                         onInteraction()
                         onDetailsClick()
                     }
@@ -149,7 +145,7 @@ fun PlayerTopBar(
                 DropdownMenuItem(
                     text = { Text("Edit") },
                     onClick = {
-                        showTopMenu = false
+                        onShowTopMenuChange(false)
                         onInteraction()
                         onEditClick()
                     }
@@ -157,7 +153,7 @@ fun PlayerTopBar(
                 DropdownMenuItem(
                     text = { Text("Player settings") },
                     onClick = {
-                        showTopMenu = false
+                        onShowTopMenuChange(false)
                         onInteraction()
                         onPlayerSettingsClick()
                     }

@@ -343,6 +343,31 @@
 * Any deviation from what was requested: None.
 * Any known issue or follow-up needed: None.
 
+## Phase 110: Next Player Tap Isolation Architecture & 300ms Ghost Tap Eradication
+* Timestamp: 2026-10-28T12:07:00Z
+* One-line summary: Eradicated 300ms ghost tap hijack in playerGestureDetector, granted full tap immunity to controls, sliders, and menus, hoisted 3-dots menu state, and aligned player tap behavior 100% with Next Player architecture.
+* Files touched:
+  - app/src/main/java/com/example/ui/screens/player/PlayerGestureModifier.kt
+  - app/src/main/java/com/example/ui/screens/player/PlayerTopBar.kt
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_029.md
+* What was actually done:
+  - Eradicated 300ms Ghost Tap Collision:
+    * In `PlayerGestureModifier.kt`, added `wasConsumed = down.isConsumed || event.changes.any { it.isConsumed }` check. If any button, slider, menu, or bar consumes the pointer event, `pendingSingleTapJob` is immediately bypassed.
+    * Added `showControls` parameter to `Modifier.playerGestureDetector`. When controls are already visible (`curShowControls == true`), canvas single-tap toggling in `playerGestureDetector` is completely suppressed.
+    * In `PlayerScreen.kt`, configured `onSingleTap = { if (!showControls) { showControls = true; controlsInteractionTrigger = System.currentTimeMillis() } }` so canvas taps only open controls and never prematurely hide them.
+  - Next Player Controls Dismissal Separation:
+    * Full-screen background scrim (`ScrimBackdrop`) retains exclusive responsibility for synchronous dismissal when tapping empty video space.
+    * Taps and touches on foreground UI elements (Speed, Audio, Subtitle, 3-dots MoreVert, Brightness icon, slider track, transport controls, and seekbar) never bubble or trigger delayed dismissals.
+  - 3-Dots Menu (`MoreVert`) State Hoisting:
+    * Hoisted `showTopMenu` state out of `PlayerTopBar` into `PlayerScreen.kt` and wired it via `showTopMenu` / `onShowTopMenuChange` parameters.
+    * Gated controls auto-hide with synchronous `isAnyDialogOpen` so the 3-dots menu stays open until an item is selected or dismissed.
+* How it was verified: `lint_applet` (clean 0 errors) and `compile_applet` (build succeeded 0 errors).
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: None.
+
+
 
 
 

@@ -1219,6 +1219,7 @@ fun PlayerScreen(
             touchSlop = androidx.compose.ui.platform.LocalViewConfiguration.current.touchSlop,
             coroutineScope = coroutineScope,
             context = context,
+            showControls = showControls,
             showBrightnessSlider = showBrightnessSlider,
             boosterEnabled = com.example.data.SettingsManager.getInstance(context).audioBoosterEnabled,
             currentBoostGainMb = boostGainMb,
@@ -1232,10 +1233,7 @@ fun PlayerScreen(
                 if (winBrightness in 0.01f..1f) winBrightness else getDeviceSystemBrightness(context)
             },
             onSingleTap = {
-                if (showControls) {
-                    showControls = false
-                    showBrightnessSlider = false
-                } else {
+                if (!showControls) {
                     showControls = true
                     controlsInteractionTrigger = System.currentTimeMillis()
                 }
@@ -1553,6 +1551,13 @@ fun PlayerScreen(
                         PlayerTopBar(
                             title = currentMediaTitle,
                             playbackSpeed = playbackSpeed,
+                            showTopMenu = showTopMenu,
+                            onShowTopMenuChange = { isOpen ->
+                                showTopMenu = isOpen
+                                if (isOpen) {
+                                    controlsInteractionTrigger = System.currentTimeMillis()
+                                }
+                            },
                             onNavigateBack = {
                                 com.example.LogKeeper.log("Back button clicked in PlayerScreen top bar", "PlayerScreen")
                                 mediaController?.let { controller ->
@@ -1619,12 +1624,6 @@ fun PlayerScreen(
                             },
                             onInteraction = {
                                 controlsInteractionTrigger = System.currentTimeMillis()
-                            },
-                            onMenuOpenChange = { isOpen ->
-                                showTopMenu = isOpen
-                                if (isOpen) {
-                                    controlsInteractionTrigger = System.currentTimeMillis()
-                                }
                             }
                         )
 

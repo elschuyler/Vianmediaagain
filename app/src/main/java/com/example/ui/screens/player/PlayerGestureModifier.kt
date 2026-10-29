@@ -40,6 +40,7 @@ fun Modifier.playerGestureDetector(
     touchSlop: Float,
     coroutineScope: CoroutineScope,
     context: Context,
+    showControls: Boolean = false,
     showBrightnessSlider: Boolean,
     boosterEnabled: Boolean,
     currentBoostGainMb: Int,
@@ -64,6 +65,7 @@ fun Modifier.playerGestureDetector(
 ): Modifier {
     if (!enabled) return this
 
+    val curShowControls by rememberUpdatedState(showControls)
     val curShowBrightnessSlider by rememberUpdatedState(showBrightnessSlider)
     val curBoosterEnabled by rememberUpdatedState(boosterEnabled)
     val curBoostGainMb by rememberUpdatedState(currentBoostGainMb)
@@ -221,26 +223,34 @@ fun Modifier.playerGestureDetector(
             } else if (currentGesture == GestureType.VOLUME) {
                 curOnVolumeEnd()
             } else if (currentGesture == GestureType.NONE && hypot(dragDistanceX, dragDistanceY) <= touchSlop) {
-                val tapPos = down.position
-                val now = System.currentTimeMillis()
-                val timeDiff = now - lastTapTime
-                val dist = (tapPos - lastTapPosition).getDistance()
+                val wasConsumed = down.isConsumed || event.changes.any { it.isConsumed }
+                if (!wasConsumed) {
+                    val tapPos = down.position
+                    val now = System.currentTimeMillis()
+                    val timeDiff = now - lastTapTime
+                    val dist = (tapPos - lastTapPosition).getDistance()
 
-                if (timeDiff in 40L..350L && dist < 100f * density) {
-                    // Double tap: cancel single tap and strictly toggle play/pause
-                    pendingSingleTapJob?.cancel()
-                    pendingSingleTapJob = null
-                    lastTapTime = 0L
-                    curOnDoubleTap()
-                } else {
-                    // Single tap disambiguation window
-                    lastTapTime = now
-                    lastTapPosition = tapPos
-                    pendingSingleTapJob?.cancel()
-                    pendingSingleTapJob = coroutineScope.launch {
-                        delay(300L)
-                        curOnSingleTap()
+                    if (timeDiff in 40L..350L && dist < 100f * density) {
+                        // Double tap: cancel single tap and strictly toggle play/pause
+                        pendingSingleTapJob?.cancel()
                         pendingSingleTapJob = null
+                        lastTapTime = 0L
+                        curOnDoubleTap()
+                    } else if (!curShowControls) {
+                        // Single tap: only opens controls when they are not already visible
+                        lastTapTime = now
+                        lastTapPosition = tapPos
+                        pendingSingleTapJob?.cancel()
+                        pendingSingleTapJob = coroutineScope.launch {
+                            delay(300L)
+                            curOnSingleTap()
+                            pendingSingleTapJob = null
+                        }
+                    } else {
+                        // When controls are already visible, do not launch a delayed canvas single-tap.
+                        // Background scrim handles synchronous dismissal on empty space.
+                        lastTapTime = now
+                        lastTapPosition = tapPos
                     }
                 }
             }

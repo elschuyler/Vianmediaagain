@@ -281,6 +281,13 @@
   1. Resolved CI Compilation Failure in GitHub Actions: Resolved 4 fatal compiler errors during `:app:compileDebugKotlin` (`Unresolved reference 'playerError'`) by hoisting `var playerError by remember { mutableStateOf<String?>(null) }` up to line 266 in `VideoEditorScreen.kt`, positioned immediately adjacent to `convertedUri` and `isConverting`.
   2. Sequential Local Variable Declaration Compliance: Eliminated the forward-reference condition where `LaunchedEffect(uriString)` (lines 326–536) attempted to set `playerError = null` prior to the variable's previous declaration at line 538.
   3. Preserved Full Error Workflow Integrity: Maintained all existing usages in `repairVideo()`, ExoPlayer `onPlayerError` listener, and the "Unsupported Format" repair `AlertDialog` without behavior deviation.
+- **Phase 110 (Next Player Tap Isolation Architecture & 300ms Ghost Tap Eradication)**:
+  1. Eradication of 300ms Ghost Tap Hijack: Eliminated the fatal collision where `playerGestureDetector` on the root Box intercepted all child button, slider, and menu touches and dispatched a delayed `curOnSingleTap()` that forcibly set `showControls = false` and `showBrightnessSlider = false` 300ms after every press.
+  2. Consumed Touch Immunity: Added `wasConsumed = down.isConsumed || event.changes.any { it.isConsumed }` check in `PlayerGestureModifier.kt`. Taps handled by buttons, sliders, dropdown items, or seekbars are completely ignored by the video gesture engine.
+  3. Single-Tap Responsibility Separation: Added `showControls` parameter to `playerGestureDetector`. When controls are already visible (`showControls == true`), canvas single-tap toggling in `playerGestureDetector` is suppressed. Controls dismissal on empty space is handled exclusively and synchronously by the background `ScrimBackdrop`.
+  4. Synchronous 3-Dots Menu State Ownership: Hoisted `showTopMenu` state directly into `PlayerScreen.kt` and passed it as parameters (`showTopMenu`, `onShowTopMenuChange`) to `PlayerTopBar.kt`. Keeps controls pinned open (`isAnyDialogOpen = true`) with zero coroutine dispatch lag.
+  5. Brightness Slider Immunity: Touching or dragging `BrightnessHudCapsule` no longer triggers delayed canvas single-taps. The 6-second timeout refreshes on touch, and active dragging freezes auto-hide until release.
+
 
 
 
