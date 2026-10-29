@@ -286,7 +286,11 @@
   2. Consumed Touch Immunity: Added `wasConsumed = down.isConsumed || event.changes.any { it.isConsumed }` check in `PlayerGestureModifier.kt`. Taps handled by buttons, sliders, dropdown items, or seekbars are completely ignored by the video gesture engine.
   3. Single-Tap Responsibility Separation: Added `showControls` parameter to `playerGestureDetector`. When controls are already visible (`showControls == true`), canvas single-tap toggling in `playerGestureDetector` is suppressed. Controls dismissal on empty space is handled exclusively and synchronously by the background `ScrimBackdrop`.
   4. Synchronous 3-Dots Menu State Ownership: Hoisted `showTopMenu` state directly into `PlayerScreen.kt` and passed it as parameters (`showTopMenu`, `onShowTopMenuChange`) to `PlayerTopBar.kt`. Keeps controls pinned open (`isAnyDialogOpen = true`) with zero coroutine dispatch lag.
-  5. Brightness Slider Immunity: Touching or dragging `BrightnessHudCapsule` no longer triggers delayed canvas single-taps. The 6-second timeout refreshes on touch, and active dragging freezes auto-hide until release.
+- **Phase 111 (CI Pointer Loop Lexical Scoping Resolution in PlayerGestureModifier)**:
+  1. Resolved CI Compilation Failure in GitHub Actions: Resolved 2 fatal compiler errors during `:app:compileDebugKotlin` (`Unresolved reference 'event'` and `Unresolved reference 'it'` at line 226) in `PlayerGestureModifier.kt`.
+  2. Loop-Persistent Consumed State Tracking: Initialized `var wasConsumed = down.isConsumed` before the `do { ... } while (...)` loop and updated it within the loop (`if (event.changes.any { it.isConsumed }) wasConsumed = true`), eliminating the out-of-scope access to the loop-local `event` variable after the loop finishes.
+  3. Preserved Full Consumed Tap Immunity: Maintained 100% of Next Player-style tap isolation for all buttons, sliders, menus, and controls while ensuring clean Kotlin bytecode compilation across CI pipelines.
+
 
 
 

@@ -122,9 +122,13 @@ fun Modifier.playerGestureDetector(
             var lastAppliedBrightness = startBrightness
 
             var wasPlayingBeforeSeek = false
+            var wasConsumed = down.isConsumed
 
             do {
                 val event = awaitPointerEvent()
+                if (event.changes.any { it.isConsumed }) {
+                    wasConsumed = true
+                }
                 val changes = event.changes
 
                 if (changes.size > 1) {
@@ -223,7 +227,6 @@ fun Modifier.playerGestureDetector(
             } else if (currentGesture == GestureType.VOLUME) {
                 curOnVolumeEnd()
             } else if (currentGesture == GestureType.NONE && hypot(dragDistanceX, dragDistanceY) <= touchSlop) {
-                val wasConsumed = down.isConsumed || event.changes.any { it.isConsumed }
                 if (!wasConsumed) {
                     val tapPos = down.position
                     val now = System.currentTimeMillis()
