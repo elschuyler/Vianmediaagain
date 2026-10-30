@@ -234,8 +234,10 @@ override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
         return
     }
     val rootCause = error.cause
-    if (rootCause is SecurityException || error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NO_PERMISSION) {
-        com.example.LogKeeper.log("PlaybackService: Permission denied reading media URI - skipping item gracefully: ${rootCause?.message}", "PlaybackService")
+    if (rootCause is SecurityException || error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NO_PERMISSION ||
+        error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND ||
+        rootCause is java.io.FileNotFoundException) {
+        com.example.LogKeeper.log("PlaybackService: Cannot read media URI (${error.errorCodeName}) - skipping item gracefully: ${rootCause?.message}", "PlaybackService")
         val player = PlayerManager.exoPlayer
         if (player != null && player.hasNextMediaItem()) {
             player.seekToNextMediaItem()

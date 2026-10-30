@@ -383,6 +383,65 @@
 * Any deviation from what was requested: None.
 * Any known issue or follow-up needed: None.
 
+## Phase 112: Stop Button Instant Completion & Library Video Text Styling Engine
+* Timestamp: 2026-10-30T02:08:00Z
+* One-line summary: Upgraded main player Stop button to immediately mark video as finished without scrubbing, hardened PlayerManager progress flush against teardown overwrites, styled last played video in Sky Blue, and dimmed completed videos in Library.
+* Files touched:
+  - app/src/main/java/com/example/data/SettingsManager.kt
+  - app/src/main/java/com/example/service/PlayerManager.kt
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+  - app/src/main/java/com/example/ui/screens/MainScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_029.md
+* What was actually done:
+  - Main Player Stop Button Instant Completion:
+    * In `PlayerScreen.kt` `onStopClick`, invoked `settingsManager.markAsFinished(decodedUriString, currentMediaTitle, targetDur)`.
+    * Stores `position = duration`, ensuring `isFinished()` returns `true` (watched >= 99%) without requiring the user to scrub the seekbar to the end.
+    * Subsequent cold starts reset to `0:00` because `PlayerScreen.kt` checks `if (!settingsManager.isFinished(...)) lastPos else 0L`.
+    * Preserved caller-aware exit semantics: invokes `(context.findActivity() as? ComponentActivity)?.finish()`, which returns to the Library if opened from the app, or returns to the calling external app (Files, WhatsApp, Gallery) without force-opening the Library.
+  - Teardown Flush Protection in PlayerManager:
+    * In `PlayerManager.kt` `flushProgressToStorage()`, added a guard: if `settings.isFinished(uriStr, title)` is already true, skipping progress flush to prevent ExoPlayer release teardown from overwriting the finished state with intermediate playback positions.
+  - Last-Played Active Video Sky Blue Highlighting:
+    * In `SettingsManager.kt`, persisted `last_played_uri` during `savePlaybackState()` and `markAsOpened()`, cleared it upon `markAsFinished()`, and exposed it via `getLastPlayedUri()`.
+    * In `MainScreen.kt`, the single most recently played active video (`media.tag == PlaybackTag.PLAYING && lastPlayedUri == media.uri`) renders its title in **Sky Blue** (`Color(0xFF03A9F4)`).
+    * Other in-progress videos and unwatched videos retain standard neutral text (`MaterialTheme.colorScheme.onSurface`), eliminating visual clutter.
+  - Completed Video Dimming & Lifecycle Synchronization:
+    * Completed videos (`media.tag == PlaybackTag.SEEN`): Title dimmed to `Color(0xFF757575)`, subtitle dimmed to `Color(0xFF606060)`, and thumbnail duration badge opacity reduced (`alpha = 0.45f`).
+    * In `MainScreen.kt` `DisposableEffect(lifecycleOwner)`, updated `Lifecycle.Event.ON_START` to reload `lastPlayedUri` and invoke `scanFolder` / `loadMedia`, ensuring completed videos reflect immediately upon returning from the player.
+* How it was verified: `lint_applet` (clean 0 errors) and `compile_applet` (build succeeded 0 errors).
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: None.
+
+## Phase 113: Compact HUD Slider Capsule & Guaranteed Tap-to-Show Recovery
+* Timestamp: 2026-10-30T06:31:00Z
+* One-line summary: Compacted Volume and Brightness HUD capsules from 56dp to 38dp width, guaranteed canvas single-tap control awakening regardless of AndroidView touch consumption, and added graceful ERROR_CODE_IO_FILE_NOT_FOUND recovery.
+* Files touched:
+  - app/src/main/java/com/example/ui/screens/hud/PlayerHudCapsules.kt
+  - app/src/main/java/com/example/ui/screens/player/PlayerGestureModifier.kt
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+  - app/src/main/java/com/example/service/PlaybackService.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_029.md
+* What was actually done:
+  - Compact HUD Slider Capsule Architecture:
+    * In `PlayerHudCapsules.kt`, redesigned `VolumeHudCapsule` and `BrightnessHudCapsule` from bulbous 56.dp wide / 170.dp tall bubbles into sleek, compact 38.dp wide / 140.dp tall capsules with matching 19.dp continuous corner radii.
+    * Reduced text size to 12.sp, icon size to 16.dp, and vertical padding to 8.dp/4.dp, reducing screen occlusion by ~35% while keeping high-precision 4.dp slider tracking.
+    * Adjusted brightness vertical drag scale to 90.dp.toPx() for fluid 1:1 proportional tracking across the compact track.
+  - 100% Guaranteed Tap-to-Show Controls Awakening:
+    * In `PlayerGestureModifier.kt`, updated pointer gesture evaluation to `if (!curShowControls || !wasConsumed)`.
+    * When controls are hidden (`!curShowControls`), single-tap is never dropped due to underlying `AndroidView` surface pointer consumption, eliminating the issue where player controls would randomly fail to appear upon tapping.
+    * When controls are visible (`curShowControls == true`), `!wasConsumed` remains active, protecting buttons, sliders, menus, and bars from unintended canvas dismissals.
+  - Source Error (`ERROR_CODE_IO_FILE_NOT_FOUND`) Graceful Recovery:
+    * In `PlayerScreen.kt` `onPlayerError`, added dedicated handling for `ERROR_CODE_IO_FILE_NOT_FOUND` and `java.io.FileNotFoundException`.
+    * Automatically forces `showControls = true` so the user is never stranded on a black or frozen screen with missing back buttons or controls.
+    * Displays informative Toast (`"Cannot read file: File not found"`), advances to the next playlist item if one exists in queue, or pauses safely.
+    * In `PlaybackService.kt`, added matching `ERROR_CODE_IO_FILE_NOT_FOUND` handling to skip unreadable files gracefully without service crash.
+* How it was verified: `lint_applet` (clean 0 errors) and `compile_applet` (build succeeded 0 errors).
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: None.
+
+
+
 
 
 

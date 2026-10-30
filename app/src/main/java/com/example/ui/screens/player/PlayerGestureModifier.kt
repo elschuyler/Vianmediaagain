@@ -227,7 +227,9 @@ fun Modifier.playerGestureDetector(
             } else if (currentGesture == GestureType.VOLUME) {
                 curOnVolumeEnd()
             } else if (currentGesture == GestureType.NONE && hypot(dragDistanceX, dragDistanceY) <= touchSlop) {
-                if (!wasConsumed) {
+                // When controls are hidden (!curShowControls), never allow AndroidView touch consumption to block waking controls.
+                // When controls are visible, respect wasConsumed so tapping buttons/sliders does not trigger canvas tap.
+                if (!curShowControls || !wasConsumed) {
                     val tapPos = down.position
                     val now = System.currentTimeMillis()
                     val timeDiff = now - lastTapTime

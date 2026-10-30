@@ -234,6 +234,8 @@ fun MainScreen(
         viewModel.selectTab(LibraryTab.FOLDERS)
     }
 
+    var lastPlayedUri by remember { mutableStateOf(com.example.data.SettingsManager.getInstance(context).getLastPlayedUri()) }
+
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
@@ -242,6 +244,12 @@ fun MainScreen(
                 }
                 Lifecycle.Event.ON_START -> {
                     viewModel.resumeOperations()
+                    lastPlayedUri = com.example.data.SettingsManager.getInstance(context).getLastPlayedUri()
+                    if (selectedFolderId != null) {
+                        viewModel.scanFolder(selectedFolderId!!)
+                    } else if (selectedTab == LibraryTab.VIDEOS) {
+                        viewModel.loadMedia(forceRefresh = true, silent = true)
+                    }
                 }
                 else -> {}
             }
@@ -754,14 +762,29 @@ fun MainScreen(
                                                 } else {
                                                     String.format("%02d:%02d", minutes, seconds)
                                                 }
+                                                val isSeen = media.tag == PlaybackTag.SEEN
+                                                val isPlaying = media.tag == PlaybackTag.PLAYING
+                                                val isLastPlayed = isPlaying && (lastPlayedUri != null && (lastPlayedUri == media.uri.toString() || lastPlayedUri == media.name))
+                                                val titleColor = when {
+                                                    isSelected -> MaterialTheme.colorScheme.onPrimaryContainer
+                                                    isSeen -> Color(0xFF757575)
+                                                    isLastPlayed -> Color(0xFF03A9F4)
+                                                    else -> MaterialTheme.colorScheme.onSurface
+                                                }
+                                                val subTextColor = when {
+                                                    isSelected -> MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                                                    isSeen -> Color(0xFF606060)
+                                                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                                }
+                                                val badgeAlpha = if (isSeen) 0.45f else 0.7f
                                                 Box(
                                                     modifier = Modifier
                                                         .align(Alignment.BottomEnd)
                                                         .padding(4.dp)
-                                                        .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(4.dp))
+                                                        .background(Color.Black.copy(alpha = badgeAlpha), RoundedCornerShape(4.dp))
                                                         .padding(horizontal = 4.dp, vertical = 2.dp)
                                                 ) {
-                                                    Text(durationStr, style = MaterialTheme.typography.labelSmall, color = Color.White, fontWeight = FontWeight.Bold)
+                                                    Text(durationStr, style = MaterialTheme.typography.labelSmall, color = if (isSeen) Color(0xFFAAAAAA) else Color.White, fontWeight = FontWeight.Bold)
                                                 }
                                             }
                                             Spacer(modifier = Modifier.width(12.dp))
@@ -771,7 +794,7 @@ fun MainScreen(
                                                         text = media.name, 
                                                         style = MaterialTheme.typography.titleMedium,
                                                         fontWeight = FontWeight.Normal,
-                                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else if (media.tag == PlaybackTag.SEEN || media.tag == PlaybackTag.PLAYING) Color(0xFF707070) else MaterialTheme.colorScheme.onSurface,
+                                                        color = titleColor,
                                                         maxLines = 2,
                                                         overflow = TextOverflow.Ellipsis,
                                                         modifier = Modifier.weight(1f, fill = false)
@@ -780,7 +803,7 @@ fun MainScreen(
                                                         Spacer(modifier = Modifier.width(6.dp))
                                                         Box(
                                                             modifier = Modifier
-                                                                .background(Color(0xFF2196F3), RoundedCornerShape(2.dp))
+                                                                .background(if (isSeen) Color(0xFF2196F3).copy(alpha = 0.5f) else Color(0xFF2196F3), RoundedCornerShape(2.dp))
                                                                 .padding(horizontal = 4.dp, vertical = 2.dp)
                                                         ) {
                                                             Text("SUB", style = MaterialTheme.typography.labelSmall, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 8.sp)
@@ -804,7 +827,7 @@ fun MainScreen(
                                                 Text(
                                                     text = subText,
                                                     style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    color = subTextColor,
                                                     maxLines = 1,
                                                     overflow = TextOverflow.Ellipsis
                                                 )

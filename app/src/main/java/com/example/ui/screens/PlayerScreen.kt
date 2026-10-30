@@ -983,6 +983,8 @@ fun PlayerScreen(
                 val rootCause = error.cause
                 if (rootCause is SecurityException || error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NO_PERMISSION) {
                     com.example.LogKeeper.log("PlayerScreen: Permission denied reading media URI - skipping item gracefully: ${rootCause?.message}", "PlayerScreen")
+                    showControls = true
+                    controlsInteractionTrigger = System.currentTimeMillis()
                     try {
                         android.widget.Toast.makeText(context, "Cannot read file: Permission denied", android.widget.Toast.LENGTH_SHORT).show()
                     } catch (e: Exception) {}
@@ -993,6 +995,23 @@ fun PlayerScreen(
                     }
                     return
                 }
+                if (error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND ||
+                    rootCause is java.io.FileNotFoundException) {
+                    com.example.LogKeeper.log("PlayerScreen: File not found or unreadable provider - surfacing controls gracefully: ${rootCause?.message}", "PlayerScreen")
+                    showControls = true
+                    controlsInteractionTrigger = System.currentTimeMillis()
+                    try {
+                        android.widget.Toast.makeText(context, "Cannot read file: File not found", android.widget.Toast.LENGTH_SHORT).show()
+                    } catch (e: Exception) {}
+                    if (controller.hasNextMediaItem()) {
+                        controller.seekToNextMediaItem()
+                    } else {
+                        controller.pause()
+                    }
+                    return
+                }
+                showControls = true
+                controlsInteractionTrigger = System.currentTimeMillis()
                 com.example.LogKeeper.logError("PlayerScreen", "ExoPlayer Error: ${error.message}", error)
                 val currentPos = controller.currentPosition
                 if (error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DECODING_FAILED ||
@@ -1795,11 +1814,13 @@ fun PlayerScreen(
                     onStopClick = {
                         com.example.LogKeeper.log("Stop button clicked in main player center controls", "PlayerScreen")
                         mediaController?.let { controller ->
-                            val pos = controller.currentPosition
                             val dur = controller.duration
-                            if (pos > 0L) {
-                                com.example.data.SettingsManager.getInstance(context).savePlaybackState(decodedUriString, pos, dur, currentMediaTitle)
-                            }
+                            val targetDur = if (dur > 0L) dur else controller.currentPosition.takeIf { it > 0L } ?: 1000L
+                            com.example.data.SettingsManager.getInstance(context).markAsFinished(
+                                decodedUriString,
+                                currentMediaTitle,
+                                targetDur
+                            )
                             controller.pause()
                             controller.stop()
                             controller.clearMediaItems()

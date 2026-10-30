@@ -55,18 +55,18 @@ fun VolumeHudCapsule(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
                 .padding(start = 24.dp)
-                .height(170.dp)
-                .width(56.dp)
-                .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(28.dp))
-                .padding(vertical = 12.dp)
+                .height(140.dp)
+                .width(38.dp)
+                .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(19.dp))
+                .padding(vertical = 8.dp, horizontal = 4.dp)
         ) {
             Text(
                 text = "${(gestureVolumeRatio * 200).roundToInt()}",
                 color = Color.White,
-                fontSize = 16.sp,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.Bold
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -90,12 +90,12 @@ fun VolumeHudCapsule(
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             Icon(
                 imageVector = Icons.Filled.VolumeUp,
                 contentDescription = null,
                 tint = Color.White,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(16.dp)
             )
         }
     }
@@ -115,10 +115,10 @@ fun BrightnessHudCapsule(
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier
-            .height(170.dp)
-            .width(56.dp)
-            .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(28.dp))
-            .padding(vertical = 12.dp)
+            .height(140.dp)
+            .width(38.dp)
+            .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(19.dp))
+            .padding(vertical = 8.dp, horizontal = 4.dp)
             .pointerInput(Unit) {
                 detectTapGestures {
                     onTap()
@@ -128,14 +128,14 @@ fun BrightnessHudCapsule(
         Text(
             text = "${(currentBrightness.coerceIn(0f, 1f) * 100).roundToInt()}%",
             color = Color.White,
-            fontSize = 16.sp,
+            fontSize = 12.sp,
             fontWeight = FontWeight.Bold
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(4.dp))
         Box(
             modifier = Modifier
                 .weight(1f)
-                .width(56.dp)
+                .width(38.dp)
                 .pointerInput(Unit) {
                     detectVerticalDragGestures(
                         onDragStart = {
@@ -144,7 +144,7 @@ fun BrightnessHudCapsule(
                         onVerticalDrag = { change, dragAmount ->
                             change.consume()
                             onDragStateChange(true)
-                            val dragRatio = -dragAmount / 110.dp.toPx()
+                            val dragRatio = -dragAmount / 90.dp.toPx()
                             val newVal = (currentBrightness + dragRatio).coerceIn(0.01f, 1f)
                             onBrightnessChange(newVal)
                         },
@@ -173,12 +173,12 @@ fun BrightnessHudCapsule(
                 )
             }
         }
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(4.dp))
         Icon(
             imageVector = Icons.Filled.LightMode,
             contentDescription = null,
             tint = Color.White,
-            modifier = Modifier.size(20.dp)
+            modifier = Modifier.size(16.dp)
         )
     }
 }

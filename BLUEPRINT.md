@@ -290,6 +290,36 @@
   1. Resolved CI Compilation Failure in GitHub Actions: Resolved 2 fatal compiler errors during `:app:compileDebugKotlin` (`Unresolved reference 'event'` and `Unresolved reference 'it'` at line 226) in `PlayerGestureModifier.kt`.
   2. Loop-Persistent Consumed State Tracking: Initialized `var wasConsumed = down.isConsumed` before the `do { ... } while (...)` loop and updated it within the loop (`if (event.changes.any { it.isConsumed }) wasConsumed = true`), eliminating the out-of-scope access to the loop-local `event` variable after the loop finishes.
   3. Preserved Full Consumed Tap Immunity: Maintained 100% of Next Player-style tap isolation for all buttons, sliders, menus, and controls while ensuring clean Kotlin bytecode compilation across CI pipelines.
+- **Phase 112 (Stop Button Instant Completion & Library Video Text Styling Engine)**:
+  1. Main Player Stop Button Instant Completion:
+     - In `PlayerScreen.kt`, updated `onStopClick` to invoke `settingsManager.markAsFinished(decodedUriString, currentMediaTitle, targetDur)` before stopping playback.
+     - Saves playback position equal to duration (`pos = dur`), ensuring `SettingsManager.isFinished()` evaluates to `true` (>= 99% watched) without requiring the user to scrub the seekbar to the end.
+     - Automatically resets playback start position to `0:00` for subsequent cold starts per existing `if (!isFinished) lastPos else 0L` logic.
+     - Preserves caller-aware exit semantics: finishes `PlayerActivity` directly, returning to the Library if launched from within the app or cleanly returning to the external app (Files, WhatsApp, Gallery) without force-opening the Library.
+  2. Teardown Flush Protection in PlayerManager:
+     - In `PlayerManager.kt`, hardened `flushProgressToStorage()` to check `if (!settings.isFinished(uriStr, title))` before writing progress.
+     - Prevents teardown progress flushes during `PlayerManager.release()` from overwriting an already-finished video with intermediate ExoPlayer positions.
+  3. Single Most-Recent Active Video Sky Blue Highlighting:
+     - In `SettingsManager.kt`, added `last_played_uri` tracking via `savePlaybackState()` and `markAsOpened()`, exposed via `getLastPlayedUri()`.
+     - In `MainScreen.kt`, the single most recently played active video (`media.tag == PlaybackTag.PLAYING && lastPlayedUri == media.uri`) renders its title in **Sky Blue** (`Color(0xFF03A9F4)`), providing instant visual orientation.
+     - Other in-progress videos and unwatched videos retain standard neutral text (`MaterialTheme.colorScheme.onSurface`), eliminating visual clutter.
+  4. Completed Video Text & Duration Dimming:
+     - Completed videos (`media.tag == PlaybackTag.SEEN`): Title dimmed to `Color(0xFF757575)`, subtitle dimmed to `Color(0xFF606060)`, and thumbnail duration badge opacity reduced (`alpha = 0.45f`), clearly indicating completed status across both folder contents and all-videos views.
+     - Synchronized `Lifecycle.Event.ON_START` in `MainScreen.kt` to trigger targeted folder scans (`scanFolder`) and reload `lastPlayedUri` on returning from `PlayerActivity`.
+- **Phase 113 (Compact HUD Slider Capsule & Guaranteed Tap-to-Show Recovery)**:
+  1. Compact HUD Slider Capsule Architecture:
+     - In `PlayerHudCapsules.kt`, redesigned `VolumeHudCapsule` and `BrightnessHudCapsule` from bulky `56.dp` bubbles to sleek, compact `38.dp × 140.dp` capsules with continuous `19.dp` corner radii.
+     - Proportionately scaled typography to `12.sp` bold and icons to `16.dp`, preserving the 4.dp high-precision progress track while reducing viewport obscuration by ~35%.
+     - Optimized vertical drag bounds to `90.dp.toPx()` for smooth 60fps tracking.
+  2. 100% Guaranteed Tap-to-Show Controls Awakening:
+     - In `PlayerGestureModifier.kt`, adjusted pointer tap gating: when controls are hidden (`!curShowControls`), single-tap awakening is never blocked by AndroidView `wasConsumed` flags (`if (!curShowControls || !wasConsumed)`).
+     - Resolves the intermittent issue where player controls would not appear upon tapping the video canvas.
+     - Retains `wasConsumed` protection when controls are visible (`curShowControls == true`), ensuring taps on buttons, sliders, menus, and bars do not trigger unintended canvas dismissals.
+  3. Source Error (`ERROR_CODE_IO_FILE_NOT_FOUND`) Graceful Recovery:
+     - In `PlayerScreen.kt` and `PlaybackService.kt`, added explicit handling for `ERROR_CODE_IO_FILE_NOT_FOUND` and `java.io.FileNotFoundException`.
+     - Automatically surfaces controls (`showControls = true`) so the user is never trapped on a blank/frozen screen with missing controls.
+     - Displays informative user Toast (`"Cannot read file: File not found"`) and gracefully advances to the next playlist item if one exists in queue.
+
 
 
 

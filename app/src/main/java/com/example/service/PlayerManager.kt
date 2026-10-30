@@ -474,8 +474,13 @@ object PlayerManager {
             val ctx = appContext ?: return
 
             if (pos > 0L) {
-                com.example.data.SettingsManager.getInstance(ctx).savePlaybackState(uriStr, pos, dur, title)
-                com.example.LogKeeper.log("PlayerManager: Flushed progress to storage ($pos ms)", "PlayerManager")
+                val settings = com.example.data.SettingsManager.getInstance(ctx)
+                if (!settings.isFinished(uriStr, title)) {
+                    settings.savePlaybackState(uriStr, pos, dur, title)
+                    com.example.LogKeeper.log("PlayerManager: Flushed progress to storage ($pos ms)", "PlayerManager")
+                } else {
+                    com.example.LogKeeper.log("PlayerManager: Skipping progress flush because video is already marked finished", "PlayerManager")
+                }
             }
         } catch (e: Exception) {
             com.example.LogKeeper.logError("PlayerManager", "Failed to flush progress to storage", e)

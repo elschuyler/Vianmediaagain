@@ -164,6 +164,7 @@ class SettingsManager private constructor(context: Context) {
         val now = System.currentTimeMillis()
         val editor = prefs.edit()
             .putLong("time_$uri", now)
+            .putString("last_played_uri", uri)
         if (position > 0L) {
             editor.putLong("pos_$uri", position)
         }
@@ -183,9 +184,23 @@ class SettingsManager private constructor(context: Context) {
         editor.apply()
     }
 
+    fun markAsFinished(uri: String, fileName: String? = null, duration: Long = 0L) {
+        val targetDur = if (duration > 0L) duration else getStoredDuration(uri, fileName).takeIf { it > 0L } ?: 1000L
+        savePlaybackState(uri, targetDur, targetDur, fileName)
+        if (getLastPlayedUri() == uri) {
+            prefs.edit().remove("last_played_uri").apply()
+        }
+    }
+
+    fun getLastPlayedUri(): String? {
+        return prefs.getString("last_played_uri", null)
+    }
+
     fun markAsOpened(uri: String, fileName: String? = null) {
         val now = System.currentTimeMillis()
-        val editor = prefs.edit().putLong("time_$uri", now)
+        val editor = prefs.edit()
+            .putLong("time_$uri", now)
+            .putString("last_played_uri", uri)
         val variants = getFileNameVariants(fileName, uri)
         for (v in variants) {
             editor.putLong("time_fn_$v", now)
