@@ -320,18 +320,20 @@
      - Automatically surfaces controls (`showControls = true`) so the user is never trapped on a blank/frozen screen with missing controls.
      - Displays informative user Toast (`"Cannot read file: File not found"`) and gracefully advances to the next playlist item if one exists in queue.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+- **Phase 114 (CI Lexical Scoping Resolution & Comprehensive MediaCodec Video Decoder Halting Engine)**:
+  1. CI Lexical Scoping Resolution in MainScreen:
+     - Hoisted `isSeen`, `isPlaying`, `isLastPlayed`, `titleColor`, and `subTextColor` out of the thumbnail `Box` lambda up to the item card root scope (`itemsIndexed`) in `MainScreen.kt`.
+     - Eliminated duplicate inner declarations, making all 5 variables accessible to both the thumbnail `Box` and the title/subtitle `Column`. Resolves the 3 fatal `Unresolved reference` errors during `:app:compileDebugKotlin` on GitHub Actions CI.
+  2. Centralized MediaCodec Track Control in PlayerManager:
+     - Implemented thread-safe `setVideoTrackEnabled(enabled: Boolean)` in `PlayerManager.kt` via `trackSelectionParameters.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, !enabled).build()`.
+     - Migrated `startProgressTicker` to run safely inside the managed `playerScope` lifecycle.
+  3. Folded Bubble Codec Halting (Floating Video & Mini Player):
+     - In `PlaybackService.kt` `handleMinimizeToggle`, automatically halts the video MediaCodec (`setVideoTrackEnabled(false)`) whenever the overlay is collapsed into the 40dp folded bubble.
+     - Resumes the video codec (`setVideoTrackEnabled(true)`) only when unfolding back into the active Floating Video window.
+  4. Audio Mini Player Mode Codec Halting:
+     - In `PlaybackService.kt`, dynamically disables the video track when switching to audio mini player mode (`onSwitchToMiniPlayer`) or starting overlay with `isVideoMode == false`.
+     - Resumes video decoding seamlessly via `onSwitchToVideo` when the user expands to the floating video player.
+  5. Background Playback Codec Optimization:
+     - In `PlayerScreen.kt`, halts the video hardware decoder (`setVideoTrackEnabled(false)`) on `Lifecycle.Event.ON_STOP` when background playback is active and the app is not in PiP mode.
+     - Re-enables the video decoder (`setVideoTrackEnabled(true)`) immediately on `Lifecycle.Event.ON_RESUME`, ensuring zero unnecessary CPU/GPU/battery drain while preserving uninterrupted audio playback.
 

@@ -1123,6 +1123,7 @@ fun PlayerScreen(
                     }
                 }
             } else if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                com.example.service.PlayerManager.setVideoTrackEnabled(true)
                 currentController?.let { controller ->
                     // Re-apply orientation if known
                     lastKnownIsPortrait?.let { isPortrait ->
@@ -1181,9 +1182,10 @@ fun PlayerScreen(
                 val isPip = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) activity?.isInPictureInPictureMode == true else false
                 if (!isPip && (backgroundPlayEnabledRef.value || forceBackgroundPlay.get())) {
                     if (!com.example.service.PlayerManager.isFloatingVideoActive) {
-                        com.example.LogKeeper.log("PlayerScreen ON_STOP: Detaching video surface for background audio playback", "PlayerScreen")
+                        com.example.LogKeeper.log("PlayerScreen ON_STOP: Detaching video surface and halting video codec for background audio playback", "PlayerScreen")
                         try { playerViewRef.value?.player = null } catch (e: Exception) {}
                         com.example.service.PlayerManager.detachVideoSurface()
+                        com.example.service.PlayerManager.setVideoTrackEnabled(false)
                     } else {
                         com.example.LogKeeper.log("PlayerScreen ON_STOP: Preserving video surface for floating video overlay", "PlayerScreen")
                     }

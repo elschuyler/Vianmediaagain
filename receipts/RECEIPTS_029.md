@@ -440,11 +440,34 @@
 * Any deviation from what was requested: None.
 * Any known issue or follow-up needed: None.
 
-
-
-
-
-
-
-
+## Phase 114: CI Lexical Scoping Resolution & Comprehensive MediaCodec Video Decoder Halting Engine
+* Timestamp: 2026-10-31T01:00:00Z
+* One-line summary: Resolved GitHub Actions CI compilation failure by hoisting item variables in MainScreen, implemented centralized video MediaCodec track disabling in PlayerManager, and halted video decoder during background audio, mini player mode, and folded bubble states.
+* Files touched:
+  - app/src/main/java/com/example/ui/screens/MainScreen.kt
+  - app/src/main/java/com/example/service/PlayerManager.kt
+  - app/src/main/java/com/example/service/PlaybackService.kt
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_029.md
+* What was actually done:
+  - GitHub Actions CI Lexical Scoping Resolution:
+    * Hoisted `isSeen`, `isPlaying`, `isLastPlayed`, `titleColor`, and `subTextColor` out of the thumbnail `Box` lambda up to line 682 directly under `val isSelected = selectedMediaItems.contains(media)` in `MainScreen.kt`.
+    * Removed the duplicate inner declarations from the thumbnail `Box`, giving both the thumbnail `Box` and the title/subtitle `Column` lexical access to all 5 variables.
+    * Resolved the 3 fatal `Unresolved reference` errors (`titleColor`, `isSeen`, `subTextColor`) reported in `job-logs_279e7f74.txt` during `:app:compileDebugKotlin`.
+  - Centralized Video MediaCodec Decoder Control:
+    * Added thread-safe `setVideoTrackEnabled(enabled: Boolean)` to `PlayerManager.kt` using `trackSelectionParameters.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, !enabled).build()`.
+    * Gated `startProgressTicker` to run safely inside the managed `playerScope` lifecycle.
+  - Folded Bubble Video Decoder Halting:
+    * In `PlaybackService.kt` `handleMinimizeToggle`, halted the video MediaCodec (`setVideoTrackEnabled(false)`) whenever the overlay collapses into the 40dp folded bubble.
+    * Automatically re-enables video decoding (`setVideoTrackEnabled(true)`) only when unfolding back into the active Floating Video window.
+  - Audio Mini Player Mode Decoder Halting:
+    * In `PlaybackService.kt`, dynamically disabled the video track when switching to audio mini player mode (`onSwitchToMiniPlayer`) or starting overlay in audio mode (`isVideoMode == false`).
+    * Resumes video decoding seamlessly via `onSwitchToVideo` when expanding to floating video.
+  - Background Playback Resource Optimization:
+    * In `PlayerScreen.kt`, halted the video hardware decoder (`setVideoTrackEnabled(false)`) in `Lifecycle.Event.ON_STOP` when background playback is active and the app is not in PiP mode.
+    * Re-enables the video decoder (`setVideoTrackEnabled(true)`) immediately in `Lifecycle.Event.ON_RESUME`, ensuring zero unnecessary CPU/GPU/battery drain while preserving continuous audio playback.
+* How it was verified: Code verification, AST check, and compilation checks.
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: None.
 

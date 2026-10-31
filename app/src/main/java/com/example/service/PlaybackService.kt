@@ -579,6 +579,9 @@ return mediaSession
 private fun showOverlay(startInVideoMode: Boolean = false) {
 if (startInVideoMode) {
     com.example.service.PlayerManager.isFloatingVideoActive = true
+    com.example.service.PlayerManager.setVideoTrackEnabled(true)
+} else {
+    com.example.service.PlayerManager.setVideoTrackEnabled(false)
 }
 PlayerManager.exoPlayer?.currentMediaItem?.let { currentItem ->
     ensureArtworkLoaded(currentItem)
@@ -602,6 +605,15 @@ val handleMinimizeToggle: (Boolean) -> Unit = { minimized ->
     if (isMinimized != minimized) {
         isMinimized = minimized
         sessionIsMinimized = minimized
+        if (minimized) {
+            com.example.service.PlayerManager.setVideoTrackEnabled(false)
+        } else {
+            if (isVideoMode) {
+                com.example.service.PlayerManager.setVideoTrackEnabled(true)
+            } else {
+                com.example.service.PlayerManager.setVideoTrackEnabled(false)
+            }
+        }
         val lp = layoutParams
         if (lp != null) {
             val metrics = resources.displayMetrics
@@ -832,6 +844,7 @@ onOpenMainPlayer = {
 onSwitchToMiniPlayer = {
 isVideoMode = false
 com.example.service.PlayerManager.detachVideoSurface()
+com.example.service.PlayerManager.setVideoTrackEnabled(false)
 val lp = layoutParams
 if (lp != null) {
     val metrics = resources.displayMetrics
@@ -906,6 +919,7 @@ onMinimizeChange = { minimized ->
 },
 onSwitchToVideo = {
     isVideoMode = true
+    com.example.service.PlayerManager.setVideoTrackEnabled(true)
     val player = com.example.service.PlayerManager.exoPlayer
     val vs = player?.videoSize
     val aspect = if (vs != null && vs.width > 0 && vs.height > 0) {

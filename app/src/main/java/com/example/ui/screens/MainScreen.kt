@@ -679,6 +679,20 @@ fun MainScreen(
                                 }
                                 itemsIndexed(sortedMediaItems, key = { _, media -> media.id }) { index, media ->
                                     val isSelected = selectedMediaItems.contains(media)
+                                    val isSeen = media.tag == PlaybackTag.SEEN
+                                    val isPlaying = media.tag == PlaybackTag.PLAYING
+                                    val isLastPlayed = isPlaying && (lastPlayedUri != null && (lastPlayedUri == media.uri.toString() || lastPlayedUri == media.name))
+                                    val titleColor = when {
+                                        isSelected -> MaterialTheme.colorScheme.onPrimaryContainer
+                                        isSeen -> Color(0xFF757575)
+                                        isLastPlayed -> Color(0xFF03A9F4)
+                                        else -> MaterialTheme.colorScheme.onSurface
+                                    }
+                                    val subTextColor = when {
+                                        isSelected -> MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                                        isSeen -> Color(0xFF606060)
+                                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                    }
                                     Card(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -761,21 +775,6 @@ fun MainScreen(
                                                     String.format("%d:%02d:%02d", hours, minutes, seconds)
                                                 } else {
                                                     String.format("%02d:%02d", minutes, seconds)
-                                                }
-                                                val isSeen = media.tag == PlaybackTag.SEEN
-                                                val isPlaying = media.tag == PlaybackTag.PLAYING
-                                                val isLastPlayed = isPlaying && (lastPlayedUri != null && (lastPlayedUri == media.uri.toString() || lastPlayedUri == media.name))
-                                                val titleColor = when {
-                                                    isSelected -> MaterialTheme.colorScheme.onPrimaryContainer
-                                                    isSeen -> Color(0xFF757575)
-                                                    isLastPlayed -> Color(0xFF03A9F4)
-                                                    else -> MaterialTheme.colorScheme.onSurface
-                                                }
-                                                val subTextColor = when {
-                                                    isSelected -> MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                                                    isSeen -> Color(0xFF606060)
-                                                    else -> MaterialTheme.colorScheme.onSurfaceVariant
-                                                }
                                                 val badgeAlpha = if (isSeen) 0.45f else 0.7f
                                                 Box(
                                                     modifier = Modifier

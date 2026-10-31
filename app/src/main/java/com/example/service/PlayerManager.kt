@@ -403,6 +403,29 @@ object PlayerManager {
         }
     }
 
+    fun setVideoTrackEnabled(enabled: Boolean) {
+        val player = exoPlayer ?: return
+        try {
+            val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+            mainHandler.post {
+                try {
+                    val currentParams = player.trackSelectionParameters
+                    val isCurrentlyDisabled = currentParams.disabledTrackTypes.contains(C.TRACK_TYPE_VIDEO)
+                    if (isCurrentlyDisabled == enabled) {
+                        player.trackSelectionParameters = currentParams.buildUpon()
+                            .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, !enabled)
+                            .build()
+                        com.example.LogKeeper.log("PlayerManager: setVideoTrackEnabled($enabled) - video track disabled: ${!enabled}", "PlayerManager")
+                    }
+                } catch (e: Exception) {
+                    com.example.LogKeeper.logError("PlayerManager", "Failed to update trackSelectionParameters in setVideoTrackEnabled", e)
+                }
+            }
+        } catch (e: Exception) {
+            com.example.LogKeeper.logError("PlayerManager", "Failed to post setVideoTrackEnabled", e)
+        }
+    }
+
     fun updateSnapshot() {
         val player = exoPlayer ?: run {
             _playbackState.value = PlayerSnapshot()
@@ -441,7 +464,7 @@ object PlayerManager {
 
     fun startProgressTicker() {
         progressTickerJob?.cancel()
-        progressTickerJob = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+        progressTickerJob = playerScope.launch(kotlinx.coroutines.Dispatchers.Main) {
             while (true) {
                 delay(500)
                 val player = exoPlayer
