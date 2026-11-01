@@ -471,3 +471,19 @@
 * Any deviation from what was requested: None.
 * Any known issue or follow-up needed: None.
 
+## Phase 115: CI Syntax & Bracket Scope Alignment in MainScreen
+* Timestamp: 2026-11-01T11:20:00Z
+* One-line summary: Restored missing closing brace in MainScreen durationStr else block, fixing 4 cascading CI compilation errors.
+* Files touched:
+  - app/src/main/java/com/example/ui/screens/MainScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_029.md
+* What was actually done:
+  - Restored the missing closing brace '}' on the else branch of 'val durationStr' at line 777 in MainScreen.kt.
+  - Re-established correct lexical scoping for durationStr, the thumbnail duration Box, and the item card Column in RowScope.
+  - Eliminated the 4 fatal CI compilation failures: Unresolved reference 'FolderCard', Unresolved reference 'durationStr', 'Modifier.weight(...) cannot be called in this context', and Syntax error: Expecting '}'.
+  - Verified 100% bracket balance across all braces, parens, and square brackets.
+* How it was verified: AST bracket balance check (braces=0, parens=0, brackets=0), lint_applet clean run, and compile_applet.
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: None.
+

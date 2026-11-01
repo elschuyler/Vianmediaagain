@@ -337,3 +337,14 @@
      - In `PlayerScreen.kt`, halts the video hardware decoder (`setVideoTrackEnabled(false)`) on `Lifecycle.Event.ON_STOP` when background playback is active and the app is not in PiP mode.
      - Re-enables the video decoder (`setVideoTrackEnabled(true)`) immediately on `Lifecycle.Event.ON_RESUME`, ensuring zero unnecessary CPU/GPU/battery drain while preserving uninterrupted audio playback.
 
+- **Phase 115 (CI Syntax & Bracket Scope Alignment in MainScreen)**:
+  1. Syntax & Scope Restoration in MainScreen:
+     - Restored the missing closing brace '}' on the else branch of 'val durationStr' at line 777 in 'MainScreen.kt'.
+     - Re-established proper lexical scoping for durationStr, the thumbnail duration Box, and the item card Column within its RowScope.
+     - Eliminated all 4 fatal CI compilation failures:
+       * Unresolved reference 'FolderCard' (line 642)
+       * Unresolved reference 'durationStr' (line 786)
+       * 'Modifier.weight(...) cannot be called in this context with an implicit receiver' (line 790)
+       * Syntax error: Expecting '}' (line 1432)
+     - Verified perfect bracket balance (braces: 0, parens: 0, brackets: 0).
+

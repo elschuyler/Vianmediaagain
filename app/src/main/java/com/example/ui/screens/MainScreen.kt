@@ -775,6 +775,7 @@ fun MainScreen(
                                                     String.format("%d:%02d:%02d", hours, minutes, seconds)
                                                 } else {
                                                     String.format("%02d:%02d", minutes, seconds)
+                                                }
                                                 val badgeAlpha = if (isSeen) 0.45f else 0.7f
                                                 Box(
                                                     modifier = Modifier
