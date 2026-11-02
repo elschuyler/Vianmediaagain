@@ -817,7 +817,15 @@ fun VideoEditorScreen(
                     IconButton(onClick = { /* Redo */ }) {
                         Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = "Redo")
                     }
-                    Button(onClick = { showExportPanel = true }) {
+                    Button(onClick = {
+                        if (com.example.service.FFmpegStatus.isRunning) {
+                            android.widget.Toast.makeText(context, "An export is already running in background", android.widget.Toast.LENGTH_SHORT).show()
+                        } else if (isConverting) {
+                            android.widget.Toast.makeText(context, "Please wait, preparing video for editing...", android.widget.Toast.LENGTH_SHORT).show()
+                        } else {
+                            showExportPanel = true
+                        }
+                    }) {
                         Text("SAVE")
                     }
                 }
@@ -829,6 +837,22 @@ fun VideoEditorScreen(
                 .padding(padding)
                 .fillMaxSize()
         ) {
+            if (com.example.service.FFmpegStatus.isRunning) {
+                Surface(
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        Text("Exporting video in background...", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    }
+                }
+            }
             // Main UI: Player Preview
             androidx.compose.foundation.layout.BoxWithConstraints(
                 modifier = Modifier
@@ -2924,7 +2948,7 @@ fun VideoEditorScreen(
                 onDismissRequest = { showExportPanel = false },
                 title = { Text("Export & Quality Control") },
                 text = {
-                    Column {
+                    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                         Text("Estimated file size: ~$estimatedSizeStr MB", style = MaterialTheme.typography.titleMedium)
                         Spacer(modifier = Modifier.height(16.dp))
                         Text("Resolution")
@@ -3439,16 +3463,26 @@ fun VideoEditorScreen(
 
                         // 3. Start FFmpegService
                         val exportTargetUri = effectiveUri ?: currentMainUri
-                        val intent = android.content.Intent(context, com.example.service.FFmpegService::class.java).apply {
-                            putStringArrayListExtra("uris", arrayListOf(exportTargetUri))
-                            putStringArrayListExtra("original_names", arrayListOf(com.example.ui.screens.getDisplayNameFromUri(context, initialUri)))
-                            putExtra("commandTemplate", cmd)
-                            putExtra("outputExt", format)
+                        if (exportTargetUri.isNullOrBlank()) {
+                            android.widget.Toast.makeText(context, "Cannot export: media URI is not available", android.widget.Toast.LENGTH_LONG).show()
+                            return@Button
                         }
-                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                            context.startForegroundService(intent)
-                        } else {
-                            context.startService(intent)
+                        try {
+                            val intent = android.content.Intent(context, com.example.service.FFmpegService::class.java).apply {
+                                putStringArrayListExtra("uris", arrayListOf(exportTargetUri))
+                                putStringArrayListExtra("original_names", arrayListOf(com.example.ui.screens.getDisplayNameFromUri(context, initialUri)))
+                                putExtra("commandTemplate", cmd)
+                                putExtra("outputExt", format)
+                            }
+                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                                context.startForegroundService(intent)
+                            } else {
+                                context.startService(intent)
+                            }
+                            android.widget.Toast.makeText(context, "Rendering started in background...", android.widget.Toast.LENGTH_SHORT).show()
+                        } catch (e: Exception) {
+                            com.example.LogKeeper.logError("VideoEditor", "Failed to start FFmpegService for export: ${e.message}", e)
+                            android.widget.Toast.makeText(context, "Failed to start export: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
                         }
                     }) {
                         Text("SAVE (Render)")

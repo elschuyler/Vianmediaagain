@@ -317,58 +317,79 @@ fun MiniPlayerOverlay(
                 }
 
                 // Second row: Shuffle, Loop, Refresh, Volume (with reduced padding above and below)
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 0.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
+                CompositionLocalProvider(
+                    LocalMinimumInteractiveComponentSize provides androidx.compose.ui.unit.Dp.Unspecified
                 ) {
-                    IconButton(onClick = { 
-                        player?.let {
-                            it.shuffleModeEnabled = !it.shuffleModeEnabled
-                        }
-                    }) {
-                        Icon(
-                            imageVector = Icons.Filled.Shuffle,
-                            contentDescription = "Shuffle",
-                            tint = if (shuffleMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                    IconButton(onClick = { 
-                        player?.let {
-                            it.repeatMode = when (it.repeatMode) {
-                                Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
-                                Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
-                                else -> Player.REPEAT_MODE_OFF
-                            }
-                            com.example.service.PlayerManager.exoPlayer?.pauseAtEndOfMediaItems = (it.repeatMode == Player.REPEAT_MODE_OFF)
-                        }
-                    }) {
-                        Icon(
-                            imageVector = if (loopMode == Player.REPEAT_MODE_ONE) Icons.Filled.RepeatOne else Icons.Filled.Repeat,
-                            contentDescription = "Loop",
-                            tint = if (loopMode != Player.REPEAT_MODE_OFF) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                    IconButton(onClick = { /* Refresh playlist logic */ }) {
-                        Icon(Icons.Filled.Refresh, "Refresh", tint = MaterialTheme.colorScheme.onSurface)
-                    }
-                    IconButton(onClick = {
-                        try {
-                            val audioManager = context.getSystemService(android.content.Context.AUDIO_SERVICE) as? android.media.AudioManager
-                            audioManager?.adjustStreamVolume(
-                                android.media.AudioManager.STREAM_MUSIC,
-                                android.media.AudioManager.ADJUST_SAME,
-                                android.media.AudioManager.FLAG_SHOW_UI
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 0.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(
+                            onClick = { 
+                                player?.let {
+                                    it.shuffleModeEnabled = !it.shuffleModeEnabled
+                                }
+                            },
+                            modifier = Modifier.size(30.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Shuffle,
+                                contentDescription = "Shuffle",
+                                tint = if (shuffleMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(18.dp)
                             )
-                        } catch (e: Exception) {
-                            com.example.LogKeeper.logError("MiniPlayerOverlay", "Failed to open volume slider", e)
                         }
-                    }) {
-                        Icon(
-                            imageVector = Icons.Filled.VolumeUp,
-                            contentDescription = "Volume",
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
+                        IconButton(
+                            onClick = { 
+                                player?.let {
+                                    it.repeatMode = when (it.repeatMode) {
+                                        Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+                                        Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+                                        else -> Player.REPEAT_MODE_OFF
+                                    }
+                                    com.example.service.PlayerManager.exoPlayer?.pauseAtEndOfMediaItems = (it.repeatMode == Player.REPEAT_MODE_OFF)
+                                }
+                            },
+                            modifier = Modifier.size(30.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (loopMode == Player.REPEAT_MODE_ONE) Icons.Filled.RepeatOne else Icons.Filled.Repeat,
+                                contentDescription = "Loop",
+                                tint = if (loopMode != Player.REPEAT_MODE_OFF) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        IconButton(
+                            onClick = { /* Refresh playlist logic */ },
+                            modifier = Modifier.size(30.dp)
+                        ) {
+                            Icon(Icons.Filled.Refresh, "Refresh", tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(18.dp))
+                        }
+                        IconButton(
+                            onClick = {
+                                try {
+                                    val audioManager = context.getSystemService(android.content.Context.AUDIO_SERVICE) as? android.media.AudioManager
+                                    audioManager?.adjustStreamVolume(
+                                        android.media.AudioManager.STREAM_MUSIC,
+                                        android.media.AudioManager.ADJUST_SAME,
+                                        android.media.AudioManager.FLAG_SHOW_UI
+                                    )
+                                } catch (e: Exception) {
+                                    com.example.LogKeeper.logError("MiniPlayerOverlay", "Failed to open volume slider", e)
+                                }
+                            },
+                            modifier = Modifier.size(30.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.VolumeUp,
+                                contentDescription = "Volume",
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                 }
             }

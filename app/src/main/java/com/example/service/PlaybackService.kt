@@ -229,20 +229,32 @@ override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason
     updateWidgetUI()
 }
 override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-    if (error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_TIMEOUT) {
+    val isTimeout = error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_TIMEOUT
+    if (isTimeout) {
         com.example.LogKeeper.log("PlaybackService: Timeout caught during surface detachment or release - ignored gracefully", "PlaybackService")
         return
     }
-    val rootCause = error.cause
-    if (rootCause is SecurityException || error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NO_PERMISSION ||
-        error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND ||
-        rootCause is java.io.FileNotFoundException) {
-        com.example.LogKeeper.log("PlaybackService: Cannot read media URI (${error.errorCodeName}) - skipping item gracefully: ${rootCause?.message}", "PlaybackService")
+    var isPermissionOrNotFound = error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NO_PERMISSION ||
+        error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND
+    var currentCause: Throwable? = error.cause
+    var securityCauseMessage: String? = null
+    while (currentCause != null && !isPermissionOrNotFound) {
+        if (currentCause is SecurityException || currentCause is java.io.FileNotFoundException ||
+            currentCause.message?.contains("SecurityException", ignoreCase = true) == true ||
+            currentCause.message?.contains("Permission Denial", ignoreCase = true) == true) {
+            isPermissionOrNotFound = true
+            securityCauseMessage = currentCause.message
+            break
+        }
+        currentCause = currentCause.cause
+    }
+    if (isPermissionOrNotFound) {
+        com.example.LogKeeper.log("PlaybackService: Cannot read media URI (${error.errorCodeName}) - skipping item gracefully: ${securityCauseMessage ?: error.message}", "PlaybackService")
         val player = PlayerManager.exoPlayer
         if (player != null && player.hasNextMediaItem()) {
             player.seekToNextMediaItem()
         } else {
-            player?.stop()
+            player?.pause()
         }
         return
     }
@@ -352,6 +364,9 @@ val rawPlayer = PlayerManager.exoPlayer!!
 val forwardingPlayer = object : androidx.media3.common.ForwardingPlayer(rawPlayer) {
     override fun getAvailableCommands(): androidx.media3.common.Player.Commands {
         return super.getAvailableCommands().buildUpon()
+            .add(androidx.media3.common.Player.COMMAND_PLAY_PAUSE)
+            .add(androidx.media3.common.Player.COMMAND_PREPARE)
+            .add(androidx.media3.common.Player.COMMAND_STOP)
             .add(androidx.media3.common.Player.COMMAND_SEEK_TO_NEXT)
             .add(androidx.media3.common.Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
             .add(androidx.media3.common.Player.COMMAND_SEEK_TO_PREVIOUS)
@@ -360,7 +375,10 @@ val forwardingPlayer = object : androidx.media3.common.ForwardingPlayer(rawPlaye
     }
 
     override fun isCommandAvailable(command: Int): Boolean {
-        if (command == androidx.media3.common.Player.COMMAND_SEEK_TO_NEXT ||
+        if (command == androidx.media3.common.Player.COMMAND_PLAY_PAUSE ||
+            command == androidx.media3.common.Player.COMMAND_PREPARE ||
+            command == androidx.media3.common.Player.COMMAND_STOP ||
+            command == androidx.media3.common.Player.COMMAND_SEEK_TO_NEXT ||
             command == androidx.media3.common.Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM ||
             command == androidx.media3.common.Player.COMMAND_SEEK_TO_PREVIOUS ||
             command == androidx.media3.common.Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM
@@ -368,6 +386,23 @@ val forwardingPlayer = object : androidx.media3.common.ForwardingPlayer(rawPlaye
             return true
         }
         return super.isCommandAvailable(command)
+    }
+
+    override fun getMediaMetadata(): androidx.media3.common.MediaMetadata {
+        val base = super.getMediaMetadata()
+        if (!base.title.isNullOrBlank()) {
+            return base
+        }
+        val currentItem = currentMediaItem
+        val itemTitle = currentItem?.mediaMetadata?.title?.takeIf { !it.isNullOrBlank() }
+            ?: currentItem?.mediaMetadata?.displayTitle?.takeIf { !it.isNullOrBlank() }
+            ?: currentItem?.mediaId?.substringAfterLast('/')?.takeIf { it.isNotBlank() }
+            ?: "Vian Media"
+        return base.buildUpon()
+            .setTitle(itemTitle)
+            .setDisplayTitle(itemTitle)
+            .setArtist("Vian Media")
+            .build()
     }
 }
 
@@ -577,6 +612,7 @@ return mediaSession
 
 @SuppressLint("ClickableViewAccessibility")
 private fun showOverlay(startInVideoMode: Boolean = false) {
+com.example.service.PlayerManager.flushProgressToStorage()
 if (startInVideoMode) {
     com.example.service.PlayerManager.isFloatingVideoActive = true
     com.example.service.PlayerManager.setVideoTrackEnabled(true)
@@ -603,6 +639,7 @@ var isAspectRatioBroken by androidx.compose.runtime.remember { androidx.compose.
 
 val handleMinimizeToggle: (Boolean) -> Unit = { minimized ->
     if (isMinimized != minimized) {
+        com.example.service.PlayerManager.flushProgressToStorage()
         isMinimized = minimized
         sessionIsMinimized = minimized
         if (minimized) {
@@ -842,6 +879,7 @@ onOpenMainPlayer = {
     hideOverlay()
 },
 onSwitchToMiniPlayer = {
+com.example.service.PlayerManager.flushProgressToStorage()
 isVideoMode = false
 com.example.service.PlayerManager.detachVideoSurface()
 com.example.service.PlayerManager.setVideoTrackEnabled(false)
@@ -918,6 +956,7 @@ onMinimizeChange = { minimized ->
     handleMinimizeToggle(minimized)
 },
 onSwitchToVideo = {
+    com.example.service.PlayerManager.flushProgressToStorage()
     isVideoMode = true
     com.example.service.PlayerManager.setVideoTrackEnabled(true)
     val player = com.example.service.PlayerManager.exoPlayer

@@ -391,6 +391,7 @@ object PlayerManager {
                     com.example.LogKeeper.log("detachVideoSurface skipped: floating video overlay became active", "PlayerManager")
                     return@post
                 }
+                flushProgressToStorage()
                 try {
                     player.clearVideoSurface()
                     com.example.LogKeeper.log("Video surface successfully cleared for audio-only remote operation", "PlayerManager")
@@ -405,6 +406,7 @@ object PlayerManager {
 
     fun setVideoTrackEnabled(enabled: Boolean) {
         val player = exoPlayer ?: return
+        flushProgressToStorage()
         try {
             val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
             mainHandler.post {

@@ -1,0 +1,426 @@
+[13:26:40.921] [Navigation] main
+[13:26:40.921] [PlayerManager] [PlayerManager] Initializing PlayerManager ExoPlayer
+[13:26:40.921] [System] [System] LogCatcher initialized. Storage ready.
+[13:26:40.921] [PlayerManager] Handled ExoPlayer release background job
+[13:26:40.921] [PlaybackService] cleaning up notification and session
+[13:26:40.921] [PlaybackService] onMediaItemTransition (reason: PLAYLIST_CHANGED)
+[13:26:40.921] [PlaybackService] onTimelineChanged (itemCount=0)
+[13:26:40.920] [PlaybackService] onIsPlayingChanged = false
+[13:26:40.920] [PlayerManager] Flushed progress to storage (241748 ms)
+[13:26:40.920] [PlaybackService] STATE_IDLE
+[13:26:40.920] [PlayerManager] [PlayerManager] Video surface successfully cleared for audio-only remote operation
+[13:26:40.920] [PlayerManager] setVideoTrackEnabled(false) - video track disabled: true
+[13:26:40.920] [PlayerManager] [PlayerManager] Video surface successfully cleared for audio-only remote operation
+[13:26:40.920] [PlayerManager] Flushed progress to storage (44692 ms)
+[13:26:40.920] [PlayerManager] Flushed progress to storage (35045 ms)
+[13:26:40.920] [PlayerScreen] ON_DESTROY
+[13:26:40.920] [PlayerScreen] Preserving video surface for floating video overlay
+[13:26:40.920] [PlayerScreen] ON_STOP
+[13:26:40.920] [PlayerManager] Flushed progress to storage (34484 ms)
+[13:26:40.920] [PlayerScreen] ON_PAUSE
+[13:26:40.920] [PlaybackService] ACTION_VIDEO_OVERLAY
+[13:26:40.920] [PlaybackService] null
+[13:26:40.920] [PlaybackService] onIsPlayingChanged = true
+[13:26:40.920] [PlayerScreen] onIsPlayingChanged = true
+[13:26:40.920] [PlaybackService] STATE_READY
+[13:26:40.920] [PlayerScreen] PlaybackState changed to: STATE_READY
+[13:26:40.920] [PlayerScreen] onTracksChanged
+[13:26:40.920] [PlaybackService] onTimelineChanged (itemCount=1)
+[13:26:40.920] [PlaybackService] null
+[13:26:40.920] [PlaybackService] null
+[13:26:40.920] [PlaybackService] ACTION_HIDE_OVERLAY
+[13:26:40.920] [PlaybackService] null
+[13:26:40.920] [PlaybackService] onTimelineChanged (itemCount=1)
+[13:26:40.919] [PlaybackService] onTimelineChanged (itemCount=1)
+[13:26:40.919] [PlaybackService] ACTION_HIDE_OVERLAY
+[13:26:40.919] [PlayerScreen] rot=0 w=256 h=144 isPortrait=false
+[13:26:40.919] [PlayerScreen] ON_START
+[13:26:40.919] [PlayerScreen] ON_RESUME
+[13:26:40.919] [PlayerScreen] ON_CREATE
+[13:26:40.919] [PlayerScreen] [PlayerScreen] Starting player session
+[13:26:40.919] [PlayerManager] Flushed progress to storage (26876 ms)
+[13:26:40.919] [Navigation] main
+[13:26:40.919] [PlayerManager] [PlayerManager] Initializing PlayerManager ExoPlayer
+[13:26:40.919] [System] [System] LogCatcher initialized. Storage ready.
+[13:26:40.919] [PlayerManager] Handled ExoPlayer release background job
+[13:26:40.919] [PlaybackService] cleaning up notification and session
+[13:26:40.919] [PlaybackService] onMediaItemTransition (reason: PLAYLIST_CHANGED)
+[13:26:40.919] [PlaybackService] onTimelineChanged (itemCount=0)
+[13:26:40.919] [PlaybackService] onIsPlayingChanged = false
+[13:26:40.919] [PlayerManager] Flushed progress to storage (26876 ms)
+[13:26:40.919] [PlaybackService] STATE_IDLE
+[13:26:40.919] [PlayerManager] [PlayerManager] Video surface successfully cleared for audio-only remote operation
+[13:26:40.919] [PlayerManager] setVideoTrackEnabled(false) - video track disabled: true
+[13:26:40.919] [PlayerManager] [PlayerManager] Video surface successfully cleared for audio-only remote operation
+[13:26:40.919] [PlayerManager] Flushed progress to storage (13743 ms)
+[13:26:40.919] [PlaybackService] onIsPlayingChanged = true
+[13:26:40.919] [PlaybackService] STATE_READY
+[13:26:40.919] [PlaybackService] onIsPlayingChanged = false
+[13:26:40.919] [PlayerManager] Flushed progress to storage (13059 ms)
+[13:26:40.918] [PlaybackService] STATE_BUFFERING
+[13:26:40.918] [PlayerManager] setVideoTrackEnabled(true) - video track disabled: false
+[13:26:40.918] [PlayerManager] [PlayerManager] Video surface successfully cleared for audio-only remote operation
+[13:26:40.918] [PlayerManager] setVideoTrackEnabled(false) - video track disabled: true
+[13:26:40.918] [PlayerManager] Flushed progress to storage (5105 ms)
+[13:26:40.918] [PlayerScreen] ON_DESTROY
+[13:26:40.918] [PlayerScreen] Preserving video surface for floating video overlay
+[13:26:40.918] [PlayerScreen] ON_STOP
+[13:26:40.918] [PlayerManager] Flushed progress to storage (4341 ms)
+[13:26:40.918] [PlayerScreen] ON_PAUSE
+[13:26:40.918] [PlaybackService] ACTION_VIDEO_OVERLAY
+[13:26:40.918] [PlaybackService] null
+[13:26:40.918] [PlaybackService] onIsPlayingChanged = true
+[13:26:40.918] [PlayerScreen] onIsPlayingChanged = true
+[13:26:40.918] [PlaybackService] STATE_READY
+[13:26:40.918] [PlayerScreen] PlaybackState changed to: STATE_READY
+[13:26:40.918] [PlayerScreen] onTracksChanged
+[13:26:40.918] [PlaybackService] onTimelineChanged (itemCount=1)
+[13:26:40.918] [PlaybackService] null
+[13:26:40.918] [PlaybackService] null
+[13:26:40.918] [PlaybackService] ACTION_HIDE_OVERLAY
+[13:26:40.918] [PlaybackService] null
+[13:26:40.918] [PlaybackService] onTimelineChanged (itemCount=1)
+[13:26:40.918] [PlaybackService] onTimelineChanged (itemCount=1)
+[13:26:40.918] [PlaybackService] ACTION_HIDE_OVERLAY
+[13:26:40.918] [PlayerScreen] rot=0 w=256 h=144 isPortrait=false
+[13:26:40.918] [PlayerScreen] ON_RESUME
+[13:26:40.917] [PlayerScreen] ON_START
+[13:26:40.917] [PlayerScreen] ON_CREATE
+[13:26:40.917] [PlayerScreen] [PlayerScreen] Starting player session
+[13:26:40.917] [Navigation] main
+[13:26:40.917] [PlayerManager] [PlayerManager] Initializing PlayerManager ExoPlayer
+[13:26:40.917] [System] [System] LogCatcher initialized. Storage ready.
+[13:26:40.917] [Navigation] main
+[13:26:40.917] [PlayerManager] [PlayerManager] Initializing PlayerManager ExoPlayer
+[13:26:40.917] [System] [System] LogCatcher initialized. Storage ready.
+[13:26:40.917] [PlayerScreen] ON_DESTROY
+[13:26:40.917] [PlayerScreen] ON_STOP
+[13:26:40.917] [PlayerScreen] ON_PAUSE
+[13:26:40.917] [PlayerManager] Handled ExoPlayer release background job
+[13:26:40.917] [PlayerManager] Flushed progress to storage (500059 ms)
+[13:26:40.917] [PlaybackService] cleaning up notification and session
+[13:26:40.917] [PlayerScreen] onPlayWhenReadyChanged = false, reason = 1
+[13:26:40.917] [PlaybackService] onPlayWhenReadyChanged = false, reason = 1
+[13:26:40.917] [PlayerScreen] [PlayerScreen] BackHandler triggered in PlayerScreen (bgPlay=false)
+[13:26:40.917] [PlaybackService] null
+[13:26:40.917] [PlayerScreen] PlaybackState changed to: STATE_IDLE
+[13:26:40.917] [PlaybackService] STATE_IDLE
+[13:26:40.917] ERROR [PlayerScreen]: ExoPlayer Error: Source error
+androidx.media3.exoplayer.ExoPlaybackException: Source error
+	at androidx.media3.exoplayer.ExoPlayerImplInternal.handleIoException(ExoPlayerImplInternal.java:737)
+	at androidx.media3.exoplayer.ExoPlayerImplInternal.handleMessage(ExoPlayerImplInternal.java:713)
+	at android.os.Handler.dispatchMessage(Handler.java:103)
+	at android.os.Looper.loopOnce(Looper.java:246)
+	at android.os.Looper.loop(Looper.java:334)
+	at android.os.HandlerThread.run(HandlerThread.java:85)
+Caused by: androidx.media3.exoplayer.upstream.Loader$UnexpectedLoaderException: Unexpected SecurityException: Permission Denial: opening provider com.android.externalstorage.ExternalStorageProvider from ProcessRecord{2aa20af 30141:shura.media/u0a1633} (pid=30141, uid=11633) requires that you obtain access using ACTION_OPEN_DOCUMENT or related APIs
+	at androidx.media3.exoplayer.upstream.Loader$LoadTask.run(Loader.java:471)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1100)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:1571)
+Caused by: java.lang.SecurityException: Permission Denial: opening provider com.android.externalstorage.ExternalStorageProvider from ProcessRecord{2aa20af 30141:shura.media/u0a1633} (pid=30141, uid=11633) requires that you obtain access using ACTION_OPEN_DOCUMENT or related APIs
+	at android.os.Parcel.createExceptionOrNull(Parcel.java:3241)
+	at android.os.Parcel.createException(Parcel.java:3225)
+	at android.os.Parcel.readException(Parcel.java:3208)
+	at android.os.Parcel.readException(Parcel.java:3150)
+	at android.app.IActivityManager$Stub$Proxy.getContentProvider(IActivityManager.java:6512)
+	at android.app.ActivityThread.acquireProvider(ActivityThread.java:8005)
+	at android.app.ContextImpl$ApplicationContentResolver.acquireUnstableProvider(ContextImpl.java:3802)
+	at android.content.ContentResolver.acquireUnstableProvider(ContentResolver.java:2542)
+	at android.content.ContentResolver.openTypedAssetFileDescriptor(ContentResolver.java:2027)
+	at android.content.ContentResolver.openTypedAssetFileDescriptor(ContentResolver.java:1981)
+	at androidx.media3.datasource.ContentDataSource.open(ContentDataSource.java:89)
+	at androidx.media3.datasource.DefaultDataSource.open(DefaultDataSource.java:275)
+	at androidx.media3.datasource.StatsDataSource.open(StatsDataSource.java:87)
+	at androidx.media3.exoplayer.source.ProgressiveMediaPeriod$ExtractingLoadable.load(ProgressiveMediaPeriod.java:1085)
+	at androidx.media3.exoplayer.upstream.Loader$LoadTask.run(Loader.java:450)
+	... 3 more
+Caused by: android.os.RemoteException: Remote stack trace:
+	at com.android.server.am.ContentProviderHelper.checkAssociationAndPermissionLocked(ContentProviderHelper.java:780)
+	at com.android.server.am.ContentProviderHelper.getContentProviderImpl(ContentProviderHelper.java:320)
+	at com.android.server.am.ContentProviderHelper.getContentProvider(ContentProviderHelper.java:160)
+	at com.android.server.am.ActivityManagerService.getContentProvider(ActivityManagerService.java:7322)
+	at android.app.IActivityManager$Stub.onTransact(IActivityManager.java:3038)
+[13:26:40.916] ERROR [PlaybackService]: Error: ERROR_CODE_IO_UNSPECIFIED - Source error - Cause: Unexpected SecurityException: Permission Denial: opening provider com.android.externalstorage.ExternalStorageProvider from ProcessRecord{2aa20af 30141:shura.media/u0a1633} (pid=30141, uid=11633) requires that you obtain access using ACTION_OPEN_DOCUMENT or related APIs
+androidx.media3.exoplayer.ExoPlaybackException: Source error
+	at androidx.media3.exoplayer.ExoPlayerImplInternal.handleIoException(ExoPlayerImplInternal.java:737)
+	at androidx.media3.exoplayer.ExoPlayerImplInternal.handleMessage(ExoPlayerImplInternal.java:713)
+	at android.os.Handler.dispatchMessage(Handler.java:103)
+	at android.os.Looper.loopOnce(Looper.java:246)
+	at android.os.Looper.loop(Looper.java:334)
+	at android.os.HandlerThread.run(HandlerThread.java:85)
+Caused by: androidx.media3.exoplayer.upstream.Loader$UnexpectedLoaderException: Unexpected SecurityException: Permission Denial: opening provider com.android.externalstorage.ExternalStorageProvider from ProcessRecord{2aa20af 30141:shura.media/u0a1633} (pid=30141, uid=11633) requires that you obtain access using ACTION_OPEN_DOCUMENT or related APIs
+	at androidx.media3.exoplayer.upstream.Loader$LoadTask.run(Loader.java:471)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1100)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:1571)
+Caused by: java.lang.SecurityException: Permission Denial: opening provider com.android.externalstorage.ExternalStorageProvider from ProcessRecord{2aa20af 30141:shura.media/u0a1633} (pid=30141, uid=11633) requires that you obtain access using ACTION_OPEN_DOCUMENT or related APIs
+	at android.os.Parcel.createExceptionOrNull(Parcel.java:3241)
+	at android.os.Parcel.createException(Parcel.java:3225)
+	at android.os.Parcel.readException(Parcel.java:3208)
+	at android.os.Parcel.readException(Parcel.java:3150)
+	at android.app.IActivityManager$Stub$Proxy.getContentProvider(IActivityManager.java:6512)
+	at android.app.ActivityThread.acquireProvider(ActivityThread.java:8005)
+	at android.app.ContextImpl$ApplicationContentResolver.acquireUnstableProvider(ContextImpl.java:3802)
+	at android.content.ContentResolver.acquireUnstableProvider(ContentResolver.java:2542)
+	at android.content.ContentResolver.openTypedAssetFileDescriptor(ContentResolver.java:2027)
+	at android.content.ContentResolver.openTypedAssetFileDescriptor(ContentResolver.java:1981)
+	at androidx.media3.datasource.ContentDataSource.open(ContentDataSource.java:89)
+	at androidx.media3.datasource.DefaultDataSource.open(DefaultDataSource.java:275)
+	at androidx.media3.datasource.StatsDataSource.open(StatsDataSource.java:87)
+	at androidx.media3.exoplayer.source.ProgressiveMediaPeriod$ExtractingLoadable.load(ProgressiveMediaPeriod.java:1085)
+	at androidx.media3.exoplayer.upstream.Loader$LoadTask.run(Loader.java:450)
+	... 3 more
+Caused by: android.os.RemoteException: Remote stack trace:
+	at com.android.server.am.ContentProviderHelper.checkAssociationAndPermissionLocked(ContentProviderHelper.java:780)
+	at com.android.server.am.ContentProviderHelper.getContentProviderImpl(ContentProviderHelper.java:320)
+	at com.android.server.am.ContentProviderHelper.getContentProvider(ContentProviderHelper.java:160)
+	at com.android.server.am.ActivityManagerService.getContentProvider(ActivityManagerService.java:7322)
+	at android.app.IActivityManager$Stub.onTransact(IActivityManager.java:3038)
+[13:26:40.916] [PlaybackService] onTimelineChanged (itemCount=1)
+[13:26:40.916] [PlaybackService] onTimelineChanged (itemCount=1)
+[13:26:40.916] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[13:26:40.916] [PlaybackService] STATE_BUFFERING
+[13:26:40.916] [PlayerScreen] [PlayerScreen] Play/Pause button clicked (currently isPlaying=false)
+[13:26:40.916] [PlaybackService] null
+[13:26:40.916] [PlayerScreen] PlaybackState changed to: STATE_IDLE
+[13:26:40.916] [PlaybackService] STATE_IDLE
+[13:26:40.916] ERROR [PlayerScreen]: ExoPlayer Error: Source error
+androidx.media3.exoplayer.ExoPlaybackException: Source error
+	at androidx.media3.exoplayer.ExoPlayerImplInternal.handleIoException(ExoPlayerImplInternal.java:737)
+	at androidx.media3.exoplayer.ExoPlayerImplInternal.handleMessage(ExoPlayerImplInternal.java:713)
+	at android.os.Handler.dispatchMessage(Handler.java:103)
+	at android.os.Looper.loopOnce(Looper.java:246)
+	at android.os.Looper.loop(Looper.java:334)
+	at android.os.HandlerThread.run(HandlerThread.java:85)
+Caused by: androidx.media3.exoplayer.upstream.Loader$UnexpectedLoaderException: Unexpected SecurityException: Permission Denial: opening provider com.android.externalstorage.ExternalStorageProvider from ProcessRecord{2aa20af 30141:shura.media/u0a1633} (pid=30141, uid=11633) requires that you obtain access using ACTION_OPEN_DOCUMENT or related APIs
+	at androidx.media3.exoplayer.upstream.Loader$LoadTask.run(Loader.java:471)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1100)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:1571)
+Caused by: java.lang.SecurityException: Permission Denial: opening provider com.android.externalstorage.ExternalStorageProvider from ProcessRecord{2aa20af 30141:shura.media/u0a1633} (pid=30141, uid=11633) requires that you obtain access using ACTION_OPEN_DOCUMENT or related APIs
+	at android.os.Parcel.createExceptionOrNull(Parcel.java:3241)
+	at android.os.Parcel.createException(Parcel.java:3225)
+	at android.os.Parcel.readException(Parcel.java:3208)
+	at android.os.Parcel.readException(Parcel.java:3150)
+	at android.app.IActivityManager$Stub$Proxy.getContentProvider(IActivityManager.java:6512)
+	at android.app.ActivityThread.acquireProvider(ActivityThread.java:8005)
+	at android.app.ContextImpl$ApplicationContentResolver.acquireUnstableProvider(ContextImpl.java:3802)
+	at android.content.ContentResolver.acquireUnstableProvider(ContentResolver.java:2542)
+	at android.content.ContentResolver.openTypedAssetFileDescriptor(ContentResolver.java:2027)
+	at android.content.ContentResolver.openTypedAssetFileDescriptor(ContentResolver.java:1981)
+	at androidx.media3.datasource.ContentDataSource.open(ContentDataSource.java:89)
+	at androidx.media3.datasource.DefaultDataSource.open(DefaultDataSource.java:275)
+	at androidx.media3.datasource.StatsDataSource.open(StatsDataSource.java:87)
+	at androidx.media3.exoplayer.source.ProgressiveMediaPeriod$ExtractingLoadable.load(ProgressiveMediaPeriod.java:1085)
+	at androidx.media3.exoplayer.upstream.Loader$LoadTask.run(Loader.java:450)
+	... 3 more
+[13:26:40.916] ERROR [PlaybackService]: Error: ERROR_CODE_IO_UNSPECIFIED - Source error - Cause: Unexpected SecurityException: Permission Denial: opening provider com.android.externalstorage.ExternalStorageProvider from ProcessRecord{2aa20af 30141:shura.media/u0a1633} (pid=30141, uid=11633) requires that you obtain access using ACTION_OPEN_DOCUMENT or related APIs
+androidx.media3.exoplayer.ExoPlaybackException: Source error
+	at androidx.media3.exoplayer.ExoPlayerImplInternal.handleIoException(ExoPlayerImplInternal.java:737)
+	at androidx.media3.exoplayer.ExoPlayerImplInternal.handleMessage(ExoPlayerImplInternal.java:713)
+	at android.os.Handler.dispatchMessage(Handler.java:103)
+	at android.os.Looper.loopOnce(Looper.java:246)
+	at android.os.Looper.loop(Looper.java:334)
+	at android.os.HandlerThread.run(HandlerThread.java:85)
+Caused by: androidx.media3.exoplayer.upstream.Loader$UnexpectedLoaderException: Unexpected SecurityException: Permission Denial: opening provider com.android.externalstorage.ExternalStorageProvider from ProcessRecord{2aa20af 30141:shura.media/u0a1633} (pid=30141, uid=11633) requires that you obtain access using ACTION_OPEN_DOCUMENT or related APIs
+	at androidx.media3.exoplayer.upstream.Loader$LoadTask.run(Loader.java:471)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1100)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:1571)
+Caused by: java.lang.SecurityException: Permission Denial: opening provider com.android.externalstorage.ExternalStorageProvider from ProcessRecord{2aa20af 30141:shura.media/u0a1633} (pid=30141, uid=11633) requires that you obtain access using ACTION_OPEN_DOCUMENT or related APIs
+	at android.os.Parcel.createExceptionOrNull(Parcel.java:3241)
+	at android.os.Parcel.createException(Parcel.java:3225)
+	at android.os.Parcel.readException(Parcel.java:3208)
+	at android.os.Parcel.readException(Parcel.java:3150)
+	at android.app.IActivityManager$Stub$Proxy.getContentProvider(IActivityManager.java:6512)
+	at android.app.ActivityThread.acquireProvider(ActivityThread.java:8005)
+	at android.app.ContextImpl$ApplicationContentResolver.acquireUnstableProvider(ContextImpl.java:3802)
+	at android.content.ContentResolver.acquireUnstableProvider(ContentResolver.java:2542)
+	at android.content.ContentResolver.openTypedAssetFileDescriptor(ContentResolver.java:2027)
+	at android.content.ContentResolver.openTypedAssetFileDescriptor(ContentResolver.java:1981)
+	at androidx.media3.datasource.ContentDataSource.open(ContentDataSource.java:89)
+	at androidx.media3.datasource.DefaultDataSource.open(DefaultDataSource.java:275)
+	at androidx.media3.datasource.StatsDataSource.open(StatsDataSource.java:87)
+	at androidx.media3.exoplayer.source.ProgressiveMediaPeriod$ExtractingLoadable.load(ProgressiveMediaPeriod.java:1085)
+	at androidx.media3.exoplayer.upstream.Loader$LoadTask.run(Loader.java:450)
+	... 3 more
+[13:26:40.916] [PlaybackService] onTimelineChanged (itemCount=1)
+[13:26:40.916] [PlaybackService] onTimelineChanged (itemCount=1)
+[13:26:40.916] [PlayerScreen] PlaybackState changed to: STATE_BUFFERING
+[13:26:40.916] [PlaybackService] STATE_BUFFERING
+[13:26:40.916] [PlayerScreen] Controller is in STATE_IDLE for current item, calling prepare()
+[13:26:40.916] [PlayerScreen] ON_RESUME
+[13:26:40.916] [PlayerScreen] ON_START
+[13:26:40.915] [PlayerScreen] ON_CREATE
+[13:26:40.915] [PlayerScreen] [PlayerScreen] Starting player session
+[13:26:40.915] [PlayerManager] Flushed progress to storage (500059 ms)
+[13:26:40.915] [PlayerManager] setVideoTrackEnabled(true) - video track disabled: false
+[13:26:40.915] [PlayerManager] [PlayerManager] Video surface successfully cleared for audio-only remote operation
+[13:26:40.915] [PlayerManager] setVideoTrackEnabled(false) - video track disabled: true
+[13:26:40.915] [PlaybackService] null
+[13:26:40.915] [PlaybackService] STATE_IDLE
+[13:26:40.915] ERROR [PlaybackService]: Error: ERROR_CODE_IO_UNSPECIFIED - Source error - Cause: Unexpected SecurityException: Permission Denial: opening provider com.android.externalstorage.ExternalStorageProvider from ProcessRecord{2aa20af 30141:shura.media/u0a1633} (pid=30141, uid=11633) requires that you obtain access using ACTION_OPEN_DOCUMENT or related APIs
+androidx.media3.exoplayer.ExoPlaybackException: Source error
+	at androidx.media3.exoplayer.ExoPlayerImplInternal.handleIoException(ExoPlayerImplInternal.java:737)
+	at androidx.media3.exoplayer.ExoPlayerImplInternal.handleMessage(ExoPlayerImplInternal.java:713)
+	at android.os.Handler.dispatchMessage(Handler.java:103)
+	at android.os.Looper.loopOnce(Looper.java:246)
+	at android.os.Looper.loop(Looper.java:334)
+	at android.os.HandlerThread.run(HandlerThread.java:85)
+Caused by: androidx.media3.exoplayer.upstream.Loader$UnexpectedLoaderException: Unexpected SecurityException: Permission Denial: opening provider com.android.externalstorage.ExternalStorageProvider from ProcessRecord{2aa20af 30141:shura.media/u0a1633} (pid=30141, uid=11633) requires that you obtain access using ACTION_OPEN_DOCUMENT or related APIs
+	at androidx.media3.exoplayer.upstream.Loader$LoadTask.run(Loader.java:471)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1100)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:1571)
+Caused by: java.lang.SecurityException: Permission Denial: opening provider com.android.externalstorage.ExternalStorageProvider from ProcessRecord{2aa20af 30141:shura.media/u0a1633} (pid=30141, uid=11633) requires that you obtain access using ACTION_OPEN_DOCUMENT or related APIs
+	at android.os.Parcel.createExceptionOrNull(Parcel.java:3241)
+	at android.os.Parcel.createException(Parcel.java:3225)
+	at android.os.Parcel.readException(Parcel.java:3208)
+	at android.os.Parcel.readException(Parcel.java:3150)
+	at android.app.IActivityManager$Stub$Proxy.getContentProvider(IActivityManager.java:6512)
+	at android.app.ActivityThread.acquireProvider(ActivityThread.java:8005)
+	at android.app.ContextImpl$ApplicationContentResolver.acquireUnstableProvider(ContextImpl.java:3802)
+	at android.content.ContentResolver.acquireUnstableProvider(ContentResolver.java:2542)
+	at android.content.ContentResolver.openTypedAssetFileDescriptor(ContentResolver.java:2027)
+	at android.content.ContentResolver.openTypedAssetFileDescriptor(ContentResolver.java:1981)
+	at androidx.media3.datasource.ContentDataSource.open(ContentDataSource.java:89)
+	at androidx.media3.datasource.DefaultDataSource.open(DefaultDataSource.java:275)
+	at androidx.media3.datasource.StatsDataSource.open(StatsDataSource.java:87)
+	at androidx.media3.exoplayer.source.ProgressiveMediaPeriod$ExtractingLoadable.load(ProgressiveMediaPeriod.java:1085)
+	at androidx.media3.exoplayer.upstream.Loader$LoadTask.run(Loader.java:450)
+	... 3 more
+[13:26:40.915] [PlaybackService] onTimelineChanged (itemCount=1)
+[13:26:40.915] [PlaybackService] onTimelineChanged (itemCount=1)
+[13:26:40.915] [PlaybackService] STATE_BUFFERING
+[13:26:40.915] [PlaybackService] null
+[13:26:40.915] [PlaybackService] STATE_IDLE
+[13:26:40.915] ERROR [PlaybackService]: Error: ERROR_CODE_IO_UNSPECIFIED - Source error - Cause: Unexpected SecurityException: Permission Denial: opening provider com.android.externalstorage.ExternalStorageProvider from ProcessRecord{2aa20af 30141:shura.media/u0a1633} (pid=30141, uid=11633) requires that you obtain access using ACTION_OPEN_DOCUMENT or related APIs
+androidx.media3.exoplayer.ExoPlaybackException: Source error
+	at androidx.media3.exoplayer.ExoPlayerImplInternal.handleIoException(ExoPlayerImplInternal.java:737)
+	at androidx.media3.exoplayer.ExoPlayerImplInternal.handleMessage(ExoPlayerImplInternal.java:713)
+	at android.os.Handler.dispatchMessage(Handler.java:103)
+	at android.os.Looper.loopOnce(Looper.java:246)
+	at android.os.Looper.loop(Looper.java:334)
+	at android.os.HandlerThread.run(HandlerThread.java:85)
+Caused by: androidx.media3.exoplayer.upstream.Loader$UnexpectedLoaderException: Unexpected SecurityException: Permission Denial: opening provider com.android.externalstorage.ExternalStorageProvider from ProcessRecord{2aa20af 30141:shura.media/u0a1633} (pid=30141, uid=11633) requires that you obtain access using ACTION_OPEN_DOCUMENT or related APIs
+	at androidx.media3.exoplayer.upstream.Loader$LoadTask.run(Loader.java:471)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1100)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:1571)
+Caused by: java.lang.SecurityException: Permission Denial: opening provider com.android.externalstorage.ExternalStorageProvider from ProcessRecord{2aa20af 30141:shura.media/u0a1633} (pid=30141, uid=11633) requires that you obtain access using ACTION_OPEN_DOCUMENT or related APIs
+	at android.os.Parcel.createExceptionOrNull(Parcel.java:3241)
+	at android.os.Parcel.createException(Parcel.java:3225)
+	at android.os.Parcel.readException(Parcel.java:3208)
+	at android.os.Parcel.readException(Parcel.java:3150)
+	at android.app.IActivityManager$Stub$Proxy.getContentProvider(IActivityManager.java:6512)
+	at android.app.ActivityThread.acquireProvider(ActivityThread.java:8005)
+	at android.app.ContextImpl$ApplicationContentResolver.acquireUnstableProvider(ContextImpl.java:3802)
+	at android.content.ContentResolver.acquireUnstableProvider(ContentResolver.java:2542)
+	at android.content.ContentResolver.openTypedAssetFileDescriptor(ContentResolver.java:2027)
+	at android.content.ContentResolver.openTypedAssetFileDescriptor(ContentResolver.java:1981)
+	at androidx.media3.datasource.ContentDataSource.open(ContentDataSource.java:89)
+	at androidx.media3.datasource.DefaultDataSource.open(DefaultDataSource.java:275)
+	at androidx.media3.datasource.StatsDataSource.open(StatsDataSource.java:87)
+	at androidx.media3.exoplayer.source.ProgressiveMediaPeriod$ExtractingLoadable.load(ProgressiveMediaPeriod.java:1085)
+	at androidx.media3.exoplayer.upstream.Loader$LoadTask.run(Loader.java:450)
+	... 3 more
+Caused by: android.os.RemoteException: Remote stack trace:
+	at com.android.server.am.ContentProviderHelper.checkAssociationAndPermissionLocked(ContentProviderHelper.java:780)
+	at com.android.server.am.ContentProviderHelper.getContentProviderImpl(ContentProviderHelper.java:320)
+	at com.android.server.am.ContentProviderHelper.getContentProvider(ContentProviderHelper.java:160)
+	at com.android.server.am.ActivityManagerService.getContentProvider(ActivityManagerService.java:7322)
+	at android.app.IActivityManager$Stub.onTransact(IActivityManager.java:3038)
+[13:26:40.915] [PlaybackService] onTimelineChanged (itemCount=1)
+[13:26:40.915] [PlaybackService] onTimelineChanged (itemCount=1)
+[13:26:40.914] [PlaybackService] STATE_BUFFERING
+[13:26:40.914] [PlaybackService] null
+[13:26:40.914] [PlaybackService] STATE_IDLE
+[13:26:40.914] ERROR [PlaybackService]: Error: ERROR_CODE_IO_UNSPECIFIED - Source error - Cause: Unexpected SecurityException: Permission Denial: reading com.android.externalstorage.ExternalStorageProvider uri [REDACTED_URI] from pid=30141, uid=11633 requires that you obtain access using ACTION_OPEN_DOCUMENT or related APIs
+androidx.media3.exoplayer.ExoPlaybackException: Source error
+	at androidx.media3.exoplayer.ExoPlayerImplInternal.handleIoException(ExoPlayerImplInternal.java:737)
+	at androidx.media3.exoplayer.ExoPlayerImplInternal.handleMessage(ExoPlayerImplInternal.java:713)
+	at android.os.Handler.dispatchMessage(Handler.java:103)
+	at android.os.Looper.loopOnce(Looper.java:246)
+	at android.os.Looper.loop(Looper.java:334)
+	at android.os.HandlerThread.run(HandlerThread.java:85)
+Caused by: androidx.media3.exoplayer.upstream.Loader$UnexpectedLoaderException: Unexpected SecurityException: Permission Denial: reading com.android.externalstorage.ExternalStorageProvider uri [REDACTED_URI] from pid=30141, uid=11633 requires that you obtain access using ACTION_OPEN_DOCUMENT or related APIs
+	at androidx.media3.exoplayer.upstream.Loader$LoadTask.run(Loader.java:471)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1100)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:1571)
+Caused by: java.lang.SecurityException: Permission Denial: reading com.android.externalstorage.ExternalStorageProvider uri [REDACTED_URI] from pid=30141, uid=11633 requires that you obtain access using ACTION_OPEN_DOCUMENT or related APIs
+	at android.os.Parcel.createExceptionOrNull(Parcel.java:3241)
+	at android.os.Parcel.createException(Parcel.java:3225)
+	at android.os.Parcel.readException(Parcel.java:3208)
+	at android.database.DatabaseUtils.readExceptionFromParcel(DatabaseUtils.java:203)
+	at android.database.DatabaseUtils.readExceptionWithFileNotFoundExceptionFromParcel(DatabaseUtils.java:166)
+	at android.content.ContentProviderProxy.openTypedAssetFile(ContentProviderNative.java:814)
+	at android.content.ContentResolver.openTypedAssetFileDescriptor(ContentResolver.java:2043)
+	at android.content.ContentResolver.openTypedAssetFileDescriptor(ContentResolver.java:1981)
+	at androidx.media3.datasource.ContentDataSource.open(ContentDataSource.java:89)
+	at androidx.media3.datasource.DefaultDataSource.open(DefaultDataSource.java:275)
+	at androidx.media3.datasource.StatsDataSource.open(StatsDataSource.java:87)
+	at androidx.media3.exoplayer.source.ProgressiveMediaPeriod$ExtractingLoadable.load(ProgressiveMediaPeriod.java:1085)
+	at androidx.media3.exoplayer.upstream.Loader$LoadTask.run(Loader.java:450)
+	... 3 more
+[13:26:40.914] [PlaybackService] onTimelineChanged (itemCount=1)
+[13:26:40.914] [PlaybackService] onIsPlayingChanged = false
+[13:26:40.914] [PlayerManager] Flushed progress to storage (500059 ms)
+[13:26:40.914] [PlaybackService] STATE_BUFFERING
+[13:26:40.914] [PlaybackService] null
+[13:26:40.914] [PlaybackService] onIsPlayingChanged = true
+[13:26:40.914] [PlaybackService] STATE_READY
+[13:26:40.914] [PlaybackService] null
+[13:26:40.914] [PlaybackService] onIsPlayingChanged = false
+[13:26:40.914] [PlayerManager] Flushed progress to storage (506557 ms)
+[13:26:40.914] [PlaybackService] STATE_BUFFERING
+[13:26:40.914] [PlaybackService] null
+[13:26:40.914] [PlaybackService] onIsPlayingChanged = true
+[13:26:40.914] [PlaybackService] STATE_READY
+[13:26:40.914] [PlaybackService] null
+[13:26:40.914] [PlaybackService] onIsPlayingChanged = false
+[13:26:40.914] [PlayerManager] Flushed progress to storage (471972 ms)
+[13:26:40.914] [PlaybackService] STATE_BUFFERING
+[13:26:40.913] [PlaybackService] null
+[13:26:40.913] [PlaybackService] onIsPlayingChanged = true
+[13:26:40.913] [PlaybackService] STATE_READY
+[13:26:40.913] [PlaybackService] null
+[13:26:40.913] [PlaybackService] onIsPlayingChanged = false
+[13:26:40.913] [PlayerManager] Flushed progress to storage (316579 ms)
+[13:26:40.913] [PlaybackService] STATE_BUFFERING
+[13:26:40.913] [PlaybackService] null
+[13:26:40.913] [PlaybackService] onIsPlayingChanged = true
+[13:26:40.913] [PlaybackService] STATE_READY
+[13:26:40.913] [PlaybackService] null
+[13:26:40.913] [PlaybackService] onIsPlayingChanged = false
+[13:26:40.913] [PlayerManager] Flushed progress to storage (136772 ms)
+[13:26:40.913] [PlaybackService] STATE_BUFFERING
+[13:26:40.913] [PlaybackService] null
+[13:26:40.913] [PlaybackService] onIsPlayingChanged = true
+[13:26:40.913] [PlaybackService] STATE_READY
+[13:26:40.913] [PlaybackService] null
+[13:26:40.913] [PlaybackService] onIsPlayingChanged = false
+[13:26:40.913] [PlayerManager] Flushed progress to storage (16315 ms)
+[13:26:40.913] [PlaybackService] STATE_BUFFERING
+[13:26:40.913] [PlaybackService] null
+[13:26:40.913] [PlaybackService] onTimelineChanged (itemCount=1)
+[13:26:40.913] [PlaybackService] null
+[13:26:40.913] [PlaybackService] onIsPlayingChanged = true
+[13:26:40.913] [PlaybackService] STATE_READY
+[13:26:40.912] [PlaybackService] null
+[13:26:40.912] [PlaybackService] onTimelineChanged (itemCount=1)
+[13:26:40.912] [PlaybackService] null
+[13:26:40.912] [PlaybackService] null
+[13:26:40.912] [PlaybackService] onTimelineChanged (itemCount=1)
+[13:26:40.912] [PlaybackService] ACTION_VIDEO_OVERLAY
+[13:26:40.912] [PlayerManager] [PlayerManager] Initializing PlayerManager ExoPlayer
+[13:26:40.912] [MainActivity] isMini=false, isPip=true, urisCount=1
+[13:26:40.912] [MainActivity] isMini=false, isPip=true, urisCount=1
+[13:26:40.912] [System] [System] LogCatcher initialized. Storage ready.
+[13:26:40.912] [Navigation] main
+[13:26:40.912] [App] [App] Permissions granted by user
+[13:26:40.912] [App] ${permissionsToRequest.joinToString()}
+[13:26:40.912] [Navigation] welcome
+[13:26:40.912] [PlayerManager] [PlayerManager] Initializing PlayerManager ExoPlayer
+[13:26:40.912] [System] [System] LogCatcher initialized. Storage ready.
