@@ -174,15 +174,15 @@ fun MiniPlayerOverlay(
         modifier = Modifier
             .fillMaxSize()
             .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.background)
-            .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+            .background(Color.White)
+            .border(1.5.dp, Color(0xFF03A9F4).copy(alpha = 0.4f), RoundedCornerShape(12.dp))
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // Top Title bar for moving, PIP and Main Player buttons
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surface)
+                    .background(Color.White)
                     .pointerInput(Unit) {
                         detectDragGesturesAfterLongPress(
                             onDrag = { change: androidx.compose.ui.input.pointer.PointerInputChange, dragAmount: androidx.compose.ui.geometry.Offset ->
@@ -195,11 +195,11 @@ fun MiniPlayerOverlay(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Icon(Icons.Filled.DragHandle, contentDescription = "Drag to move", tint = MaterialTheme.colorScheme.onSurface)
+                Icon(Icons.Filled.DragHandle, contentDescription = "Drag to move", tint = Color(0xFF37474F))
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold),
+                    color = Color(0xFF121212),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f).padding(horizontal = 4.dp)
@@ -210,7 +210,7 @@ fun MiniPlayerOverlay(
                         com.example.service.PlayerManager.flushProgressToStorage()
                         onSwitchToVideo()
                     }) {
-                        Icon(Icons.Filled.VideoLibrary, contentDescription = "Switch to Floating Player", tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Filled.VideoLibrary, contentDescription = "Switch to Floating Player", tint = Color(0xFF03A9F4))
                     }
 
                     IconButton(onClick = {
@@ -229,11 +229,11 @@ fun MiniPlayerOverlay(
                         context.startActivity(intent)
                         onMinimize()
                     }, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Filled.OpenInFull, contentDescription = "Main Player", tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Filled.OpenInFull, contentDescription = "Main Player", tint = Color(0xFF37474F), modifier = Modifier.size(20.dp))
                     }
                 }
             }
-            HorizontalDivider(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), thickness = 1.dp)
+            HorizontalDivider(color = Color(0xFF03A9F4).copy(alpha = 0.25f), thickness = 1.dp)
             // Controls
             Column(
                 modifier = Modifier
@@ -252,26 +252,26 @@ fun MiniPlayerOverlay(
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(24.dp)
+                        .height(20.dp)
                         .padding(horizontal = 4.dp),
                     thumb = {
                         Box(
                             modifier = Modifier
-                                .size(12.dp)
-                                .background(androidx.compose.ui.graphics.Color(0xFF2196F3), androidx.compose.foundation.shape.CircleShape)
+                                .size(width = 6.dp, height = 12.dp)
+                                .background(Color(0xFF03A9F4), RoundedCornerShape(3.dp))
                         )
                     },
                     track = { sliderState ->
                         SliderDefaults.Track(
                             sliderState = sliderState,
                             colors = SliderDefaults.colors(
-                                activeTrackColor = androidx.compose.ui.graphics.Color(0xFF2196F3),
-                                inactiveTrackColor = androidx.compose.ui.graphics.Color.LightGray
+                                activeTrackColor = Color(0xFF03A9F4),
+                                inactiveTrackColor = Color(0xFFE0E0E0)
                             ),
                             drawStopIndicator = null,
                             thumbTrackGapSize = 0.dp,
                             trackInsideCornerSize = 0.dp,
-                            modifier = Modifier.height(4.dp)
+                            modifier = Modifier.height(3.dp)
                         )
                     }
                 )
@@ -283,10 +283,10 @@ fun MiniPlayerOverlay(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(onClick = { player?.seekToPreviousMediaItem() }) {
-                        Icon(Icons.Filled.SkipPrevious, "Previous", tint = MaterialTheme.colorScheme.onSurface)
+                        Icon(Icons.Filled.SkipPrevious, "Previous", tint = Color(0xFF121212))
                     }
                     IconButton(onClick = { player?.seekTo(player.currentPosition - 5000) }) {
-                        Icon(Icons.Filled.FastRewind, "-5s", tint = MaterialTheme.colorScheme.onSurface)
+                        Icon(Icons.Filled.FastRewind, "-5s", tint = Color(0xFF121212))
                     }
                     IconButton(onClick = {
                         player?.let { p ->
@@ -303,16 +303,16 @@ fun MiniPlayerOverlay(
                             }
                         }
                     }) {
-                        Icon(if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, "Play/Pause", tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(36.dp))
+                        Icon(if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, "Play/Pause", tint = Color(0xFF03A9F4), modifier = Modifier.size(36.dp))
                     }
                     IconButton(onClick = { player?.seekTo(player.currentPosition + 5000) }) {
-                        Icon(Icons.Filled.FastForward, "+5s", tint = MaterialTheme.colorScheme.onSurface)
+                        Icon(Icons.Filled.FastForward, "+5s", tint = Color(0xFF121212))
                     }
                     IconButton(onClick = { player?.seekToNextMediaItem() }) {
-                        Icon(Icons.Filled.SkipNext, "Next", tint = MaterialTheme.colorScheme.onSurface)
+                        Icon(Icons.Filled.SkipNext, "Next", tint = Color(0xFF121212))
                     }
                     IconButton(onClick = { player?.stop(); player?.clearMediaItems(); onClose() }) {
-                        Icon(Icons.Filled.Stop, "Stop", tint = MaterialTheme.colorScheme.onSurface)
+                        Icon(Icons.Filled.Stop, "Stop", tint = Color(0xFF121212))
                     }
                 }
 
@@ -338,7 +338,7 @@ fun MiniPlayerOverlay(
                             Icon(
                                 imageVector = Icons.Filled.Shuffle,
                                 contentDescription = "Shuffle",
-                                tint = if (shuffleMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                tint = if (shuffleMode) Color(0xFF03A9F4) else Color(0xFF546E7A),
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -358,7 +358,7 @@ fun MiniPlayerOverlay(
                             Icon(
                                 imageVector = if (loopMode == Player.REPEAT_MODE_ONE) Icons.Filled.RepeatOne else Icons.Filled.Repeat,
                                 contentDescription = "Loop",
-                                tint = if (loopMode != Player.REPEAT_MODE_OFF) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                tint = if (loopMode != Player.REPEAT_MODE_OFF) Color(0xFF03A9F4) else Color(0xFF546E7A),
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -366,7 +366,7 @@ fun MiniPlayerOverlay(
                             onClick = { /* Refresh playlist logic */ },
                             modifier = Modifier.size(30.dp)
                         ) {
-                            Icon(Icons.Filled.Refresh, "Refresh", tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Filled.Refresh, "Refresh", tint = Color(0xFF546E7A), modifier = Modifier.size(18.dp))
                         }
                         IconButton(
                             onClick = {
@@ -386,7 +386,7 @@ fun MiniPlayerOverlay(
                             Icon(
                                 imageVector = Icons.Filled.VolumeUp,
                                 contentDescription = "Volume",
-                                tint = MaterialTheme.colorScheme.onSurface,
+                                tint = Color(0xFF546E7A),
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -672,15 +672,16 @@ fun MiniPlayerOverlay(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(8.dp)
-                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(16.dp)),
+                .background(Color(0xFFF5F5F5), RoundedCornerShape(16.dp))
+                .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(16.dp)),
             horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onClose, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Filled.Close, "Close completely", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                Icon(Icons.Filled.Close, "Close completely", tint = Color(0xFF37474F), modifier = Modifier.size(20.dp))
             }
             IconButton(onClick = { onMinimizeChange(true) }, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Filled.Remove, "Minimize", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                Icon(Icons.Filled.Remove, "Minimize", tint = Color(0xFF37474F), modifier = Modifier.size(20.dp))
             }
             Box(
                 modifier = Modifier
@@ -693,7 +694,7 @@ fun MiniPlayerOverlay(
                     },
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Filled.ZoomOutMap, "Resize", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                Icon(Icons.Filled.ZoomOutMap, "Resize", tint = Color(0xFF37474F), modifier = Modifier.size(20.dp))
             }
         }
     }

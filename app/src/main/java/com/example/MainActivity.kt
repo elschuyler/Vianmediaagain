@@ -408,10 +408,16 @@ class MainActivity : ComponentActivity() {
                 }
                 .memoryCache {
                     coil.memory.MemoryCache.Builder(this)
-                        .maxSizePercent(0.15)
+                        .maxSizePercent(0.25)
                         .build()
                 }
-                .crossfade(true)
+                .diskCache {
+                    coil.disk.DiskCache.Builder()
+                        .directory(cacheDir.resolve("thumbnail_cache"))
+                        .maxSizeBytes(100L * 1024 * 1024)
+                        .build()
+                }
+                .crossfade(false)
                 .build()
         )
     } catch (e: Exception) {

@@ -578,7 +578,7 @@ fun PlayerScreen(
     LaunchedEffect(mediaController) {
         mediaController?.let {
             repeatMode = it.repeatMode
-            it.pauseAtEndOfMediaItems = false
+            it.pauseAtEndOfMediaItems = (it.repeatMode == androidx.media3.common.Player.REPEAT_MODE_OFF)
         }
     }
 
@@ -610,29 +610,58 @@ fun PlayerScreen(
         
         if (controller.currentMediaItem?.mediaId != decodedUri.toString()) {
             val fileName = getFastImmediateName(decodedUri)
-            val mediaMetadataBuilder = androidx.media3.common.MediaMetadata.Builder()
-                .setTitle(fileName)
-                .setDisplayTitle(fileName)
+            val pendingQueue = com.example.service.PlayerManager.consumePendingQueue()
+            
+            if (pendingQueue != null && pendingQueue.first.isNotEmpty()) {
+                val (queueItems, queueIndex) = pendingQueue
+                val activeItem = queueItems.getOrNull(queueIndex)
+                val activeUri = activeItem?.localConfiguration?.uri ?: decodedUri
+                val activeUriString = activeUri.toString()
+                val activeName = activeItem?.mediaMetadata?.title?.toString() ?: fileName
+                val lastPos = settingsManager.getPlaybackPosition(activeUriString, activeName)
+                val startPos = if (lastPos > 0 && !settingsManager.isFinished(activeUriString, activeName)) lastPos else 0L
 
-            val siblingSubs = com.example.service.SubtitleAutoDetector.detectSiblingSubtitles(context, decodedUri)
-            val initialMediaItemBuilder = MediaItem.Builder()
-                .setUri(decodedUri)
-                .setMediaId(decodedUri.toString())
-                .setMediaMetadata(mediaMetadataBuilder.build())
+                controller.setMediaItems(queueItems, queueIndex, startPos)
+                controller.pauseAtEndOfMediaItems = (controller.repeatMode == androidx.media3.common.Player.REPEAT_MODE_OFF)
+                controller.prepare()
+                controller.play()
+                com.example.service.PlayerManager.isImplicitFolderQueue = true
+                settingsManager.markAsOpened(activeUriString, activeName)
 
-            if (siblingSubs.isNotEmpty()) {
-                initialMediaItemBuilder.setSubtitleConfigurations(siblingSubs)
+                try {
+                    val db = com.example.data.AppDatabase.getDatabase(context)
+                    val playlistRepo = com.example.data.PlaylistRepository(db.playlistDao())
+                    val uris = queueItems.map { it.mediaId }
+                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                        try { playlistRepo.saveOrUpdateTemporaryPlaylist(uris) } catch (e: Exception) {}
+                    }
+                } catch (e: Exception) {}
+            } else {
+                val mediaMetadataBuilder = androidx.media3.common.MediaMetadata.Builder()
+                    .setTitle(fileName)
+                    .setDisplayTitle(fileName)
+
+                val siblingSubs = com.example.service.SubtitleAutoDetector.detectSiblingSubtitles(context, decodedUri)
+                val initialMediaItemBuilder = MediaItem.Builder()
+                    .setUri(decodedUri)
+                    .setMediaId(decodedUri.toString())
+                    .setMediaMetadata(mediaMetadataBuilder.build())
+
+                if (siblingSubs.isNotEmpty()) {
+                    initialMediaItemBuilder.setSubtitleConfigurations(siblingSubs)
+                }
+                val initialMediaItem = initialMediaItemBuilder.build()
+
+                val lastPos = settingsManager.getPlaybackPosition(decodedUriString, fileName)
+                val startPos = if (lastPos > 0 && !settingsManager.isFinished(decodedUriString, fileName)) lastPos else 0L
+
+                controller.setMediaItem(initialMediaItem, startPos)
+                controller.pauseAtEndOfMediaItems = (controller.repeatMode == androidx.media3.common.Player.REPEAT_MODE_OFF)
+                controller.prepare()
+                controller.play()
+                com.example.service.PlayerManager.isImplicitFolderQueue = true
+                settingsManager.markAsOpened(decodedUriString, fileName)
             }
-            val initialMediaItem = initialMediaItemBuilder.build()
-
-            val lastPos = settingsManager.getPlaybackPosition(decodedUriString, fileName)
-            val startPos = if (lastPos > 0 && !settingsManager.isFinished(decodedUriString, fileName)) lastPos else 0L
-
-            controller.setMediaItem(initialMediaItem, startPos)
-            controller.prepare()
-            controller.play()
-            com.example.service.PlayerManager.isImplicitFolderQueue = true
-            settingsManager.markAsOpened(decodedUriString, fileName)
 
             // Resolve full display name asynchronously on IO dispatcher if not already resolved by PlayerActivity
             if (decodedUri.scheme == "content" && currentMediaTitle == fileName) {
@@ -664,41 +693,40 @@ fun PlayerScreen(
                 }
             }
 
-        // Load sibling playlist items targeted by parent directory / BUCKET_ID (zero full-disk scan)
-        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-            // Yield storage I/O and CPU to initial video buffering and decoder setup
-            kotlinx.coroutines.delay(1000)
-            
-            if (com.example.service.FFmpegStatus.isRunning || com.example.service.CompressionStatus.isRunning) {
-                com.example.LogKeeper.log("PlayerScreen: Deferred background playlist scan because FFmpeg/Compression service is running", "PlayerScreen")
-                return@launch
-            }
-
-            val (playlistItems, startIndex) = resolveSiblingPlaylistItems(context, decodedUri, decodedUri.toString())
-            
-            if (playlistItems.size > 1 && startIndex != -1) {
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                    val currentId = controller.currentMediaItem?.mediaId
-                    if ((currentId == decodedUri.toString() || currentId == decodedUriString) && controller.mediaItemCount == 1) {
-                        val precedingItems = playlistItems.subList(0, startIndex)
-                        val succeedingItems = playlistItems.subList(startIndex + 1, playlistItems.size)
-                        if (precedingItems.isNotEmpty()) {
-                            controller.addMediaItems(0, precedingItems)
-                        }
-                        if (succeedingItems.isNotEmpty()) {
-                            controller.addMediaItems(controller.mediaItemCount, succeedingItems)
-                        }
-                        com.example.service.PlayerManager.isImplicitFolderQueue = true
-                    }
+        // If not already populated via pending folder queue, resolve sibling playlist items targeted by parent directory / BUCKET_ID
+        if (controller.mediaItemCount <= 1) {
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                if (com.example.service.FFmpegStatus.isRunning || com.example.service.CompressionStatus.isRunning) {
+                    com.example.LogKeeper.log("PlayerScreen: Deferred background playlist scan because FFmpeg/Compression service is running", "PlayerScreen")
+                    return@launch
                 }
+
+                val (playlistItems, startIndex) = resolveSiblingPlaylistItems(context, decodedUri, decodedUri.toString())
                 
-                try {
-                    val db = com.example.data.AppDatabase.getDatabase(context)
-                    val playlistRepo = com.example.data.PlaylistRepository(db.playlistDao())
-                    val uris = playlistItems.map { it.mediaId }
-                    playlistRepo.saveOrUpdateTemporaryPlaylist(uris)
-                } catch(e: Exception) {
-                    e.printStackTrace()
+                if (playlistItems.size > 1 && startIndex != -1) {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                        val currentId = controller.currentMediaItem?.mediaId
+                        if ((currentId == decodedUri.toString() || currentId == decodedUriString) && controller.mediaItemCount <= 1) {
+                            val precedingItems = playlistItems.subList(0, startIndex)
+                            val succeedingItems = playlistItems.subList(startIndex + 1, playlistItems.size)
+                            if (precedingItems.isNotEmpty()) {
+                                controller.addMediaItems(0, precedingItems)
+                            }
+                            if (succeedingItems.isNotEmpty()) {
+                                controller.addMediaItems(controller.mediaItemCount, succeedingItems)
+                            }
+                            com.example.service.PlayerManager.isImplicitFolderQueue = true
+                        }
+                    }
+                    
+                    try {
+                        val db = com.example.data.AppDatabase.getDatabase(context)
+                        val playlistRepo = com.example.data.PlaylistRepository(db.playlistDao())
+                        val uris = playlistItems.map { it.mediaId }
+                        playlistRepo.saveOrUpdateTemporaryPlaylist(uris)
+                    } catch(e: Exception) {
+                        e.printStackTrace()
+                    }
                 }
             }
         }
@@ -1754,6 +1782,7 @@ fun PlayerScreen(
                         com.example.LogKeeper.log("Repeat mode toggled from $repeatMode to $nextMode", "PlayerScreen")
                         repeatMode = nextMode
                         mediaController?.repeatMode = nextMode
+                        mediaController?.pauseAtEndOfMediaItems = (nextMode == androidx.media3.common.Player.REPEAT_MODE_OFF)
                     },
                     backgroundPlayEnabled = backgroundPlayEnabled,
                     onBackgroundPlayClick = {

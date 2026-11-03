@@ -95,7 +95,7 @@ fun MainScreen(
     var showSettingsDialog by rememberSaveable { mutableStateOf(false) }
     var showNetworkStreamDialog by rememberSaveable { mutableStateOf(false) }
 
-    val selectedFolder = mediaFolders.find { it.id == selectedFolderId }
+    val selectedFolder = remember(mediaFolders, selectedFolderId) { mediaFolders.find { it.id == selectedFolderId } }
     val folderListState = rememberLazyListState(
         initialFirstVisibleItemIndex = viewModel.foldersScrollIndex,
         initialFirstVisibleItemScrollOffset = viewModel.foldersScrollOffset
@@ -633,6 +633,8 @@ fun MainScreen(
                                 }
                             }
                             val settingsManager = remember { SettingsManager.getInstance(context) }
+                            var folderForOptionsMenu by remember { mutableStateOf<MediaFolder?>(null) }
+
                             LazyColumn(
                                 state = folderListState,
                                 modifier = Modifier.fillMaxSize(),
@@ -642,24 +644,44 @@ fun MainScreen(
                                     FolderCard(
                                         folder = folder,
                                         onClick = { viewModel.selectFolder(folder.id) },
-                                        onExclude = {
-                                            settingsManager.addExcludedFolder(folder.id)
+                                        onOptionsClick = { folderForOptionsMenu = folder }
+                                    )
+                                }
+                            }
+
+                            folderForOptionsMenu?.let { targetFolder ->
+                                DropdownMenu(
+                                    expanded = true,
+                                    onDismissRequest = { folderForOptionsMenu = null }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Exclude Folder") },
+                                        onClick = {
+                                            folderForOptionsMenu = null
+                                            settingsManager.addExcludedFolder(targetFolder.id)
                                             viewModel.refreshMedia()
                                         }
                                     )
                                 }
                             }
                         } else {
-                            val itemsToDisplay = if (selectedFolder != null) {
-                                selectedFolder.mediaItems
-                            } else {
-                                allVideos
+                            val itemsToDisplay = remember(selectedFolder, allVideos) {
+                                selectedFolder?.mediaItems ?: allVideos
                             }
                             
-                            val filteredMedia = if (isSearchActive) {
-                                itemsToDisplay.filter { it.name.contains(searchQuery, ignoreCase = true) }
-                            } else {
-                                itemsToDisplay
+                            val filteredMedia = remember(itemsToDisplay, isSearchActive, searchQuery) {
+                                if (isSearchActive && searchQuery.isNotEmpty()) {
+                                    itemsToDisplay.filter { it.name.contains(searchQuery, ignoreCase = true) }
+                                } else {
+                                    itemsToDisplay
+                                }
+                            }
+
+                            val sortedMediaItems = remember(filteredMedia, sortOrder) {
+                                when (sortOrder) {
+                                    SortOrder.NAME -> filteredMedia.sortedBy { it.name.lowercase() }
+                                    SortOrder.DATE -> filteredMedia.sortedByDescending { it.dateAdded }
+                                }
                             }
 
                             val activeListState = if (selectedFolder != null) {
@@ -673,11 +695,11 @@ fun MainScreen(
                                 modifier = Modifier.fillMaxSize(),
                                 contentPadding = PaddingValues(16.dp)
                             ) {
-                                val sortedMediaItems = when (sortOrder) {
-                                    SortOrder.NAME -> filteredMedia.sortedBy { it.name.lowercase() }
-                                    SortOrder.DATE -> filteredMedia.sortedByDescending { it.dateAdded }
-                                }
-                                itemsIndexed(sortedMediaItems, key = { _, media -> media.id }) { index, media ->
+                                itemsIndexed(
+                                    items = sortedMediaItems,
+                                    key = { _, media -> media.id },
+                                    contentType = { _, _ -> "media_item" }
+                                ) { index, media ->
                                     val isSelected = selectedMediaItems.contains(media)
                                     val isSeen = media.tag == PlaybackTag.SEEN
                                     val isPlaying = media.tag == PlaybackTag.PLAYING
@@ -708,6 +730,26 @@ fun MainScreen(
                                                         if (media.mediaType == com.example.data.MediaType.IMAGE && !isAnim) {
                                                             onNavigateToPhotoEditor(media.uri.toString())
                                                         } else {
+                                                            try {
+                                                                val queue = sortedMediaItems.filter {
+                                                                    it.mediaType == com.example.data.MediaType.VIDEO ||
+                                                                    (it.mediaType == com.example.data.MediaType.IMAGE && com.example.data.isAnimatedMedia(context, it.uri))
+                                                                }.map { m ->
+                                                                    val meta = androidx.media3.common.MediaMetadata.Builder()
+                                                                        .setTitle(m.name)
+                                                                        .setDisplayTitle(m.name)
+                                                                        .build()
+                                                                    androidx.media3.common.MediaItem.Builder()
+                                                                        .setUri(m.uri)
+                                                                        .setMediaId(m.uri.toString())
+                                                                        .setMediaMetadata(meta)
+                                                                        .build()
+                                                                }
+                                                                val targetIdx = queue.indexOfFirst { it.mediaId == media.uri.toString() }.coerceAtLeast(0)
+                                                                com.example.service.PlayerManager.setPendingQueue(queue, targetIdx)
+                                                            } catch (e: Exception) {
+                                                                com.example.LogKeeper.logError("MainScreen", "Failed to build pending folder queue", e)
+                                                            }
                                                             onNavigateToPlayer(media.uri.toString())
                                                         }
                                                     }
@@ -745,12 +787,12 @@ fun MainScreen(
                                                 AsyncImage(
                                                     model = ImageRequest.Builder(context)
                                                         .data(media.uri)
-                                                        .size(200)
+                                                        .size(256)
                                                         .bitmapConfig(android.graphics.Bitmap.Config.RGB_565)
                                                         .allowHardware(true)
                                                         .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
                                                         .diskCachePolicy(coil.request.CachePolicy.ENABLED)
-                                                        .crossfade(true)
+                                                        .crossfade(false)
                                                         .build(),
                                                     contentDescription = "Thumbnail",
                                                     modifier = Modifier.fillMaxSize(),
@@ -767,15 +809,6 @@ fun MainScreen(
                                                         Text("NEW", style = MaterialTheme.typography.labelSmall, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 8.sp)
                                                     }
                                                 }
-                                                val durationSeconds = media.duration / 1000
-                                                val hours = durationSeconds / 3600
-                                                val minutes = (durationSeconds % 3600) / 60
-                                                val seconds = durationSeconds % 60
-                                                val durationStr = if (hours > 0) {
-                                                    String.format("%d:%02d:%02d", hours, minutes, seconds)
-                                                } else {
-                                                    String.format("%02d:%02d", minutes, seconds)
-                                                }
                                                 val badgeAlpha = if (isSeen) 0.45f else 0.7f
                                                 Box(
                                                     modifier = Modifier
@@ -784,7 +817,7 @@ fun MainScreen(
                                                         .background(Color.Black.copy(alpha = badgeAlpha), RoundedCornerShape(4.dp))
                                                         .padding(horizontal = 4.dp, vertical = 2.dp)
                                                 ) {
-                                                    Text(durationStr, style = MaterialTheme.typography.labelSmall, color = if (isSeen) Color(0xFFAAAAAA) else Color.White, fontWeight = FontWeight.Bold)
+                                                    Text(media.durationFormatted, style = MaterialTheme.typography.labelSmall, color = if (isSeen) Color(0xFFAAAAAA) else Color.White, fontWeight = FontWeight.Bold)
                                                 }
                                             }
                                             Spacer(modifier = Modifier.width(12.dp))
@@ -812,17 +845,9 @@ fun MainScreen(
                                                 }
                                                 Spacer(modifier = Modifier.height(4.dp))
                                                 val subText = if (selectedFolder != null) {
-                                                    val sizeMb = media.size / (1024f * 1024f)
-                                                    if (sizeMb >= 1024f) {
-                                                        String.format("%.2f GB", sizeMb / 1024f)
-                                                    } else {
-                                                        String.format("%.1f MB", sizeMb)
-                                                    }
+                                                    media.sizeFormatted
                                                 } else {
-                                                    val parentFolder = mediaFolders.find { it.mediaItems.contains(media) }
-                                                    parentFolder?.let {
-                                                        it.path.replace("primary:", "/storage/emulated/0/") + "/" + it.name
-                                                    } ?: "Unknown path"
+                                                    if (media.parentFolderPath.isNotEmpty()) media.parentFolderPath else "Unknown path"
                                                 }
                                                 Text(
                                                     text = subText,
@@ -1332,7 +1357,7 @@ fun MainScreen(
 }
 
 @Composable
-fun FolderCard(folder: MediaFolder, onClick: () -> Unit, onExclude: () -> Unit) {
+fun FolderCard(folder: MediaFolder, onClick: () -> Unit, onOptionsClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -1385,7 +1410,7 @@ fun FolderCard(folder: MediaFolder, onClick: () -> Unit, onExclude: () -> Unit) 
                         shape = RoundedCornerShape(4.dp)
                     ) {
                         Text(
-                            text = "${folder.videoCount} Videos",
+                            text = folder.formattedVideoCount,
                             style = MaterialTheme.typography.labelSmall,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1393,16 +1418,12 @@ fun FolderCard(folder: MediaFolder, onClick: () -> Unit, onExclude: () -> Unit) 
                     }
                     if (folder.totalSize > 0) {
                         Spacer(modifier = Modifier.width(8.dp))
-                        val sizeStr = remember(folder.totalSize) {
-                            val sizeMb = folder.totalSize / (1024 * 1024)
-                            if (sizeMb > 1024) String.format(java.util.Locale.US, "%.2f GB", sizeMb / 1024f) else "$sizeMb MB"
-                        }
                         Surface(
                             color = MaterialTheme.colorScheme.surfaceVariant,
                             shape = RoundedCornerShape(4.dp)
                         ) {
                             Text(
-                                text = sizeStr,
+                                text = folder.formattedSize,
                                 style = MaterialTheme.typography.labelSmall,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1411,22 +1432,8 @@ fun FolderCard(folder: MediaFolder, onClick: () -> Unit, onExclude: () -> Unit) 
                     }
                 }
             }
-            var expanded by remember { mutableStateOf(false) }
-            Box {
-                IconButton(onClick = { expanded = true }) {
-                    Icon(Icons.Filled.MoreVert, contentDescription = "More Options")
-                }
-                if (expanded) {
-                    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                        DropdownMenuItem(
-                            text = { Text("Exclude Folder") },
-                            onClick = {
-                                expanded = false
-                                onExclude()
-                            }
-                        )
-                    }
-                }
+            IconButton(onClick = onOptionsClick) {
+                Icon(Icons.Filled.MoreVert, contentDescription = "More Options")
             }
         }
     }

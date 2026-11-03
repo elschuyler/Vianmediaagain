@@ -26,8 +26,30 @@ data class MediaItem(
     val mediaType: MediaType,
     val hasSubtitle: Boolean = false,
     val tag: PlaybackTag = PlaybackTag.NEW,
-    val size: Long = 0L
-)
+    val size: Long = 0L,
+    val parentFolderPath: String = ""
+) {
+    val durationFormatted: String by lazy {
+        val durationSeconds = duration / 1000
+        val hours = durationSeconds / 3600
+        val minutes = (durationSeconds % 3600) / 60
+        val seconds = durationSeconds % 60
+        if (hours > 0) {
+            String.format(java.util.Locale.US, "%d:%02d:%02d", hours, minutes, seconds)
+        } else {
+            String.format(java.util.Locale.US, "%02d:%02d", minutes, seconds)
+        }
+    }
+
+    val sizeFormatted: String by lazy {
+        val sizeMb = size / (1024f * 1024f)
+        if (sizeMb >= 1024f) {
+            String.format(java.util.Locale.US, "%.2f GB", sizeMb / 1024f)
+        } else {
+            String.format(java.util.Locale.US, "%.1f MB", sizeMb)
+        }
+    }
+}
 
 @Immutable
 data class MediaFolder(
@@ -39,8 +61,17 @@ data class MediaFolder(
     val mediaItems: List<MediaItem>,
     val hasNew: Boolean = mediaItems.any { it.tag == PlaybackTag.NEW }
 ) {
-    val videoCount: Int get() = mediaItems.size
-    val totalDuration: Long get() = mediaItems.sumOf { it.duration }
+    val videoCount: Int = mediaItems.size
+    val totalDuration: Long = mediaItems.sumOf { it.duration }
+
+    val formattedSize: String by lazy {
+        val sizeMb = totalSize / (1024 * 1024)
+        if (sizeMb > 1024) String.format(java.util.Locale.US, "%.2f GB", sizeMb / 1024f) else "$sizeMb MB"
+    }
+
+    val formattedVideoCount: String by lazy {
+        "$videoCount Videos"
+    }
 }
 
 @Immutable
@@ -275,6 +306,9 @@ class MediaRepository(private val context: Context) {
                 val totalSize = fObj.optLong("totalSize", 0L)
                 val itemsArray = fObj.getJSONArray("items")
                 val items = ArrayList<MediaItem>(itemsArray.length())
+                val resolvedParentPath = path.replace("primary:", "/storage/emulated/0/").let {
+                    if (it.isNotEmpty()) "$it/$name" else name
+                }
                 for (j in 0 until itemsArray.length()) {
                     val iObj = itemsArray.getJSONObject(j)
                     val itemId = iObj.getLong("id")
@@ -288,6 +322,7 @@ class MediaRepository(private val context: Context) {
                     val tagStr = iObj.optString("tag", "NEW")
                     val tag = try { PlaybackTag.valueOf(tagStr) } catch (e: Exception) { PlaybackTag.NEW }
                     val size = iObj.optLong("size", 0L)
+                    val parentPath = iObj.optString("parentFolderPath", resolvedParentPath).ifEmpty { resolvedParentPath }
                     items.add(
                         MediaItem(
                             id = itemId,
@@ -298,7 +333,8 @@ class MediaRepository(private val context: Context) {
                             mediaType = mediaType,
                             hasSubtitle = hasSubtitle,
                             tag = tag,
-                            size = size
+                            size = size,
+                            parentFolderPath = parentPath
                         )
                     )
                 }
@@ -343,6 +379,7 @@ class MediaRepository(private val context: Context) {
                     iObj.put("hasSubtitle", item.hasSubtitle)
                     iObj.put("tag", item.tag.name)
                     iObj.put("size", item.size)
+                    iObj.put("parentFolderPath", item.parentFolderPath)
                     itemsArray.put(iObj)
                 }
                 fObj.put("items", itemsArray)
@@ -657,13 +694,19 @@ class MediaRepository(private val context: Context) {
         }
 
         val result = foldersMap.map { (bucketId, items) ->
+            val fPath = folderPaths[bucketId] ?: ""
+            val fName = folderNames[bucketId] ?: "Unknown"
+            val displayPath = fPath.replace("primary:", "/storage/emulated/0/").let {
+                if (it.isNotEmpty()) "$it/$fName" else fName
+            }
+            val mappedItems = items.map { it.copy(parentFolderPath = displayPath) }.sortedByDescending { it.dateAdded }
             MediaFolder(
                 id = bucketId,
-                name = folderNames[bucketId] ?: "Unknown",
-                path = folderPaths[bucketId] ?: "",
+                name = fName,
+                path = fPath,
                 dateModified = folderDates[bucketId] ?: 0L,
                 totalSize = folderSizes[bucketId] ?: 0L,
-                mediaItems = items.sortedByDescending { it.dateAdded }
+                mediaItems = mappedItems
             )
         }.sortedBy { it.name.lowercase() }
         saveCachedMediaFolders(result)
@@ -772,9 +815,12 @@ class MediaRepository(private val context: Context) {
                     if (currentTime - item.dateAdded < fifteenDaysMs) PlaybackTag.NEW else PlaybackTag.UNSEEN
                 }
 
-                item.copy(hasSubtitle = hasSub, duration = duration, tag = tag)
+                val displayPath = folderPath.replace("primary:", "/storage/emulated/0/").let {
+                    if (it.isNotEmpty()) "$it/$folderName" else folderName
+                }
+                item.copy(hasSubtitle = hasSub, duration = duration, tag = tag, parentFolderPath = displayPath)
             }
-            folders.add(MediaFolder(documentId, folderName, folderPath, latestDate, updatedItems.sumOf { 0L }, updatedItems.sortedByDescending { it.dateAdded }))
+            folders.add(MediaFolder(documentId, folderName, folderPath, latestDate, updatedItems.sumOf { it.size }, updatedItems.sortedByDescending { it.dateAdded }))
         }
 
         // Non-recursive: do not scan sub-directories

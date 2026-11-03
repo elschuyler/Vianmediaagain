@@ -72,6 +72,20 @@ object PlayerManager {
     @Volatile
     var isFloatingVideoActive: Boolean = false
 
+    private var pendingFolderQueue: Pair<List<MediaItem>, Int>? = null
+
+    fun setPendingQueue(items: List<MediaItem>, startIndex: Int) {
+        pendingFolderQueue = Pair(items, startIndex)
+    }
+
+    fun hasPendingQueue(): Boolean = pendingFolderQueue != null
+
+    fun consumePendingQueue(): Pair<List<MediaItem>, Int>? {
+        val q = pendingFolderQueue
+        pendingFolderQueue = null
+        return q
+    }
+
     private val blacklistedDecoders = java.util.Collections.synchronizedSet(mutableSetOf<String>())
 
     fun blacklistDecoder(name: String) {
@@ -515,6 +529,7 @@ object PlayerManager {
     fun releasePlayer() = release()
 
     fun release() {
+        pendingFolderQueue = null
         flushProgressToStorage()
         progressTickerJob?.cancel()
         progressTickerJob = null
@@ -558,6 +573,27 @@ object PlayerManager {
         }
         dynamicsProcessing = null
         isImplicitFolderQueue = false
+        pendingQueueItems = null
+        pendingQueueIndex = 0
+    }
+
+    private var pendingQueueItems: List<MediaItem>? = null
+    private var pendingQueueIndex: Int = 0
+
+    fun setPendingQueue(items: List<MediaItem>, startIndex: Int) {
+        pendingQueueItems = items
+        pendingQueueIndex = startIndex.coerceIn(0, (items.size - 1).coerceAtLeast(0))
+        com.example.LogKeeper.log("PlayerManager: setPendingQueue with ${items.size} items at index $pendingQueueIndex", "PlayerManager")
+    }
+
+    fun hasPendingQueue(): Boolean = !pendingQueueItems.isNullOrEmpty()
+
+    fun consumePendingQueue(): Pair<List<MediaItem>, Int>? {
+        val items = pendingQueueItems ?: return null
+        val idx = pendingQueueIndex
+        pendingQueueItems = null
+        pendingQueueIndex = 0
+        return Pair(items, idx)
     }
 
     fun appendOrTransitionQueue(context: Context, newMediaItems: List<MediaItem>) {

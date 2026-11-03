@@ -362,4 +362,30 @@
   4. Mini Player Control Row Padding Compression:
      - Wrapped the secondary control row (Shuffle, Loop, Refresh, Volume) in `MiniPlayerOverlay.kt` with `CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified)`.
      - Scaled button touch boxes to `Modifier.size(30.dp)` with `size(18.dp)` icons, tightly reducing vertical padding above and below the row.
+- **Phase 117 (Desktop MiniPlayer Precision Styling & Next Player Instant Notification Queue System)**:
+  1. Desktop Aesthetic Precision Styling in MiniPlayerOverlay:
+     - Re-skinned outer chassis with pure white background (`Color.White`), 12dp rounded corners, and a 1.5dp Sky Blue accent border (`#03A9F4` at 40% alpha).
+     - Styled topbar with solid pure white background, semi-bold jet-black title (`#121212`), dark slate `#37474F` drag and main player expand icons, Sky Blue `#03A9F4` floating video icon, and a 1dp hairline divider (`#03A9F4` at 25% alpha).
+     - Styled scrubber with desktop precision: 3dp track height, vivid Sky Blue active fill (`#03A9F4`), light grey inactive track (`#E0E0E0`), and a compact 6dp × 12dp capsule/needle thumb (`RoundedCornerShape(3.dp)`).
+     - Standardized control button icon tints: high-contrast jet-black (`#121212`) for primary playback, Sky Blue (`#03A9F4`) for play/pause/active toggles, and dark slate (`#546E7A` / `#37474F`) for secondary controls and bottom floating action pill.
+     - Preserved 100% of existing component layout, button ordering, drag gestures, and library explorer navigation.
+  2. Next Player Instant Notification Queue & Single-Video Halt Engine:
+     - Implemented pending queue cache in `PlayerManager.kt` (`setPendingQueue`, `hasPendingQueue`, `consumePendingQueue`) to bridge `MainScreen` folder selection directly into ExoPlayer.
+     - In `MainScreen.kt`, mapped the current folder's sorted media items into `MediaItem`s on video click and dispatched to `PlayerManager.setPendingQueue(queue, targetIdx)`.
+     - In `PlayerScreen.kt`, immediately populates the full folder playlist via `controller.setMediaItems(queueItems, queueIndex, startPos)` at frame 0 (benchmarked against Next Player `anilbeesetti/nextplayer`), enabling the Notification Player Next button instantly.
+     - Enforced strict single-video behavior: set `pauseAtEndOfMediaItems = (repeatMode == Player.REPEAT_MODE_OFF)`. Playback pauses automatically when a video ends unless Loop is explicitly enabled, while keeping `player.hasNextMediaItem() == true` so the notification Next button is fully functional for manual skipping.
+     - Synchronized `pauseAtEndOfMediaItems` dynamically whenever the user toggles repeat mode.
 
+- **Phase 118 (Next Player Smooth Scrolling Engine & Image Pipeline Hardening)**:
+  1. Next Player Scroll Performance Architecture:
+     - Eliminated $O(N \times M)$ UI-thread folder scan in `MainScreen.kt` by caching `parentFolderPath` directly on `MediaItem` at discovery and deserialization time, reducing item bind time from dozens of milliseconds to constant $O(1)$.
+     - Hoisted list sorting completely outside the `LazyColumn` item block with `remember(filteredMedia, sortOrder)`, preventing continuous CPU-intensive array re-sorting during scrolling and recomposition.
+     - Added `contentType = { _, _ -> "media_item" }` to `itemsIndexed` in `LazyColumn`, allowing Jetpack Compose to recycle item composition slots instead of discarding and recreating nodes.
+     - Pre-computed item and folder metrics (`durationFormatted`, `sizeFormatted`, `formattedVideoCount`, `formattedSize`) via lazy properties, removing on-the-fly `String.format` allocations during scroll passes.
+  2. FolderCard Composability & Popup Hoisting:
+     - Hoisted the per-item `DropdownMenu` out of `FolderCard` to a single root-level menu in `MainScreen.kt`, eliminating 50+ popup window-token and measurement passes during folder list scrolling.
+     - Remembered `selectedFolder` with `remember(mediaFolders, selectedFolderId)` to avoid repeated linear searches on every frame.
+  3. Coil ImageLoader & Thumbnail Pipeline Hardening:
+     - Configured a dedicated 100MB persistent disk cache (`cacheDir.resolve("thumbnail_cache")`) and expanded memory cache to 25% in `MainActivity.kt`.
+     - Disabled `crossfade` in `AsyncImage` and `ImageLoader` to eliminate dozens of concurrent alpha-blending GPU animations during rapid flings.
+     - Optimized `VideoThumbnailFetcher.kt` to run strictly on `Dispatchers.IO` and adjusted thumbnail decode resolution to 256px for ultra-low memory footprints and instant bitmap decoding.

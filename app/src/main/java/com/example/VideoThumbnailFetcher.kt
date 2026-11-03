@@ -18,11 +18,11 @@ class VideoThumbnailFetcher(
     private val options: Options
 ) : Fetcher {
 
-    override suspend fun fetch(): FetchResult? {
+    override suspend fun fetch(): FetchResult? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         val context = options.context
         val bitmap = try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val size = 512
+                val size = 256
                 kotlinx.coroutines.suspendCancellableCoroutine { cont ->
                     val signal = android.os.CancellationSignal()
                     cont.invokeOnCancellation { signal.cancel() }
@@ -56,7 +56,7 @@ class VideoThumbnailFetcher(
             null
         }
 
-        return if (bitmap != null) {
+        if (bitmap != null) {
             DrawableResult(
                 drawable = BitmapDrawable(context.resources, bitmap),
                 isSampled = true,
