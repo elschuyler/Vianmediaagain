@@ -82,3 +82,31 @@
 * Any deviation from what was requested: None.
 * Any known issue or follow-up needed: None.
 
+## Phase 119: Android URI Permission Grant Forwarding, Scoped Storage Fallbacks & Editor On-Screen Modal Rendering
+* Timestamp: 2026-11-04T11:56:00Z
+* One-line summary: Resolved FFmpegService FileNotFoundException and PlayerScreen SAF SecurityException via URI grant forwarding and MediaStore fallback; converted Video Editor background export into an on-screen modal rendering dialog with progress bar and completion preview.
+* Files touched:
+  - app/src/main/java/com/example/ui/PlayerActivity.kt
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+  - app/src/main/java/com/example/service/FFmpegService.kt
+  - app/src/main/java/com/example/ui/screens/VideoEditorScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_030.md
+* What was actually done:
+  - URI Permission Forwarding across Component Boundaries:
+    * In `PlayerActivity.kt`, decoded and resolved `activeUriString`, attaching `intent.data`, `intent.clipData = ClipData.newRawUri("media", targetUri)`, and `Intent.FLAG_GRANT_READ_URI_PERMISSION` when launching `EditorActivity`.
+    * In `VideoEditorScreen.kt`, forwarded `data`, `clipData` (including join segments and custom audio), and `FLAG_GRANT_READ_URI_PERMISSION` when starting `FFmpegService`.
+  - DocumentsProvider SAF Security Hardening:
+    * In `PlayerScreen.kt` (`resolveSiblingPlaylistItems`), guarded against non-MediaStore content URIs (`com.android.externalstorage.documents` and SAF providers). Prevented querying `MediaStore.Video.Media.BUCKET_ID` on document URIs, eliminated unexpected `SecurityException`, and prevented ExoPlayer source error crashes.
+  - Scoped Storage Direct File Resolution in FFmpegService:
+    * Replaced abrupt `FileNotFoundException` when `src.canRead()` is false with a multi-tier fallback: queries `MediaStore.Files.getContentUri("external")` for `_data = directPath` to obtain the official content URI and stream via `ContentResolver`, then falls back to `contentResolver.openInputStream(uri)`.
+    * Protected `FFmpegStatus.isRunning` inside `serviceScope.launch` with `try ... finally` to ensure the service status is always reset on cancel, failure, or completion.
+  - Video Editor On-Screen Modal Rendering UI:
+    * Replaced the confusing "Doing in background" toast and banner in `VideoEditorScreen.kt` with an on-screen modal progress dialog (`DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)`).
+    * Displayed a smooth `LinearProgressIndicator`, real-time stats (`FFmpegStatus.currentProgress`), and a functional `Cancel` action that cancels FFmpegKit and stops the service.
+    * Enabled seamless automatic transition to the "Export Complete!" preview player upon render completion, and added an explicit error dialog if the render failed or was aborted.
+* How it was verified: `lint_applet` and `compile_applet`.
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: None.
+
+

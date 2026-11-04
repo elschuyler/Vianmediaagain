@@ -266,14 +266,20 @@ fun VideoEditorScreen(
     var playerError by remember { mutableStateOf<String?>(null) }
     var exportedPreviewUri by remember { mutableStateOf<String?>(null) }
     var wasExporting by remember { mutableStateOf(false) }
+    var isEditorExporting by remember { mutableStateOf(false) }
+    var exportErrorMessage by remember { mutableStateOf<String?>(null) }
     
     LaunchedEffect(com.example.service.FFmpegStatus.isRunning) {
         if (com.example.service.FFmpegStatus.isRunning) {
             wasExporting = true
         } else if (wasExporting) {
             wasExporting = false
+            val hadEditorExport = isEditorExporting
+            isEditorExporting = false
             if (com.example.service.FFmpegStatus.lastOutputUri != null) {
                 exportedPreviewUri = com.example.service.FFmpegStatus.lastOutputUri
+            } else if (hadEditorExport) {
+                exportErrorMessage = "Export was cancelled or encountered an error. Please verify input media and storage permissions."
             }
         }
     }
@@ -817,16 +823,19 @@ fun VideoEditorScreen(
                     IconButton(onClick = { /* Redo */ }) {
                         Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = "Redo")
                     }
-                    Button(onClick = {
-                        if (com.example.service.FFmpegStatus.isRunning) {
-                            android.widget.Toast.makeText(context, "An export is already running in background", android.widget.Toast.LENGTH_SHORT).show()
-                        } else if (isConverting) {
-                            android.widget.Toast.makeText(context, "Please wait, preparing video for editing...", android.widget.Toast.LENGTH_SHORT).show()
-                        } else {
-                            showExportPanel = true
+                    Button(
+                        enabled = !isEditorExporting && !com.example.service.FFmpegStatus.isRunning && !isConverting,
+                        onClick = {
+                            if (com.example.service.FFmpegStatus.isRunning || isEditorExporting) {
+                                android.widget.Toast.makeText(context, "Rendering is already in progress", android.widget.Toast.LENGTH_SHORT).show()
+                            } else if (isConverting) {
+                                android.widget.Toast.makeText(context, "Please wait, preparing video for editing...", android.widget.Toast.LENGTH_SHORT).show()
+                            } else {
+                                showExportPanel = true
+                            }
                         }
-                    }) {
-                        Text("SAVE")
+                    ) {
+                        Text(if (isEditorExporting || com.example.service.FFmpegStatus.isRunning) "RENDERING..." else "SAVE")
                     }
                 }
             )
@@ -837,7 +846,7 @@ fun VideoEditorScreen(
                 .padding(padding)
                 .fillMaxSize()
         ) {
-            if (com.example.service.FFmpegStatus.isRunning) {
+            if (!isEditorExporting && com.example.service.FFmpegStatus.isRunning) {
                 Surface(
                     color = MaterialTheme.colorScheme.primaryContainer,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
@@ -849,7 +858,7 @@ fun VideoEditorScreen(
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                        Text("Exporting video in background...", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                        Text("Batch job running in background...", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
                     }
                 }
             }
@@ -3468,19 +3477,30 @@ fun VideoEditorScreen(
                             return@Button
                         }
                         try {
+                            val parsedTarget = Uri.parse(exportTargetUri)
                             val intent = android.content.Intent(context, com.example.service.FFmpegService::class.java).apply {
                                 putStringArrayListExtra("uris", arrayListOf(exportTargetUri))
                                 putStringArrayListExtra("original_names", arrayListOf(com.example.ui.screens.getDisplayNameFromUri(context, initialUri)))
                                 putExtra("commandTemplate", cmd)
                                 putExtra("outputExt", format)
+                                data = parsedTarget
+                                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                val clip = android.content.ClipData.newRawUri("media", parsedTarget)
+                                urisToJoin.forEach { clip.addItem(android.content.ClipData.Item(Uri.parse(it))) }
+                                if (addedAudioPath != null && editState.addedAudioUri != null) {
+                                    clip.addItem(android.content.ClipData.Item(Uri.parse(editState.addedAudioUri)))
+                                }
+                                clipData = clip
                             }
+                            isEditorExporting = true
+                            showExportPanel = false
                             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                                 context.startForegroundService(intent)
                             } else {
                                 context.startService(intent)
                             }
-                            android.widget.Toast.makeText(context, "Rendering started in background...", android.widget.Toast.LENGTH_SHORT).show()
                         } catch (e: Exception) {
+                            isEditorExporting = false
                             com.example.LogKeeper.logError("VideoEditor", "Failed to start FFmpegService for export: ${e.message}", e)
                             android.widget.Toast.makeText(context, "Failed to start export: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
                         }
@@ -3491,6 +3511,89 @@ fun VideoEditorScreen(
                 dismissButton = {
                     TextButton(onClick = { showExportPanel = false }) {
                         Text("Cancel")
+                    }
+                }
+            )
+        }
+
+        if (isEditorExporting && com.example.service.FFmpegStatus.isRunning) {
+            androidx.compose.ui.window.Dialog(
+                onDismissRequest = { /* Modal: prevent dismissing outside during render */ },
+                properties = androidx.compose.ui.window.DialogProperties(
+                    dismissOnBackPress = false,
+                    dismissOnClickOutside = false
+                )
+            ) {
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Text(
+                            text = "Rendering Video",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        LinearProgressIndicator(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(8.dp)
+                                .clip(RoundedCornerShape(4.dp)),
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                        )
+
+                        val progressText = com.example.service.FFmpegStatus.currentProgress.ifBlank { "Processing video stream..." }
+                        Text(
+                            text = progressText,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            TextButton(
+                                onClick = {
+                                    try {
+                                        val stopIntent = android.content.Intent(context, com.example.service.FFmpegService::class.java).apply {
+                                            action = "STOP"
+                                        }
+                                        context.startService(stopIntent)
+                                    } catch (e: Exception) {}
+                                    isEditorExporting = false
+                                    com.example.service.FFmpegStatus.isRunning = false
+                                }
+                            ) {
+                                Text("Cancel", color = MaterialTheme.colorScheme.error)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (exportErrorMessage != null) {
+            AlertDialog(
+                onDismissRequest = { exportErrorMessage = null },
+                title = { Text("Export Issue") },
+                text = { Text(exportErrorMessage!!) },
+                confirmButton = {
+                    TextButton(onClick = { exportErrorMessage = null }) {
+                        Text("OK")
                     }
                 }
             )

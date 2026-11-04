@@ -2108,25 +2108,31 @@ private suspend fun resolveSiblingPlaylistItems(
                 }
             }
         } else if (videoUri.scheme == "content") {
+            val auth = videoUri.authority ?: ""
+            val isDocumentUri = auth.contains("documents") || auth.contains("externalstorage") || !auth.contains("media")
             var bucketId: String? = null
-            try {
-                context.contentResolver.query(
-                    videoUri,
-                    arrayOf(
-                        android.provider.MediaStore.Video.Media._ID,
-                        android.provider.MediaStore.Video.Media.BUCKET_ID,
-                        android.provider.MediaStore.Video.Media.DISPLAY_NAME
-                    ),
-                    null,
-                    null,
-                    null
-                )?.use { cursor ->
-                    if (cursor.moveToFirst()) {
-                        val bIdx = cursor.getColumnIndex(android.provider.MediaStore.Video.Media.BUCKET_ID)
-                        if (bIdx != -1) bucketId = cursor.getString(bIdx)
+            if (!isDocumentUri) {
+                try {
+                    context.contentResolver.query(
+                        videoUri,
+                        arrayOf(
+                            android.provider.MediaStore.Video.Media._ID,
+                            android.provider.MediaStore.Video.Media.BUCKET_ID,
+                            android.provider.MediaStore.Video.Media.DISPLAY_NAME
+                        ),
+                        null,
+                        null,
+                        null
+                    )?.use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            val bIdx = cursor.getColumnIndex(android.provider.MediaStore.Video.Media.BUCKET_ID)
+                            if (bIdx != -1) bucketId = cursor.getString(bIdx)
+                        }
                     }
-                }
-            } catch (e: Exception) {}
+                } catch (e: SecurityException) {
+                    LogKeeper.log("resolveSiblingPlaylistItems: Content query permission denied for $videoUri", "PlayerScreen")
+                } catch (e: Exception) {}
+            }
 
             if (!bucketId.isNullOrBlank()) {
                 val projection = arrayOf(

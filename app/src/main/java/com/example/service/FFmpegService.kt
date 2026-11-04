@@ -92,12 +92,17 @@ class FFmpegService : Service() {
         isCancelled = false
 
         serviceScope.launch {
-            LogKeeper.log("Starting FFmpeg batch for ${uris.size} file(s)", "FFmpegService")
-            processFiles(uris, originalNames, commandTemplate, outputExt)
-            LogKeeper.log("Completed FFmpeg batch for ${uris.size} file(s)", "FFmpegService")
-            FFmpegStatus.isRunning = false
-            stopForeground(true)
-            stopSelfResult(startId)
+            try {
+                LogKeeper.log("Starting FFmpeg batch for ${uris.size} file(s)", "FFmpegService")
+                processFiles(uris, originalNames, commandTemplate, outputExt)
+                LogKeeper.log("Completed FFmpeg batch for ${uris.size} file(s)", "FFmpegService")
+            } catch (e: Exception) {
+                LogKeeper.logError("FFmpegService", "Unexpected exception during FFmpeg batch: ${e.message}", e)
+            } finally {
+                FFmpegStatus.isRunning = false
+                stopForeground(true)
+                stopSelfResult(startId)
+            }
         }
 
         return START_NOT_STICKY
@@ -133,12 +138,62 @@ class FFmpegService : Service() {
                     val candidate4 = uri.path?.let { java.io.File(Uri.decode(it)) }
                     val src = listOfNotNull(candidate1, candidate2, candidate3, candidate4).firstOrNull { it.exists() && it.canRead() }
                         ?: candidate1
-                    if (!src.exists() || !src.canRead()) {
-                        throw java.io.FileNotFoundException("Direct input file not found or unreadable: $directPath")
-                    }
-                    src.inputStream().use { input ->
-                        tempInFile.outputStream().use { output ->
-                            input.copyTo(output)
+                    if (src.exists() && src.canRead()) {
+                        src.inputStream().use { input ->
+                            tempInFile.outputStream().use { output ->
+                                input.copyTo(output)
+                            }
+                        }
+                    } else {
+                        // Under Scoped Storage (API 29+), direct File access to external storage paths may return canRead() == false.
+                        // Fall back to resolving the path against MediaStore or opening via ContentResolver.
+                        var streamCopied = false
+                        try {
+                            val ext = getFileExtension(uri)
+                            val queryUri = if (ext in setOf("mp3", "m4a", "wav", "flac", "ogg", "aac", "opus")) {
+                                android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+                            } else {
+                                android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+                            }
+                            val proj = arrayOf(android.provider.MediaStore.MediaColumns._ID)
+                            val sel = "${android.provider.MediaStore.MediaColumns.DATA} = ?"
+                            val selArgs = arrayOf(directPath)
+                            contentResolver.query(queryUri, proj, sel, selArgs, null)?.use { cursor ->
+                                if (cursor.moveToFirst()) {
+                                    val id = cursor.getLong(0)
+                                    val resolvedUri = android.content.ContentUris.withAppendedId(queryUri, id)
+                                    contentResolver.openInputStream(resolvedUri)?.use { input ->
+                                        tempInFile.outputStream().use { output -> input.copyTo(output) }
+                                        streamCopied = true
+                                    }
+                                }
+                            }
+                        } catch (e: Exception) {
+                            LogKeeper.log("MediaStore query fallback for directPath failed: ${e.message}", "FFmpegService")
+                        }
+
+                        if (!streamCopied) {
+                            try {
+                                contentResolver.openInputStream(uri)?.use { input ->
+                                    tempInFile.outputStream().use { output -> input.copyTo(output) }
+                                    streamCopied = true
+                                }
+                            } catch (e: Exception) {
+                                LogKeeper.log("Direct URI openInputStream fallback failed: ${e.message}", "FFmpegService")
+                            }
+                        }
+
+                        if (!streamCopied && uri.scheme != "file") {
+                            try {
+                                contentResolver.openInputStream(Uri.fromFile(src))?.use { input ->
+                                    tempInFile.outputStream().use { output -> input.copyTo(output) }
+                                    streamCopied = true
+                                }
+                            } catch (e: Exception) {}
+                        }
+
+                        if (!streamCopied) {
+                            throw java.io.FileNotFoundException("Direct input file not found or unreadable via File and ContentResolver: $directPath")
                         }
                     }
                 } else {

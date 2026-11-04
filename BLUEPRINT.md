@@ -389,3 +389,15 @@
      - Configured a dedicated 100MB persistent disk cache (`cacheDir.resolve("thumbnail_cache")`) and expanded memory cache to 25% in `MainActivity.kt`.
      - Disabled `crossfade` in `AsyncImage` and `ImageLoader` to eliminate dozens of concurrent alpha-blending GPU animations during rapid flings.
      - Optimized `VideoThumbnailFetcher.kt` to run strictly on `Dispatchers.IO` and adjusted thumbnail decode resolution to 256px for ultra-low memory footprints and instant bitmap decoding.
+
+- **Phase 119: Android URI Permission Grant Forwarding, Scoped Storage Fallbacks & Editor On-Screen Modal Rendering**
+  1. Intent URI Permission Forwarding & SAF Document Guard:
+     - In `PlayerActivity.kt`, attached `data`, `clipData = ClipData.newRawUri("media", targetUri)`, and `Intent.FLAG_GRANT_READ_URI_PERMISSION` when launching `EditorActivity`, ensuring external DocumentsProvider and MediaStore URIs retain full read permissions across component boundaries.
+     - In `PlayerScreen.kt` (`resolveSiblingPlaylistItems`), guarded against DocumentsProvider / SAF URIs (`com.android.externalstorage.documents` and non-media authorities). Bypassed querying `MediaStore.Video.Media.BUCKET_ID` on document URIs and caught `SecurityException` gracefully, preventing ExoPlayer source crashes.
+  2. Scoped Storage Direct File Resolution & Service Resiliency:
+     - In `FFmpegService.kt` (`processFiles`), eliminated premature `FileNotFoundException` when `File.canRead()` is false on Android 10+ Scoped Storage paths. Implemented multi-tier fallback: queries `MediaStore.Files.getContentUri("external")` for `_data = directPath`, falls back to `contentResolver.openInputStream(uri)`, and attempts `Uri.fromFile(src)`.
+     - Wrapped batch execution in `serviceScope.launch` with `try ... finally` to guarantee `FFmpegStatus.isRunning = false` is always reset, stopping background service lockups.
+  3. Video Editor On-Screen Modal Rendering Architecture:
+     - Forwarded `clipData` and `FLAG_GRANT_READ_URI_PERMISSION` from `VideoEditorScreen.kt` to `FFmpegService` for the primary video, join sequences, and audio tracks.
+     - Replaced the confusing background banner and disabled buttons with an on-screen modal rendering dialog: features smooth `LinearProgressIndicator`, real-time progress text (`FFmpegStatus.currentProgress`), and a functional "Cancel" button.
+     - Upon completion, transitions seamlessly to the on-screen "Export Complete!" preview player dialog; on failure/cancellation, displays an explicit error alert.

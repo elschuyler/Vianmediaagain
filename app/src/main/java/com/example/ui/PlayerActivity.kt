@@ -283,6 +283,17 @@ class PlayerActivity : ComponentActivity() {
                         val editorIntent = Intent(this@PlayerActivity, EditorActivity::class.java).apply {
                             action = Intent.ACTION_EDIT
                             putExtra("uri", activeUriString)
+                            val decodedStr = try {
+                                val base64Flags = android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING
+                                val decoded = String(android.util.Base64.decode(activeUriString, base64Flags))
+                                if (decoded.contains("://") || decoded.startsWith("/")) decoded else activeUriString
+                            } catch (e: Exception) {
+                                activeUriString
+                            }
+                            val targetUri = Uri.parse(decodedStr)
+                            data = targetUri
+                            clipData = android.content.ClipData.newRawUri("media", targetUri)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                         }
                         startActivity(editorIntent)
                     }
