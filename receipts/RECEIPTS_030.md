@@ -109,4 +109,52 @@
 * Any deviation from what was requested: None.
 * Any known issue or follow-up needed: None.
 
+## Phase 120: Comprehensive Stability Hardening, SharedPreferences LRU Eviction & Lightweight On-Demand Optimizations
+* Timestamp: 2026-11-05T00:54:00Z
+* One-line summary: Hardened app against WindowManager detach crashes, stream leaks, and URI permission drop in batch tasks; implemented 200-item LRU history pruner in SharedPreferences; transitioned ticker and audio effects to lightweight on-demand execution.
+* Files touched:
+  - app/src/main/java/com/example/service/PlaybackService.kt
+  - app/src/main/java/com/example/BatchActionActivity.kt
+  - app/src/main/java/com/example/service/CompressionService.kt
+  - app/src/main/java/com/example/service/PlayerManager.kt
+  - app/src/main/java/com/example/data/MediaRepository.kt
+  - app/src/main/java/com/example/data/SettingsManager.kt
+  - app/src/main/java/com/example/service/FFmpegService.kt
+  - app/src/main/java/com/example/service/SubtitleAutoDetector.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_030.md
+* What was actually done:
+  - WindowManager & Stream Lifecycle Hardening:
+    * In `PlaybackService.kt` (`hideOverlay`), wrapped `windowManager.removeView(it)` in `try/catch` to safely catch `IllegalArgumentException` if the view was already detached or window token died.
+    * In `CompressionService.kt`, replaced un-guarded stream closure with Kotlin's `use` block on `outStream` to prevent leaking file descriptors on write failures.
+  - Batch Action URI Propagation & Foreground Service Survival:
+    * In `BatchActionActivity.kt`, attached `ClipData` containing all media URIs with `Intent.FLAG_GRANT_READ_URI_PERMISSION` when starting `FFmpegService` and `CompressionService`.
+    * Removed premature `action = "STOP"` calls in `onDestroy()` so batch foreground tasks continue processing when the launcher activity finishes.
+  - SharedPreferences LRU Pruning & Storage Cleanup:
+    * In `SettingsManager.kt` (`savePlaybackState`), added `trimPlaybackHistoryIfNeeded()` running every 50 writes to cap playback history at 200 entries, evicting older timestamps, positions, durations, and speed keys to eliminate cold-start ANR risks.
+    * In `FFmpegService.kt` (`onCreate`), added `audio_add_` prefix to the startup cache cleanup routine to purge abandoned audio files from crashed editor sessions.
+    * In `MediaRepository.kt` (`getMediaFolder`), populated `parentFolderPath = folderPath` on `MediaItem` instantiation.
+  - Lightweight On-Demand Execution:
+    * In `PlayerManager.kt`, modified `startProgressTicker()` to break and stop when not playing or buffering; wired `onIsPlayingChanged` and `onPlaybackStateChanged` to start/stop the 500ms ticker on-demand.
+    * In `PlayerManager.kt`, shifted `LoudnessEnhancer`, `Equalizer`, and `DynamicsProcessing` to on-demand allocation in `applyAudioEffects`, allocating zero native audio effect buffers when audio effects are turned off.
+    * Removed dead duplicate shadowed queue declarations in `PlayerManager.kt`.
+    * In `SubtitleAutoDetector.kt`, added guard against non-media / SAF Document URIs to prevent log spam and failed MediaStore IPC queries.
+* How it was verified: `lint_applet` and `compile_applet`.
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: None.
 
+## Phase 121: Main Player Brightness Slider Symbol Removal
+* Timestamp: 2026-11-05T01:02:00Z
+* One-line summary: Removed "%" symbol from the main player Brightness HUD capsule text, achieving UI consistency with Volume HUD and eliminating digit crowding at 100.
+* Files touched:
+  - app/src/main/java/com/example/ui/screens/hud/PlayerHudCapsules.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_030.md
+* What was actually done:
+  - In `PlayerHudCapsules.kt` (`BrightnessHudCapsule`), updated brightness text interpolation to render raw integer values without the "%" character:
+    * Changed `text = "${(currentBrightness.coerceIn(0f, 1f) * 100).roundToInt()}%"` to `text = "${(currentBrightness.coerceIn(0f, 1f) * 100).roundToInt()}"`.
+  - Aligned the visual styling with `VolumeHudCapsule`, which displays values as raw integers without trailing characters.
+  - Improved layout spacing inside the 38dp pill capsule, preventing 4-character clipping/crowding when brightness is set to 100.
+* How it was verified: `lint_applet` and `compile_applet`.
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: None.

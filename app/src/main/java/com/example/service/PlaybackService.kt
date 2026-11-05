@@ -1037,9 +1037,13 @@ lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
 fun hideOverlay() {
 com.example.service.PlayerManager.isFloatingVideoActive = false
 composeView?.let {
+try {
 lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
 lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
 windowManager.removeView(it)
+} catch (e: Exception) {
+com.example.LogKeeper.log("PlaybackService: WindowManager removeView handled: ${e.message}", "PlaybackService")
+}
 }
 composeView = null
 }

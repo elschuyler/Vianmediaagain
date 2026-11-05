@@ -43,7 +43,7 @@ class FFmpegService : Service() {
         // Cleanup orphaned temp files from previous crashed/killed sessions
         cacheDir.listFiles()?.forEach { file ->
             val n = file.name
-            if (n.startsWith("ffmpeg_") || n.startsWith("editor_") || n.startsWith("join_") || n.startsWith("preconverted_")) {
+            if (n.startsWith("ffmpeg_") || n.startsWith("editor_") || n.startsWith("join_") || n.startsWith("preconverted_") || n.startsWith("audio_add_")) {
                 if (file.isDirectory) file.deleteRecursively() else file.delete()
             }
         }

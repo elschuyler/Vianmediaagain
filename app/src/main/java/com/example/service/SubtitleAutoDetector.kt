@@ -178,6 +178,10 @@ object SubtitleAutoDetector {
         videoBaseName: String
     ): List<MediaItem.SubtitleConfiguration> {
         val result = mutableListOf<MediaItem.SubtitleConfiguration>()
+        val auth = videoUri.authority ?: ""
+        if (auth.contains("documents") || auth.contains("externalstorage") || !auth.contains("media")) {
+            return emptyList()
+        }
         try {
             var bucketId: String? = null
             context.contentResolver.query(

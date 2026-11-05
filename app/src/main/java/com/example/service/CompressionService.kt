@@ -200,10 +200,8 @@ class CompressionService : Service() {
                     
                     val origName = getOriginalFileName(uri)
                     val fileName = "${origName}_compressed.${ext}"
-                    val outStream: OutputStream? = getOutputStream(outputUriStr, fileName, ext)
-                    if (outStream != null) {
-                        outBitmap?.compress(compressFormat, quality, outStream)
-                        outStream.close()
+                    getOutputStream(outputUriStr, fileName, ext)?.use { s ->
+                        outBitmap?.compress(compressFormat, quality, s)
                     }
                 }
             } catch (oom: OutOfMemoryError) {

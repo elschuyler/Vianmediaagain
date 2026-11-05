@@ -390,14 +390,26 @@
      - Disabled `crossfade` in `AsyncImage` and `ImageLoader` to eliminate dozens of concurrent alpha-blending GPU animations during rapid flings.
      - Optimized `VideoThumbnailFetcher.kt` to run strictly on `Dispatchers.IO` and adjusted thumbnail decode resolution to 256px for ultra-low memory footprints and instant bitmap decoding.
 
-- **Phase 119: Android URI Permission Grant Forwarding, Scoped Storage Fallbacks & Editor On-Screen Modal Rendering**
-  1. Intent URI Permission Forwarding & SAF Document Guard:
-     - In `PlayerActivity.kt`, attached `data`, `clipData = ClipData.newRawUri("media", targetUri)`, and `Intent.FLAG_GRANT_READ_URI_PERMISSION` when launching `EditorActivity`, ensuring external DocumentsProvider and MediaStore URIs retain full read permissions across component boundaries.
-     - In `PlayerScreen.kt` (`resolveSiblingPlaylistItems`), guarded against DocumentsProvider / SAF URIs (`com.android.externalstorage.documents` and non-media authorities). Bypassed querying `MediaStore.Video.Media.BUCKET_ID` on document URIs and caught `SecurityException` gracefully, preventing ExoPlayer source crashes.
-  2. Scoped Storage Direct File Resolution & Service Resiliency:
-     - In `FFmpegService.kt` (`processFiles`), eliminated premature `FileNotFoundException` when `File.canRead()` is false on Android 10+ Scoped Storage paths. Implemented multi-tier fallback: queries `MediaStore.Files.getContentUri("external")` for `_data = directPath`, falls back to `contentResolver.openInputStream(uri)`, and attempts `Uri.fromFile(src)`.
-     - Wrapped batch execution in `serviceScope.launch` with `try ... finally` to guarantee `FFmpegStatus.isRunning = false` is always reset, stopping background service lockups.
-  3. Video Editor On-Screen Modal Rendering Architecture:
-     - Forwarded `clipData` and `FLAG_GRANT_READ_URI_PERMISSION` from `VideoEditorScreen.kt` to `FFmpegService` for the primary video, join sequences, and audio tracks.
-     - Replaced the confusing background banner and disabled buttons with an on-screen modal rendering dialog: features smooth `LinearProgressIndicator`, real-time progress text (`FFmpegStatus.currentProgress`), and a functional "Cancel" button.
-     - Upon completion, transitions seamlessly to the on-screen "Export Complete!" preview player dialog; on failure/cancellation, displays an explicit error alert.
+- **Phase 120: Comprehensive Stability Hardening, SharedPreferences LRU Eviction & Lightweight On-Demand Optimizations**
+  1. WindowManager Crash Resilience & Stream Safety:
+     - In `PlaybackService.kt` (`hideOverlay`), safely wrapped `windowManager.removeView(it)` in `try/catch` to eliminate uncaught `IllegalArgumentException` when the window token dies or view is detached.
+     - In `CompressionService.kt`, enclosed `outStream` in Kotlin's `use` extension block so output streams and SAF file descriptors never leak on compression failure.
+  2. Batch Action URI Propagation & Foreground Service Survival:
+     - In `BatchActionActivity.kt`, attached `ClipData` with `Intent.FLAG_GRANT_READ_URI_PERMISSION` when launching `FFmpegService` and `CompressionService`, resolving permission denial on shared media.
+     - Removed premature `onDestroy()` service stopping in `BatchActionActivity.kt` so long-running batch jobs are not killed when activities dismiss.
+  3. Memory Footprint, SharedPreferences Pruning & Cache Hygiene:
+     - Implemented a lightweight LRU history pruner in `SettingsManager.kt` (`trimPlaybackHistoryIfNeeded`) running every 50 saves to cap history entries at 200 items, preventing unbounded `vianbr_settings.xml` heap bloat and cold-start ANRs.
+     - Added `audio_add_` temporary file prefix to `FFmpegService.onCreate()` cleanup routine to prevent orphaned audio files from lingering in `cacheDir`.
+     - In `MediaRepository.kt` (`getMediaFolder`), ensured `parentFolderPath = folderPath` is populated on single-folder queries, maintaining $O(1)$ fast lookups.
+  4. Lightweight On-Demand Resource Execution:
+     - In `PlayerManager.kt`, eliminated continuous 500ms main-thread ticker when paused/idle; ticker now executes strictly on-demand while `isPlaying == true` or `STATE_BUFFERING`.
+     - Shifted `LoudnessEnhancer`, `Equalizer`, and `DynamicsProcessing` to pure on-demand instantiation, allocating zero native audio effect buffers when audio effects are turned off.
+     - Removed dead shadowed queue declarations in `PlayerManager.kt`.
+     - In `SubtitleAutoDetector.kt`, added guard against DocumentsProvider URIs to stop log spam and unnecessary IPC calls.
+
+- **Phase 121: Main Player Brightness Slider Symbol Removal**
+  1. Brightness HUD Capsule Layout & Text Polish:
+     - In `PlayerHudCapsules.kt` (`BrightnessHudCapsule`), updated the text label to format raw integer values (`0`–`100`) without the trailing `%` symbol.
+     - Harmonized visual aesthetics with the corresponding `VolumeHudCapsule` on the opposite side of the player canvas.
+     - Relieved digit crowding and edge clipping in the 38dp capsule container when brightness is set to 100.
+

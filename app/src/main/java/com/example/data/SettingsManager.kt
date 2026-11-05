@@ -160,6 +160,46 @@ class SettingsManager private constructor(context: Context) {
         return variants
     }
 
+    private var saveCounter = 0
+
+    private fun trimPlaybackHistoryIfNeeded() {
+        saveCounter++
+        if (saveCounter % 50 != 0) return
+        try {
+            val all = prefs.all
+            val timeEntries = all.filterKeys { it.startsWith("time_") }
+            if (timeEntries.size <= 250) return
+
+            val sortedEntries = timeEntries.mapNotNull { (key, value) ->
+                val ts = (value as? Number)?.toLong() ?: return@mapNotNull null
+                Pair(key, ts)
+            }.sortedBy { it.second }
+
+            val toRemoveCount = timeEntries.size - 200
+            if (toRemoveCount <= 0) return
+
+            val editor = prefs.edit()
+            for (i in 0 until toRemoveCount) {
+                val timeKey = sortedEntries[i].first
+                editor.remove(timeKey)
+                if (timeKey.startsWith("time_fn_")) {
+                    val variant = timeKey.removePrefix("time_fn_")
+                    editor.remove("pos_fn_$variant")
+                    editor.remove("dur_fn_$variant")
+                } else if (timeKey.startsWith("time_")) {
+                    val uriKey = timeKey.removePrefix("time_")
+                    editor.remove("pos_$uriKey")
+                    editor.remove("dur_$uriKey")
+                    editor.remove("speed_$uriKey")
+                }
+            }
+            editor.apply()
+            com.example.LogKeeper.log("SettingsManager: Trimmed $toRemoveCount older playback records to prevent SharedPreferences bloat", "SettingsManager")
+        } catch (e: Exception) {
+            com.example.LogKeeper.log("SettingsManager: Error trimming playback history: ${e.message}", "SettingsManager")
+        }
+    }
+
     fun savePlaybackState(uri: String, position: Long, duration: Long, fileName: String? = null) {
         val now = System.currentTimeMillis()
         val editor = prefs.edit()
@@ -182,6 +222,7 @@ class SettingsManager private constructor(context: Context) {
             }
         }
         editor.apply()
+        trimPlaybackHistoryIfNeeded()
     }
 
     fun markAsFinished(uri: String, fileName: String? = null, duration: Long = 0L) {

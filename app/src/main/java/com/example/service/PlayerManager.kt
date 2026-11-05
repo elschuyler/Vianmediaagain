@@ -72,20 +72,6 @@ object PlayerManager {
     @Volatile
     var isFloatingVideoActive: Boolean = false
 
-    private var pendingFolderQueue: Pair<List<MediaItem>, Int>? = null
-
-    fun setPendingQueue(items: List<MediaItem>, startIndex: Int) {
-        pendingFolderQueue = Pair(items, startIndex)
-    }
-
-    fun hasPendingQueue(): Boolean = pendingFolderQueue != null
-
-    fun consumePendingQueue(): Pair<List<MediaItem>, Int>? {
-        val q = pendingFolderQueue
-        pendingFolderQueue = null
-        return q
-    }
-
     private val blacklistedDecoders = java.util.Collections.synchronizedSet(mutableSetOf<String>())
 
     fun blacklistDecoder(name: String) {
@@ -108,10 +94,11 @@ object PlayerManager {
 
     fun initialize(context: Context, skipSilence: Boolean = false) {
         if (exoPlayer != null) return
-        appContext = context.applicationContext
+        val appCtx = context.applicationContext
+        appContext = appCtx
         com.example.LogKeeper.log("Initializing PlayerManager ExoPlayer", "PlayerManager")
         
-        val dataSourceFactory = DefaultDataSource.Factory(context)
+        val dataSourceFactory = DefaultDataSource.Factory(appCtx)
         val mediaSourceFactory = DefaultMediaSourceFactory(context)
             .setDataSourceFactory(dataSourceFactory)
             
@@ -190,6 +177,11 @@ object PlayerManager {
             }
             override fun onPlaybackStateChanged(playbackState: Int) {
                 updateSnapshot()
+                if (playbackState == Player.STATE_BUFFERING) {
+                    startProgressTicker()
+                } else if (playbackState == Player.STATE_IDLE || playbackState == Player.STATE_ENDED) {
+                    stopProgressTicker()
+                }
                 if (playbackState == androidx.media3.common.Player.STATE_ENDED || playbackState == androidx.media3.common.Player.STATE_IDLE) {
                     val count = exoPlayer?.mediaItemCount ?: 0
                     if (playbackState == androidx.media3.common.Player.STATE_ENDED || count == 0) {
@@ -209,7 +201,10 @@ object PlayerManager {
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 updateSnapshot()
-                if (!isPlaying) {
+                if (isPlaying) {
+                    startProgressTicker()
+                } else {
+                    stopProgressTicker()
                     flushProgressToStorage()
                 }
             }
@@ -257,55 +252,24 @@ object PlayerManager {
                 if (audioSessionId != C.AUDIO_SESSION_ID_UNSET) {
                     try {
                         loudnessEnhancer?.release()
-                        loudnessEnhancer = LoudnessEnhancer(audioSessionId)
-                        
+                        loudnessEnhancer = null
                         equalizer?.release()
-                        try { equalizer = Equalizer(0, audioSessionId) } catch (e: Exception) {}
-                        
+                        equalizer = null
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                             dynamicsProcessing?.release()
-                            try {
-                                val config = DynamicsProcessing.Config.Builder(
-                                    DynamicsProcessing.VARIANT_FAVOR_FREQUENCY_RESOLUTION,
-                                    2, true, 0, true, 0, true, 0, true
-                                )
-                                .build()
-                                dynamicsProcessing = DynamicsProcessing(0, audioSessionId, config)
-                            } catch (e: Exception) {}
+                            dynamicsProcessing = null
                         }
                         
                         val settings = com.example.data.SettingsManager.getInstance(context.applicationContext)
-                        
-                        if (settings.audioBoosterEnabled && settings.boostGainMb > 0) {
-                            loudnessEnhancer?.setTargetGain(settings.boostGainMb)
-                            loudnessEnhancer?.enabled = true
-                        } else {
-                            loudnessEnhancer?.enabled = false
-                        }
-                        
                         applyAudioEffects(settings)
-                        
                     } catch (e: Exception) {
-                        com.example.LogKeeper.logError("PlayerManager", "Failed to create AudioEffects on session change", e)
+                        com.example.LogKeeper.logError("PlayerManager", "Failed to update AudioEffects on session change", e)
                     }
                 }
             }
         })
 
-        // Start periodic state & position ticker
-        startProgressTicker()
         updateSnapshot()
-
-        exoPlayer?.audioSessionId?.let { sessionId ->
-            if (sessionId != C.AUDIO_SESSION_ID_UNSET) {
-                try {
-                    loudnessEnhancer = LoudnessEnhancer(sessionId)
-                    loudnessEnhancer?.enabled = false
-                } catch (e: Exception) {
-                    com.example.LogKeeper.logError("PlayerManager", "Failed to create LoudnessEnhancer", e)
-                }
-            }
-        }
         val initialSettings = com.example.data.SettingsManager.getInstance(context.applicationContext)
         applyAudioEffects(initialSettings)
     }
@@ -315,9 +279,27 @@ object PlayerManager {
         centerChannelProcessor.enabled = settings.centerChannelEnabled
         
         try {
-            equalizer?.let { eq ->
-                eq.enabled = settings.eqEnabled
-                if (settings.eqEnabled) {
+            val sessionId = exoPlayer?.audioSessionId ?: C.AUDIO_SESSION_ID_UNSET
+            if (sessionId == C.AUDIO_SESSION_ID_UNSET) return
+
+            // 1. LoudnessEnhancer - On demand
+            if (settings.audioBoosterEnabled && settings.boostGainMb > 0) {
+                if (loudnessEnhancer == null) {
+                    try { loudnessEnhancer = LoudnessEnhancer(sessionId) } catch (e: Exception) {}
+                }
+                loudnessEnhancer?.setTargetGain(settings.boostGainMb)
+                loudnessEnhancer?.enabled = true
+            } else {
+                loudnessEnhancer?.enabled = false
+            }
+
+            // 2. Equalizer - On demand
+            if (settings.eqEnabled) {
+                if (equalizer == null) {
+                    try { equalizer = Equalizer(0, sessionId) } catch (e: Exception) {}
+                }
+                equalizer?.let { eq ->
+                    eq.enabled = true
                     val levels = settings.getEqLevels()
                     if (levels.isNotEmpty() && levels.size == eq.numberOfBands.toInt()) {
                         for (i in 0 until eq.numberOfBands) {
@@ -325,18 +307,31 @@ object PlayerManager {
                         }
                     }
                 }
+            } else {
+                equalizer?.enabled = false
             }
-            
+
+            // 3. DynamicsProcessing (Night mode) - On demand
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                dynamicsProcessing?.let { dp ->
-                    dp.enabled = settings.nightModeEnabled
-                    if (settings.nightModeEnabled) {
-                        // Very aggressive compression for night mode / loudness leveling
+                if (settings.nightModeEnabled) {
+                    if (dynamicsProcessing == null) {
+                        try {
+                            val config = DynamicsProcessing.Config.Builder(
+                                DynamicsProcessing.VARIANT_FAVOR_FREQUENCY_RESOLUTION,
+                                2, true, 0, true, 0, true, 0, true
+                            ).build()
+                            dynamicsProcessing = DynamicsProcessing(0, sessionId, config)
+                        } catch (e: Exception) {}
+                    }
+                    dynamicsProcessing?.let { dp ->
+                        dp.enabled = true
                         val mbc = DynamicsProcessing.Mbc(true, true, 1)
                         val mbcBand = DynamicsProcessing.MbcBand(true, 1000f, 50f, 200f, 4f, -40f, 10f, -90f, 1f, 0f, 5f)
                         mbc.setBand(0, mbcBand)
                         dp.setMbcAllChannelsTo(mbc)
                     }
+                } else {
+                    dynamicsProcessing?.enabled = false
                 }
             }
         } catch (e: Exception) {
@@ -345,18 +340,26 @@ object PlayerManager {
     }
 
     fun setBoostGain(gainMb: Int) {
+        val sessionId = exoPlayer?.audioSessionId ?: C.AUDIO_SESSION_ID_UNSET
         if (gainMb <= 0) {
             loudnessEnhancer?.enabled = false
         } else {
+            if (loudnessEnhancer == null && sessionId != C.AUDIO_SESSION_ID_UNSET) {
+                try { loudnessEnhancer = LoudnessEnhancer(sessionId) } catch (e: Exception) {}
+            }
             loudnessEnhancer?.setTargetGain(gainMb)
             loudnessEnhancer?.enabled = true
         }
     }
     
     fun applyAudioBoosterSettings(enabled: Boolean, gainMb: Int) {
+        val sessionId = exoPlayer?.audioSessionId ?: C.AUDIO_SESSION_ID_UNSET
         if (!enabled || gainMb <= 0) {
             loudnessEnhancer?.enabled = false
         } else {
+            if (loudnessEnhancer == null && sessionId != C.AUDIO_SESSION_ID_UNSET) {
+                try { loudnessEnhancer = LoudnessEnhancer(sessionId) } catch (e: Exception) {}
+            }
             loudnessEnhancer?.setTargetGain(gainMb)
             loudnessEnhancer?.enabled = true
         }
@@ -479,10 +482,9 @@ object PlayerManager {
     }
 
     fun startProgressTicker() {
-        progressTickerJob?.cancel()
+        if (progressTickerJob?.isActive == true) return
         progressTickerJob = playerScope.launch(kotlinx.coroutines.Dispatchers.Main) {
             while (true) {
-                delay(500)
                 val player = exoPlayer
                 if (player != null && (player.isPlaying || player.playbackState == Player.STATE_BUFFERING)) {
                     val pos = if (player.currentPosition < 0L) 0L else player.currentPosition
@@ -496,9 +498,17 @@ object PlayerManager {
                             playbackState = player.playbackState
                         )
                     }
+                } else {
+                    break
                 }
+                delay(500)
             }
         }
+    }
+
+    fun stopProgressTicker() {
+        progressTickerJob?.cancel()
+        progressTickerJob = null
     }
 
     fun flushProgressToStorage() {

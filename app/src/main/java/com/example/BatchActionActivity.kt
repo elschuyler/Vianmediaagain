@@ -151,6 +151,16 @@ class BatchActionActivity : ComponentActivity() {
                                         putStringArrayListExtra("uris", ArrayList(uris))
                                         putExtra("outputExt", format)
                                         putExtra("commandTemplate", cmdTemplate)
+                                        if (uris.isNotEmpty()) {
+                                            val firstUri = Uri.parse(uris.first())
+                                            data = firstUri
+                                            val clip = android.content.ClipData.newRawUri("media", firstUri)
+                                            for (i in 1 until uris.size) {
+                                                clip.addItem(android.content.ClipData.Item(Uri.parse(uris[i])))
+                                            }
+                                            clipData = clip
+                                        }
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                     }
                                     androidx.core.content.ContextCompat.startForegroundService(this@BatchActionActivity, serviceIntent)
                                     startedProcessing = true
@@ -168,6 +178,16 @@ class BatchActionActivity : ComponentActivity() {
                                         putExtra("maxHeight", maxHeight)
                                         putExtra("quality", quality)
                                         putExtra("format", format)
+                                        if (uris.isNotEmpty()) {
+                                            val firstUri = Uri.parse(uris.first())
+                                            data = firstUri
+                                            val clip = android.content.ClipData.newRawUri("media", firstUri)
+                                            for (i in 1 until uris.size) {
+                                                clip.addItem(android.content.ClipData.Item(Uri.parse(uris[i])))
+                                            }
+                                            clipData = clip
+                                        }
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                     }
                                     androidx.core.content.ContextCompat.startForegroundService(this@BatchActionActivity, serviceIntent)
                                     startedProcessing = true
@@ -182,15 +202,5 @@ class BatchActionActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        if (isFinishing) {
-            val stopIntent1 = Intent(this, com.example.service.CompressionService::class.java).apply {
-                action = "STOP"
-            }
-            try { startService(stopIntent1) } catch (e: Exception) {}
-            val stopIntent2 = Intent(this, com.example.service.FFmpegService::class.java).apply {
-                action = "STOP"
-            }
-            try { startService(stopIntent2) } catch (e: Exception) {}
-        }
     }
 }

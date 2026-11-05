@@ -126,7 +126,7 @@ fun BrightnessHudCapsule(
             }
     ) {
         Text(
-            text = "${(currentBrightness.coerceIn(0f, 1f) * 100).roundToInt()}%",
+            text = "${(currentBrightness.coerceIn(0f, 1f) * 100).roundToInt()}",
             color = Color.White,
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold

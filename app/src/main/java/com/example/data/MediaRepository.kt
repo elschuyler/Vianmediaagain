@@ -503,7 +503,8 @@ class MediaRepository(private val context: Context) {
                             mediaType = mediaType,
                             hasSubtitle = false,
                             tag = tag,
-                            size = itemSize
+                            size = itemSize,
+                            parentFolderPath = folderPath
                         )
                     )
                 }
