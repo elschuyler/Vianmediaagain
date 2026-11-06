@@ -675,12 +675,13 @@ fun PlayerScreen(
                                     if (!resolvedName.isNullOrBlank() && resolvedName != fileName) {
                                         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                                             currentMediaTitle = resolvedName
-                                            if (controller.currentMediaItem?.mediaId == decodedUri.toString()) {
+                                            val currentItem = controller.currentMediaItem
+                                            if (currentItem?.mediaId == decodedUri.toString()) {
                                                 val updatedMeta = controller.mediaMetadata.buildUpon()
                                                     .setTitle(resolvedName)
                                                     .setDisplayTitle(resolvedName)
                                                     .build()
-                                                val updatedItem = initialMediaItem.buildUpon().setMediaMetadata(updatedMeta).build()
+                                                val updatedItem = currentItem.buildUpon().setMediaMetadata(updatedMeta).build()
                                                 controller.replaceMediaItem(controller.currentMediaItemIndex, updatedItem)
                                                 settingsManager.markAsOpened(decodedUriString, resolvedName)
                                             }
@@ -2130,7 +2131,7 @@ private suspend fun resolveSiblingPlaylistItems(
                         }
                     }
                 } catch (e: SecurityException) {
-                    LogKeeper.log("resolveSiblingPlaylistItems: Content query permission denied for $videoUri", "PlayerScreen")
+                    com.example.LogKeeper.log("resolveSiblingPlaylistItems: Content query permission denied for $videoUri", "PlayerScreen")
                 } catch (e: Exception) {}
             }
 

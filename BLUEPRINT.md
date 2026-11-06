@@ -413,3 +413,9 @@
      - Harmonized visual aesthetics with the corresponding `VolumeHudCapsule` on the opposite side of the player canvas.
      - Relieved digit crowding and edge clipping in the 38dp capsule container when brightness is set to 100.
 
+- **Phase 122: APK Pipeline Kotlin Compiler Reference Resolution**
+  1. Kotlin Compilation Integrity:
+     - In `PlayerManager.kt`, updated `release()` to reset `pendingQueueItems = null` and `pendingQueueIndex = 0`, eliminating unresolved reference `pendingFolderQueue`.
+     - In `PlayerScreen.kt`, replaced block-scoped `initialMediaItem` with `controller.currentMediaItem` in the async title updater, eliminating unresolved reference `initialMediaItem`.
+     - In `PlayerScreen.kt` (`resolveSiblingPlaylistItems`), qualified bare `LogKeeper.log` call with `com.example.LogKeeper.log`, eliminating unresolved reference `LogKeeper`.
+

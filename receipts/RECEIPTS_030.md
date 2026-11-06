@@ -158,3 +158,22 @@
 * How it was verified: `lint_applet` and `compile_applet`.
 * Any deviation from what was requested: None.
 * Any known issue or follow-up needed: None.
+
+## Phase 122: APK Pipeline Kotlin Compiler Reference Resolution
+* Timestamp: 2026-11-06T05:02:00Z
+* One-line summary: Resolved three Kotlin compilation errors in PlayerManager and PlayerScreen to unblock the GitHub Actions APK build pipeline.
+* Files touched:
+  - app/src/main/java/com/example/service/PlayerManager.kt
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_030.md
+* What was actually done:
+  - Resolved `Unresolved reference 'pendingFolderQueue'` in `PlayerManager.kt` (`release()`):
+    * Replaced reference to renamed property with `pendingQueueItems = null` and `pendingQueueIndex = 0`.
+  - Resolved `Unresolved reference 'initialMediaItem'` in `PlayerScreen.kt`:
+    * Replaced block-scoped `initialMediaItem` with active `controller.currentMediaItem` in the asynchronous display name update block.
+  - Resolved `Unresolved reference 'LogKeeper'` in `PlayerScreen.kt`:
+    * Qualified bare `LogKeeper.log` at line 2133 with full package name `com.example.LogKeeper.log`.
+* How it was verified: `lint_applet` and `compile_applet`.
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: None.

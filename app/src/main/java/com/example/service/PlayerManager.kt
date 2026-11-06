@@ -539,7 +539,8 @@ object PlayerManager {
     fun releasePlayer() = release()
 
     fun release() {
-        pendingFolderQueue = null
+        pendingQueueItems = null
+        pendingQueueIndex = 0
         flushProgressToStorage()
         progressTickerJob?.cancel()
         progressTickerJob = null
