@@ -177,3 +177,76 @@
 * How it was verified: `lint_applet` and `compile_applet`.
 * Any deviation from what was requested: None.
 * Any known issue or follow-up needed: None.
+
+## Phase 123: Instant Video Opening Engine (Library & External Intent)
+* Timestamp: 2026-11-07T10:00:00Z
+* One-line summary: Eliminated tap delay in Library and external launch by removing synchronous blocking I/O and redundant retrievers.
+* Files touched:
+  - app/src/main/java/com/example/ui/screens/MainScreen.kt
+  - app/src/main/java/com/example/ui/PlayerActivity.kt
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_030.md
+* What was actually done:
+  - Replaced synchronous `isAnimatedMedia(context, it.uri)` disk probing on every item in `onClick` inside `MainScreen.kt` with fast in-memory extension checks (`endsWith(".gif") || endsWith(".webp")`), making queue building instantaneous without blocking the Main thread.
+  - In `PlayerActivity.kt`, updated `preparePlaybackImmediately()` to consume `PlayerManager.consumePendingQueue()` immediately if present, preparing the full folder queue on frame 0, and moved `detectSiblingSubtitles` purely to background `lifecycleScope.launch(Dispatchers.IO)`, eliminating synchronous disk query blocking before `player.prepare()`.
+  - In `PlayerScreen.kt`, removed redundant `MediaMetadataRetriever` coroutine loop (lines 774–826); orientation is now driven directly by ExoPlayer's native `EVENT_VIDEO_SIZE_CHANGED` callback with zero disk thrashing.
+* How it was verified: `lint_applet` and `compile_applet`.
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: None.
+
+## Phase 124: Library Next-Player Scroll Parity & Node Flattening
+* Timestamp: 2026-11-07T10:10:00Z
+* One-line summary: Achieved Next-Player 60fps scrolling parity by throttling scroll listeners, flattening FolderCard layouts, and caching Coil ImageRequests.
+* Files touched:
+  - app/src/main/java/com/example/ui/screens/MainScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_030.md
+* What was actually done:
+  - Throttled all 4 `snapshotFlow` scroll listeners in `MainScreen.kt` with `.kotlinx.coroutines.flow.distinctUntilChanged()` on `firstVisibleItemIndex`, eliminating per-pixel coroutine dispatch churn and unnecessary recomposition events.
+  - Replaced outer `Card` wrapper in `FolderCard` with a flat `Row(modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(vertical = 8.dp))` to eliminate nested layout measurement passes.
+  - Wrapped Coil's `ImageRequest` in `remember(media.uri) { ImageRequest.Builder(context)...build() }` inside media items list, avoiding builder allocations on every scroll offset change.
+* How it was verified: `lint_applet` and `compile_applet`.
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: None.
+
+## Phase 125: Lite Mode Battery Saver & Guaranteed Notification Artwork
+* Timestamp: 2026-11-07T10:20:00Z
+* One-line summary: Implemented default-ON Lite Mode with dynamic display frame rate matching and low-power idle clamp, while guaranteeing notification player artwork generation.
+* Files touched:
+  - app/src/main/java/com/example/data/SettingsManager.kt
+  - app/src/main/java/com/example/ui/screens/PlayerSettingsScreen.kt
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_030.md
+* What was actually done:
+  - Added `liteModeEnabled` StateFlow (default `true`) and `setLiteModeEnabled(enabled: Boolean)` to `SettingsManager.kt`.
+  - Added "Lite Mode (Battery Saver)" switch row in `PlayerSettingsScreen.kt` under Player Settings.
+  - In `PlayerScreen.kt`, integrated `DisposableEffect(liteModeEnabled, isPlaying)`: dynamically matches video refresh rate (24Hz, 30Hz, 60Hz) via `preferredRefreshRate` and `Surface.setFrameRate(targetRate, FRAME_RATE_COMPATIBILITY_FIXED_SOURCE)` on Android 11+ (API 30+).
+  - Clamped refresh rate to 60Hz during pause, buffering, and idle states to eliminate 90Hz/120Hz display battery drain during non-active playback periods.
+  - Reset to system default (`preferredRefreshRate = 0f`) on dispose or when Lite Mode is toggled off.
+  - Scaled progress ticker delay to 1000ms when controls are hidden to reduce background CPU wakeups.
+  - Verified and guaranteed that `PlayerActivity.kt` (`extractThumbnailBytes`) and `PlaybackService.kt` (`extractMediaThumbnailBytes`) unconditionally extract artwork bytes and set `MediaMetadata.setArtworkData`, ensuring notification player artwork is always generated.
+* How it was verified: `lint_applet` and `compile_applet`.
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: None.
+
+## Phase 126: Audio Background Noise Reduction Sub-Tool (Video Editor & Audio Trimmer)
+* Timestamp: 2026-11-07T10:25:00Z
+* One-line summary: Implemented high-fidelity background noise reduction sub-tools in Video Editor and Audio Trimmer powered by FFmpeg's afftdn adaptive filter.
+* Files touched:
+  - app/src/main/java/com/example/ui/screens/VideoEditorScreen.kt
+  - app/src/main/java/com/example/ui/screens/AudioTrimmerScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_030.md
+* What was actually done:
+  - In `VideoEditorScreen.kt`, extended `VideoEditState` with `denoiseLevel: String = "OFF"` ("OFF", "LIGHT", "MEDIUM", "AGGRESSIVE").
+  - Under `VideoEditorTool.AUDIO`, added a dedicated "Reduce Background Noise (Voice Clarity)" sub-tool section with informative subtitles and selectable `FilterChip` presets (Off, Light 12dB, Medium 18dB, Strong 24dB).
+  - Integrated FFmpeg FFT adaptive denoiser filter `afftdn=nr=12:nf=-20`, `afftdn=nr=18:nf=-25`, and `afftdn=nr=24:nf=-30` into `audioFilterList` across single video exports, mixed audio tracks, replaced audio, and join sequences.
+  - In `AudioTrimmerScreen.kt`, added `denoiseLevel` state and FilterChip selection row below time selection dials.
+  - Made trimmer layout scrollable with `verticalScroll(rememberScrollState())` to prevent clipping across compact screens and landscape orientations.
+  - Implemented dual-pipeline `exportTrimmedAudio`: uses fast native Media3 Transformer when denoise is Off, and high-fidelity FFmpeg `afftdn` FFT denoiser pipeline with AAC 192k encoding when noise reduction is active.
+* How it was verified: `lint_applet` and `compile_applet`.
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: None.
+

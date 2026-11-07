@@ -239,6 +239,8 @@ fun PlayerScreen(
     onNavigateToEdit: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
+    val settingsManager = remember(context) { com.example.data.SettingsManager.getInstance(context) }
+    val liteModeEnabled by settingsManager.liteModeEnabled.collectAsState()
     var mediaController by remember { mutableStateOf(com.example.service.PlayerManager.exoPlayer) }
     var showPlayerSettingsDialog by remember { mutableStateOf(false) }
     var showControls by remember { mutableStateOf(false) }
@@ -488,10 +490,86 @@ fun PlayerScreen(
                 }
             }
 
-            kotlinx.coroutines.delay(500)
+            val delayMs = if (liteModeEnabled && !showControls) 1000L else 500L
+            kotlinx.coroutines.delay(delayMs)
         }
     }
-    val settingsManager = com.example.data.SettingsManager.getInstance(context)
+
+    val activity = remember(context) { context.findActivity() }
+
+    DisposableEffect(liteModeEnabled, isPlaying, mediaController) {
+        val window = activity?.window
+        if (window != null) {
+            if (liteModeEnabled) {
+                if (isPlaying) {
+                    val fps = mediaController?.videoFormat?.frameRate ?: -1f
+                    val targetRate = when {
+                        fps in 23f..25f -> 24f
+                        fps in 29f..31f -> 30f
+                        fps in 59f..61f -> 60f
+                        fps > 0f -> fps
+                        else -> 60f
+                    }
+                    val lp = window.attributes
+                    lp.preferredRefreshRate = targetRate
+                    window.attributes = lp
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                        try {
+                            (playerViewRef.value?.videoSurfaceView as? android.view.SurfaceView)?.holder?.surface?.let { surf ->
+                                if (surf.isValid) {
+                                    surf.setFrameRate(targetRate, android.view.Surface.FRAME_RATE_COMPATIBILITY_FIXED_SOURCE)
+                                }
+                            }
+                        } catch (e: Exception) {}
+                    }
+                } else {
+                    // During non-active playback periods (pause, buffering, idle), clamp display to 60Hz to save battery
+                    val lp = window.attributes
+                    lp.preferredRefreshRate = 60f
+                    window.attributes = lp
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                        try {
+                            (playerViewRef.value?.videoSurfaceView as? android.view.SurfaceView)?.holder?.surface?.let { surf ->
+                                if (surf.isValid) {
+                                    surf.setFrameRate(0f, android.view.Surface.FRAME_RATE_COMPATIBILITY_DEFAULT)
+                                }
+                            }
+                        } catch (e: Exception) {}
+                    }
+                }
+            } else {
+                val lp = window.attributes
+                lp.preferredRefreshRate = 0f
+                window.attributes = lp
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                    try {
+                        (playerViewRef.value?.videoSurfaceView as? android.view.SurfaceView)?.holder?.surface?.let { surf ->
+                            if (surf.isValid) {
+                                surf.setFrameRate(0f, android.view.Surface.FRAME_RATE_COMPATIBILITY_DEFAULT)
+                            }
+                        }
+                    } catch (e: Exception) {}
+                }
+            }
+        }
+        onDispose {
+            activity?.window?.let { win ->
+                val lp = win.attributes
+                lp.preferredRefreshRate = 0f
+                win.attributes = lp
+            }
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                try {
+                    (playerViewRef.value?.videoSurfaceView as? android.view.SurfaceView)?.holder?.surface?.let { surf ->
+                        if (surf.isValid) {
+                            surf.setFrameRate(0f, android.view.Surface.FRAME_RATE_COMPATIBILITY_DEFAULT)
+                        }
+                    }
+                } catch (e: Exception) {}
+            }
+        }
+    }
+
     val keepScreenAwake by settingsManager.keepScreenAwake.collectAsState()
     val decodedUriStringForInit = remember(uriString) { String(android.util.Base64.decode(uriString, android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)) }
     var playbackSpeed by remember { mutableFloatStateOf(settingsManager.getPlaybackSpeed(decodedUriStringForInit)) }
@@ -771,57 +849,22 @@ fun PlayerScreen(
 
         val controller = mediaController ?: return@DisposableEffect onDispose {}
         
-        // Lightweight check for dimensions on start
-        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-            try {
-                val retriever = android.media.MediaMetadataRetriever()
-                val u = android.net.Uri.parse(decodedUriString)
-                var set = false
-                try {
-                    retriever.setDataSource(context, u)
-                    set = true
-                } catch (e1: Exception) {
-                    try {
-                        context.contentResolver.openFileDescriptor(u, "r")?.use { pfd ->
-                            retriever.setDataSource(pfd.fileDescriptor)
-                            set = true
-                        }
-                    } catch (e2: Exception) {}
-                }
-                if (set) {
-                    val widthStr = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
-                    val heightStr = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
-                    val rotationStr = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)
-                    retriever.release()
-                    if (widthStr != null && heightStr != null) {
-                        var w = widthStr.toIntOrNull() ?: 0
-                        var h = heightStr.toIntOrNull() ?: 0
-                        val rot = rotationStr?.toIntOrNull() ?: 0
-                        if (rot == 90 || rot == 270) {
-                            val temp = w
-                            w = h
-                            h = temp
-                        }
-                        if (w > 0 && h > 0) {
-                            val isVideoPortrait = h > w
-                            lastKnownIsPortrait = isVideoPortrait
-                            com.example.LogKeeper.log("Lightweight check: rot=$rot w=$w h=$h isPortrait=$isVideoPortrait", "PlayerScreen")
-                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                val act = context.findActivity()
-                                val targetOrientation = if (isVideoPortrait) {
-                                    android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
-                                } else {
-                                    android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-                                }
-                                if (act != null && act.requestedOrientation != targetOrientation) {
-                                    act.requestedOrientation = targetOrientation
-                                }
-                            }
-                        }
+        // Native decoder orientation: if video size is already available, sync orientation immediately
+        if (controller.videoSize.width > 0 && controller.videoSize.height > 0) {
+            val act = context.findActivity()
+            if (act != null && !act.isFinishing && !act.isDestroyed) {
+                @Suppress("DEPRECATION")
+                val w = if (controller.videoSize.unappliedRotationDegrees % 180 == 0) controller.videoSize.width else controller.videoSize.height
+                @Suppress("DEPRECATION")
+                val h = if (controller.videoSize.unappliedRotationDegrees % 180 == 0) controller.videoSize.height else controller.videoSize.width
+                if (w > 0 && h > 0) {
+                    val isPortrait = h > w
+                    lastKnownIsPortrait = isPortrait
+                    val target = if (isPortrait) android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                    if (act.requestedOrientation != target) {
+                        act.requestedOrientation = target
                     }
                 }
-            } catch (e: Exception) {
-                com.example.LogKeeper.logError("PlayerScreen", "Error in lightweight dimension check", e)
             }
         }
         

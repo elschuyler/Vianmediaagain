@@ -173,7 +173,8 @@ data class VideoEditState(
     val addedAudioName: String? = null,
     val addedAudioVolume: Float = 1.0f,
     val isAudioReplaceMode: Boolean = false,
-    val loopAddedAudio: Boolean = true
+    val loopAddedAudio: Boolean = true,
+    val denoiseLevel: String = "OFF"
 )
 
 enum class VideoEditorTool {
@@ -2391,6 +2392,68 @@ fun VideoEditorScreen(
                                             )
                                         }
                                     }
+
+                                    Spacer(modifier = Modifier.height(14.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(1.dp)
+                                            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                                    )
+                                    Spacer(modifier = Modifier.height(12.dp))
+
+                                    // --- 3. Background Noise Reduction (Voice Clarity) Section ---
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text("Reduce Background Noise", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                                        Text(
+                                            text = when (editState.denoiseLevel) {
+                                                "LIGHT" -> "Light (12dB)"
+                                                "MEDIUM" -> "Medium (18dB)"
+                                                "AGGRESSIVE" -> "Strong (24dB)"
+                                                else -> "Off"
+                                            },
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = if (editState.denoiseLevel != "OFF") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        "Eliminates microphone hiss, AC hum, wind, and room rumble using FFT adaptive noise suppression",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .horizontalScroll(rememberScrollState()),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        FilterChip(
+                                            selected = editState.denoiseLevel == "OFF",
+                                            onClick = { editState = editState.copy(denoiseLevel = "OFF") },
+                                            label = { Text("Off") }
+                                        )
+                                        FilterChip(
+                                            selected = editState.denoiseLevel == "LIGHT",
+                                            onClick = { editState = editState.copy(denoiseLevel = "LIGHT") },
+                                            label = { Text("Light") }
+                                        )
+                                        FilterChip(
+                                            selected = editState.denoiseLevel == "MEDIUM",
+                                            onClick = { editState = editState.copy(denoiseLevel = "MEDIUM") },
+                                            label = { Text("Medium (Voice Clarity)") }
+                                        )
+                                        FilterChip(
+                                            selected = editState.denoiseLevel == "AGGRESSIVE",
+                                            onClick = { editState = editState.copy(denoiseLevel = "AGGRESSIVE") },
+                                            label = { Text("Strong") }
+                                        )
+                                    }
                                 }
                             }
                             VideoEditorTool.ASPECT_RATIO -> {
@@ -3171,6 +3234,17 @@ fun VideoEditorScreen(
                         }
                         if (editState.volume != 1.0f) {
                             audioFilterList.add("volume=${editState.volume}")
+                        }
+                        if (editState.denoiseLevel != "OFF") {
+                            val denoiseFilter = when (editState.denoiseLevel) {
+                                "LIGHT" -> "afftdn=nr=12:nf=-20"
+                                "MEDIUM" -> "afftdn=nr=18:nf=-25"
+                                "AGGRESSIVE" -> "afftdn=nr=24:nf=-30"
+                                else -> ""
+                            }
+                            if (denoiseFilter.isNotEmpty()) {
+                                audioFilterList.add(denoiseFilter)
+                            }
                         }
 
                         if (editState.rotateConfig != 0) {

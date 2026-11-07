@@ -130,37 +130,47 @@ class PlayerActivity : ComponentActivity() {
         val uri = android.net.Uri.parse(decodedStr)
         val player = PlayerManager.exoPlayer
         if (player != null && player.currentMediaItem?.mediaId != decodedStr) {
-            val fastName = getFastImmediateName(uri)
-            val siblingSubs = com.example.service.SubtitleAutoDetector.detectSiblingSubtitles(applicationContext, uri)
-            val mediaItemBuilder = androidx.media3.common.MediaItem.Builder()
-                .setUri(uri)
-                .setMediaId(decodedStr)
-                .setMediaMetadata(
-                    androidx.media3.common.MediaMetadata.Builder()
-                        .setTitle(fastName)
-                        .setDisplayTitle(fastName)
-                        .setArtworkUri(uri)
-                        .build()
-                )
-            if (siblingSubs.isNotEmpty()) {
-                mediaItemBuilder.setSubtitleConfigurations(siblingSubs)
-            }
-            val mediaItem = mediaItemBuilder.build()
+            val pending = PlayerManager.consumePendingQueue()
             val settings = com.example.data.SettingsManager.getInstance(applicationContext)
-            val lastPos = settings.getPlaybackPosition(decodedStr, fastName)
-            val startPos = if (lastPos > 0 && !settings.isFinished(decodedStr, fastName)) lastPos else 0L
-            player.setMediaItem(mediaItem, startPos)
-            player.prepare()
-            player.play()
-            PlayerManager.isImplicitFolderQueue = true
-            settings.markAsOpened(decodedStr, fastName)
+            val fastName = getFastImmediateName(uri)
+            if (pending != null && pending.first.isNotEmpty()) {
+                val (queueItems, queueIndex) = pending
+                val activeItem = queueItems.getOrNull(queueIndex)
+                val activeName = activeItem?.mediaMetadata?.title?.toString() ?: fastName
+                val lastPos = settings.getPlaybackPosition(decodedStr, activeName)
+                val startPos = if (lastPos > 0 && !settings.isFinished(decodedStr, activeName)) lastPos else 0L
+                player.setMediaItems(queueItems, queueIndex, startPos)
+                player.pauseAtEndOfMediaItems = (player.repeatMode == androidx.media3.common.Player.REPEAT_MODE_OFF)
+                player.prepare()
+                player.play()
+                PlayerManager.isImplicitFolderQueue = true
+                settings.markAsOpened(decodedStr, activeName)
+            } else {
+                val mediaItem = androidx.media3.common.MediaItem.Builder()
+                    .setUri(uri)
+                    .setMediaId(decodedStr)
+                    .setMediaMetadata(
+                        androidx.media3.common.MediaMetadata.Builder()
+                            .setTitle(fastName)
+                            .setDisplayTitle(fastName)
+                            .setArtworkUri(uri)
+                            .build()
+                    )
+                    .build()
+                val lastPos = settings.getPlaybackPosition(decodedStr, fastName)
+                val startPos = if (lastPos > 0 && !settings.isFinished(decodedStr, fastName)) lastPos else 0L
+                player.setMediaItem(mediaItem, startPos)
+                player.pauseAtEndOfMediaItems = (player.repeatMode == androidx.media3.common.Player.REPEAT_MODE_OFF)
+                player.prepare()
+                player.play()
+                PlayerManager.isImplicitFolderQueue = true
+                settings.markAsOpened(decodedStr, fastName)
+            }
 
             // Resolve full display name, video thumbnail, and deferred subtitles asynchronously on IO dispatcher
             lifecycleScope.launch(Dispatchers.IO) {
                 val resolvedName = if (uri.scheme == "content") queryDisplayName(uri) else null
-                val asyncSubs = if (siblingSubs.isEmpty()) {
-                    com.example.service.SubtitleAutoDetector.detectSiblingSubtitles(applicationContext, uri)
-                } else emptyList()
+                val asyncSubs = com.example.service.SubtitleAutoDetector.detectSiblingSubtitles(applicationContext, uri)
                 val thumbBytes = extractThumbnailBytes(uri)
 
                 if ((!resolvedName.isNullOrBlank() && resolvedName != fastName) || asyncSubs.isNotEmpty() || thumbBytes != null) {

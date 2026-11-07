@@ -9,8 +9,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import com.arthenica.ffmpegkit.FFmpegKit
+import com.arthenica.ffmpegkit.ReturnCode
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Save
@@ -87,6 +92,7 @@ fun AudioTrimmerScreen(
     }
 
     var isExporting by remember { mutableStateOf(false) }
+    var denoiseLevel by remember { mutableStateOf("OFF") }
     
     val player = remember(context) { 
         ExoPlayer.Builder(context).build().apply {
@@ -155,7 +161,7 @@ fun AudioTrimmerScreen(
                     IconButton(
                         onClick = {
                             if (endMs > startMs) {
-                                exportTrimmedAudio(context, uri, startMs, endMs) { success ->
+                                exportTrimmedAudio(context, uri, startMs, endMs, denoiseLevel) { success ->
                                     isExporting = false
                                     if (success) {
                                         Toast.makeText(context, "Trimmed audio saved successfully", Toast.LENGTH_SHORT).show()
@@ -190,7 +196,8 @@ fun AudioTrimmerScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(24.dp),
+                        .padding(horizontal = 24.dp, vertical = 12.dp)
+                        .verticalScroll(rememberScrollState()),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text("Timeline", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
@@ -303,6 +310,64 @@ fun AudioTrimmerScreen(
                                 if (newVal > startMs) endMs = newVal.toLong() 
                             }
                         )
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    // --- Noise Reduction / Voice Clarity ---
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "Reduce Noise (Voice Clarity)",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = when (denoiseLevel) {
+                                    "LIGHT" -> "Light (12dB)"
+                                    "MEDIUM" -> "Medium (18dB)"
+                                    "AGGRESSIVE" -> "Strong (24dB)"
+                                    else -> "Off"
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (denoiseLevel != "OFF") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            FilterChip(
+                                selected = denoiseLevel == "OFF",
+                                onClick = { denoiseLevel = "OFF" },
+                                label = { Text("Off") }
+                            )
+                            FilterChip(
+                                selected = denoiseLevel == "LIGHT",
+                                onClick = { denoiseLevel = "LIGHT" },
+                                label = { Text("Light") }
+                            )
+                            FilterChip(
+                                selected = denoiseLevel == "MEDIUM",
+                                onClick = { denoiseLevel = "MEDIUM" },
+                                label = { Text("Medium") }
+                            )
+                            FilterChip(
+                                selected = denoiseLevel == "AGGRESSIVE",
+                                onClick = { denoiseLevel = "AGGRESSIVE" },
+                                label = { Text("Strong") }
+                            )
+                        }
                     }
                 }
             }
@@ -499,67 +564,119 @@ private fun formatTrimmerTime(ms: Long): String {
     }
 }
 
-// Media3 Transformer API
-private fun exportTrimmedAudio(context: Context, inputUri: Uri, startMs: Long, endMs: Long, onComplete: (Boolean) -> Unit) {
-    val transformer = Transformer.Builder(context).build()
-    
-    val clippingConfiguration = MediaItem.ClippingConfiguration.Builder()
-        .setStartPositionMs(startMs)
-        .setEndPositionMs(endMs)
-        .build()
-
-    val mediaItem = MediaItem.Builder()
-        .setUri(inputUri)
-        .setClippingConfiguration(clippingConfiguration)
-        .build()
+// Media3 Transformer & FFmpeg afftdn Denoise API
+private fun exportTrimmedAudio(context: Context, inputUri: Uri, startMs: Long, endMs: Long, denoiseLevel: String, onComplete: (Boolean) -> Unit) {
+    if (denoiseLevel == "OFF") {
+        val transformer = Transformer.Builder(context).build()
         
-    val editedMediaItem = EditedMediaItem.Builder(mediaItem).build()
-    
-    // We export to a local temp file, then copy to SAF or MediaStore
-    val tempFile = java.io.File(context.cacheDir, "Temp_Trim_${System.currentTimeMillis()}.m4a")
+        val clippingConfiguration = MediaItem.ClippingConfiguration.Builder()
+            .setStartPositionMs(startMs)
+            .setEndPositionMs(endMs)
+            .build()
 
-    transformer.addListener(object : Transformer.Listener {
-        override fun onCompleted(composition: Composition, exportResult: ExportResult) {
-            super.onCompleted(composition, exportResult)
+        val mediaItem = MediaItem.Builder()
+            .setUri(inputUri)
+            .setClippingConfiguration(clippingConfiguration)
+            .build()
             
-            Thread {
-                val settingsManager = com.example.data.SettingsManager.getInstance(context)
-                val outputUriStr = settingsManager.outputFolderUri.value
+        val editedMediaItem = EditedMediaItem.Builder(mediaItem).build()
+        
+        // We export to a local temp file, then copy to SAF or MediaStore
+        val tempFile = java.io.File(context.cacheDir, "Temp_Trim_${System.currentTimeMillis()}.m4a")
+
+        transformer.addListener(object : Transformer.Listener {
+            override fun onCompleted(composition: Composition, exportResult: ExportResult) {
+                super.onCompleted(composition, exportResult)
                 
-                val originalName = getDisplayNameFromUri(context, inputUri)
-                val sdf = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.getDefault())
-                val dateStr = sdf.format(java.util.Date())
-                val fileName = "${originalName}_${dateStr}_trimmed.m4a"
-                
-                val outStream = getOutputStream(context, outputUriStr, fileName, "audio/mp4")
-                val success = if (outStream != null) {
-                    copyFileToStream(tempFile, outStream)
-                } else {
-                    false
-                }
-                
+                Thread {
+                    val settingsManager = com.example.data.SettingsManager.getInstance(context)
+                    val outputUriStr = settingsManager.outputFolderUri.value
+                    
+                    val originalName = getDisplayNameFromUri(context, inputUri)
+                    val sdf = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.getDefault())
+                    val dateStr = sdf.format(java.util.Date())
+                    val fileName = "${originalName}_${dateStr}_trimmed.m4a"
+                    
+                    val outStream = getOutputStream(context, outputUriStr, fileName, "audio/mp4")
+                    val success = if (outStream != null) {
+                        copyFileToStream(tempFile, outStream)
+                    } else {
+                        false
+                    }
+                    
+                    if (tempFile.exists()) {
+                        tempFile.delete()
+                    }
+                    
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        onComplete(success)
+                    }
+                }.start()
+            }
+
+            override fun onError(composition: Composition, exportResult: ExportResult, exportException: ExportException) {
+                super.onError(composition, exportResult, exportException)
                 if (tempFile.exists()) {
                     tempFile.delete()
                 }
-                
                 android.os.Handler(android.os.Looper.getMainLooper()).post {
-                    onComplete(success)
+                    onComplete(false)
                 }
-            }.start()
-        }
-
-        override fun onError(composition: Composition, exportResult: ExportResult, exportException: ExportException) {
-            super.onError(composition, exportResult, exportException)
-            if (tempFile.exists()) {
-                tempFile.delete()
             }
+        })
+
+        transformer.start(editedMediaItem, tempFile.absolutePath)
+        return
+    }
+
+    // High-Fidelity FFmpeg FFT Denoise Pipeline
+    Thread {
+        val denoiseFilter = when (denoiseLevel) {
+            "LIGHT" -> "afftdn=nr=12:nf=-20"
+            "MEDIUM" -> "afftdn=nr=18:nf=-25"
+            "AGGRESSIVE" -> "afftdn=nr=24:nf=-30"
+            else -> "anull"
+        }
+        val tempInput = java.io.File(context.cacheDir, "Temp_Input_${System.currentTimeMillis()}.tmp")
+        val tempOutput = java.io.File(context.cacheDir, "Temp_Trim_${System.currentTimeMillis()}.m4a")
+        var success = false
+        try {
+            context.contentResolver.openInputStream(inputUri)?.use { input ->
+                java.io.FileOutputStream(tempInput).use { output ->
+                    input.copyTo(output)
+                }
+            }
+            if (tempInput.exists() && tempInput.length() > 0) {
+                val startS = startMs / 1000f
+                val endS = endMs / 1000f
+                val cmd = "-y -ss $startS -to $endS -i \"${tempInput.absolutePath}\" -af \"$denoiseFilter\" -c:a aac -b:a 192k \"${tempOutput.absolutePath}\""
+                val session = FFmpegKit.execute(cmd)
+                val returnCode = session.returnCode
+                if (returnCode != null && ReturnCode.isSuccess(returnCode) && tempOutput.exists() && tempOutput.length() > 0) {
+                    val settingsManager = com.example.data.SettingsManager.getInstance(context)
+                    val outputUriStr = settingsManager.outputFolderUri.value
+                    val originalName = getDisplayNameFromUri(context, inputUri)
+                    val sdf = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.getDefault())
+                    val dateStr = sdf.format(java.util.Date())
+                    val fileName = "${originalName}_${dateStr}_trimmed_denoised.m4a"
+                    val outStream = getOutputStream(context, outputUriStr, fileName, "audio/mp4")
+                    if (outStream != null) {
+                        success = copyFileToStream(tempOutput, outStream)
+                    }
+                } else {
+                    com.example.LogKeeper.logError("AudioTrimmerScreen", "FFmpeg denoise failed: ${session.allLogsAsString}", null)
+                }
+            }
+        } catch (e: Exception) {
+            com.example.LogKeeper.logError("AudioTrimmerScreen", "Failed to trim and denoise audio: ${e.message}", e)
+        } finally {
+            if (tempInput.exists()) tempInput.delete()
+            if (tempOutput.exists()) tempOutput.delete()
             android.os.Handler(android.os.Looper.getMainLooper()).post {
-                onComplete(false)
+                onComplete(success)
             }
         }
-    })
-
-    transformer.start(editedMediaItem, tempFile.absolutePath)
+    }.start()
 }
 
 private fun getOutputStream(context: Context, outputUriStr: String?, fileName: String, mimeType: String): java.io.OutputStream? {

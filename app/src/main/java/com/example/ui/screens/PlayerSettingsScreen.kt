@@ -114,6 +114,30 @@ fun PlayerSettingsScreen(
                     }
                 )
             }
+
+            val liteModeEnabled by settingsManager.liteModeEnabled.collectAsState()
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Lite Mode (Battery Saver)",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        text = "Matches screen refresh rate to video frame rate and throttles background work to conserve power",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = liteModeEnabled,
+                    onCheckedChange = { 
+                        settingsManager.setLiteModeEnabled(it)
+                    }
+                )
+            }
             
             var decoderPriority by remember { mutableStateOf(settingsManager.decoderPriority) }
             var showDecoderPriorityDialog by remember { mutableStateOf(false) }

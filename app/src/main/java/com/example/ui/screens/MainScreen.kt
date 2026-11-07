@@ -114,31 +114,35 @@ fun MainScreen(
     )
 
     LaunchedEffect(folderListState) {
-        snapshotFlow { folderListState.firstVisibleItemIndex to folderListState.firstVisibleItemScrollOffset }
-            .collect { (idx, off) ->
+        snapshotFlow { folderListState.firstVisibleItemIndex }
+            .kotlinx.coroutines.flow.distinctUntilChanged()
+            .collect { idx ->
                 viewModel.foldersScrollIndex = idx
-                viewModel.foldersScrollOffset = off
+                viewModel.foldersScrollOffset = folderListState.firstVisibleItemScrollOffset
             }
     }
     LaunchedEffect(videoListState) {
-        snapshotFlow { videoListState.firstVisibleItemIndex to videoListState.firstVisibleItemScrollOffset }
-            .collect { (idx, off) ->
+        snapshotFlow { videoListState.firstVisibleItemIndex }
+            .kotlinx.coroutines.flow.distinctUntilChanged()
+            .collect { idx ->
                 viewModel.videosScrollIndex = idx
-                viewModel.videosScrollOffset = off
+                viewModel.videosScrollOffset = videoListState.firstVisibleItemScrollOffset
             }
     }
     LaunchedEffect(mediaListState) {
-        snapshotFlow { mediaListState.firstVisibleItemIndex to mediaListState.firstVisibleItemScrollOffset }
-            .collect { (idx, off) ->
+        snapshotFlow { mediaListState.firstVisibleItemIndex }
+            .kotlinx.coroutines.flow.distinctUntilChanged()
+            .collect { idx ->
                 viewModel.folderDetailScrollIndex = idx
-                viewModel.folderDetailScrollOffset = off
+                viewModel.folderDetailScrollOffset = mediaListState.firstVisibleItemScrollOffset
             }
     }
     LaunchedEffect(playlistListState) {
-        snapshotFlow { playlistListState.firstVisibleItemIndex to playlistListState.firstVisibleItemScrollOffset }
-            .collect { (idx, off) ->
+        snapshotFlow { playlistListState.firstVisibleItemIndex }
+            .kotlinx.coroutines.flow.distinctUntilChanged()
+            .collect { idx ->
                 viewModel.playlistsScrollIndex = idx
-                viewModel.playlistsScrollOffset = off
+                viewModel.playlistsScrollOffset = playlistListState.firstVisibleItemScrollOffset
             }
     }
 
@@ -733,7 +737,7 @@ fun MainScreen(
                                                             try {
                                                                 val queue = sortedMediaItems.filter {
                                                                     it.mediaType == com.example.data.MediaType.VIDEO ||
-                                                                    (it.mediaType == com.example.data.MediaType.IMAGE && com.example.data.isAnimatedMedia(context, it.uri))
+                                                                    (it.mediaType == com.example.data.MediaType.IMAGE && (it.name.endsWith(".gif", true) || it.name.endsWith(".webp", true)))
                                                                 }.map { m ->
                                                                     val meta = androidx.media3.common.MediaMetadata.Builder()
                                                                         .setTitle(m.name)
@@ -784,8 +788,8 @@ fun MainScreen(
                                                     .clip(RoundedCornerShape(8.dp))
                                                     .background(MaterialTheme.colorScheme.surfaceVariant)
                                             ) {
-                                                AsyncImage(
-                                                    model = ImageRequest.Builder(context)
+                                                val thumbRequest = remember(media.uri) {
+                                                    ImageRequest.Builder(context)
                                                         .data(media.uri)
                                                         .size(256)
                                                         .bitmapConfig(android.graphics.Bitmap.Config.RGB_565)
@@ -793,7 +797,10 @@ fun MainScreen(
                                                         .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
                                                         .diskCachePolicy(coil.request.CachePolicy.ENABLED)
                                                         .crossfade(false)
-                                                        .build(),
+                                                        .build()
+                                                }
+                                                AsyncImage(
+                                                    model = thumbRequest,
                                                     contentDescription = "Thumbnail",
                                                     modifier = Modifier.fillMaxSize(),
                                                     contentScale = ContentScale.Crop
@@ -1358,83 +1365,78 @@ fun MainScreen(
 
 @Composable
 fun FolderCard(folder: MediaFolder, onClick: () -> Unit, onOptionsClick: () -> Unit) {
-    Card(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 8.dp)
-            .clickable { onClick() },
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
+            .clickable { onClick() }
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier.padding(vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Box(
+            modifier = Modifier
+                .size(80.dp),
+            contentAlignment = Alignment.Center
         ) {
-            Box(
-                modifier = Modifier
-                    .size(80.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Folder,
-                    contentDescription = null,
-                    modifier = Modifier.size(64.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                if (folder.hasNew) {
-                    Box(modifier = Modifier.align(Alignment.TopStart).padding(8.dp).background(Color(0xFFE53935), RoundedCornerShape(4.dp))) {
-                        Text("NEW", style = MaterialTheme.typography.labelSmall, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 8.sp, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
-                    }
+            Icon(
+                imageVector = Icons.Filled.Folder,
+                contentDescription = null,
+                modifier = Modifier.size(64.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+            if (folder.hasNew) {
+                Box(modifier = Modifier.align(Alignment.TopStart).padding(8.dp).background(Color(0xFFE53935), RoundedCornerShape(4.dp))) {
+                    Text("NEW", style = MaterialTheme.typography.labelSmall, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 8.sp, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
                 }
             }
-            Spacer(modifier = Modifier.width(16.dp))
-            Column(modifier = Modifier.weight(1f)) {
+        }
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = folder.name, 
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            if (folder.path.isNotEmpty()) {
                 Text(
-                    text = folder.name, 
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
+                    text = folder.path,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Spacer(modifier = Modifier.height(4.dp))
-                if (folder.path.isNotEmpty()) {
+            }
+            Row {
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    shape = RoundedCornerShape(4.dp)
+                ) {
                     Text(
-                        text = folder.path,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        text = folder.formattedVideoCount,
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
                 }
-                Row {
+                if (folder.totalSize > 0) {
+                    Spacer(modifier = Modifier.width(8.dp))
                     Surface(
                         color = MaterialTheme.colorScheme.surfaceVariant,
                         shape = RoundedCornerShape(4.dp)
                     ) {
                         Text(
-                            text = folder.formattedVideoCount,
+                            text = folder.formattedSize,
                             style = MaterialTheme.typography.labelSmall,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    if (folder.totalSize > 0) {
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Surface(
-                            color = MaterialTheme.colorScheme.surfaceVariant,
-                            shape = RoundedCornerShape(4.dp)
-                        ) {
-                            Text(
-                                text = folder.formattedSize,
-                                style = MaterialTheme.typography.labelSmall,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
                 }
             }
-            IconButton(onClick = onOptionsClick) {
-                Icon(Icons.Filled.MoreVert, contentDescription = "More Options")
-            }
+        }
+        IconButton(onClick = onOptionsClick) {
+            Icon(Icons.Filled.MoreVert, contentDescription = "More Options")
         }
     }
 }

@@ -30,6 +30,9 @@ class SettingsManager private constructor(context: Context) {
     private val _fontPreference = MutableStateFlow("Default")
     val fontPreference: StateFlow<String> = _fontPreference.asStateFlow()
 
+    private val _liteModeEnabled = MutableStateFlow(true)
+    val liteModeEnabled: StateFlow<Boolean> = _liteModeEnabled.asStateFlow()
+
     private val _ignoreNoMediaSubfolders = MutableStateFlow(true)
     val ignoreNoMediaSubfolders: StateFlow<Boolean> = _ignoreNoMediaSubfolders.asStateFlow()
 
@@ -43,6 +46,7 @@ class SettingsManager private constructor(context: Context) {
         
         _showLoggerFab.value = prefs.getBoolean("show_logger_fab", true)
         _keepScreenAwake.value = prefs.getBoolean("keep_screen_awake", true)
+        _liteModeEnabled.value = prefs.getBoolean("lite_mode_enabled", true)
         _ignoreNoMediaSubfolders.value = prefs.getBoolean("ignore_nomedia_subfolders", true)
 
         _themePreference.value = prefs.getString("theme_preference", "Light") ?: "Light"
@@ -115,6 +119,11 @@ class SettingsManager private constructor(context: Context) {
     fun setFontPreference(font: String) {
         _fontPreference.value = font
         prefs.edit().putString("font_preference", font).apply()
+    }
+
+    fun setLiteModeEnabled(enabled: Boolean) {
+        _liteModeEnabled.value = enabled
+        prefs.edit().putBoolean("lite_mode_enabled", enabled).apply()
     }
 
 

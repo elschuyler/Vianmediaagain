@@ -419,3 +419,43 @@
      - In `PlayerScreen.kt`, replaced block-scoped `initialMediaItem` with `controller.currentMediaItem` in the async title updater, eliminating unresolved reference `initialMediaItem`.
      - In `PlayerScreen.kt` (`resolveSiblingPlaylistItems`), qualified bare `LogKeeper.log` call with `com.example.LogKeeper.log`, eliminating unresolved reference `LogKeeper`.
 
+- **Phase 123: Instant Video Opening Engine (Library & External Intent)**
+  1. Instant Library Queue Dispatch:
+     - In `MainScreen.kt`, replaced synchronous `isAnimatedMedia(context, it.uri)` disk-probing in `onClick` with fast in-memory extension check (`endsWith(".gif") || endsWith(".webp")`), eliminating main-thread disk contention on tap.
+  2. Zero-Latency Player Activity Initialization:
+     - In `PlayerActivity.kt`, consumed `PlayerManager.consumePendingQueue()` at frame 0, populating full folder queues instantly.
+     - Shifted `detectSiblingSubtitles` to background `lifecycleScope.launch(Dispatchers.IO)` so `player.prepare()` is never delayed by disk queries.
+  3. Redundant Video Metadata Retriever Removal:
+     - In `PlayerScreen.kt`, purged legacy `MediaMetadataRetriever` coroutine loop (lines 774–826). Native orientation is now driven directly by ExoPlayer's `EVENT_VIDEO_SIZE_CHANGED` callback with zero disk thrashing.
+
+- **Phase 124: Library Next-Player Scroll Parity & Node Flattening**
+  1. Scroll Event Throttling:
+     - In `MainScreen.kt`, throttled all 4 `snapshotFlow` scroll listeners with `.kotlinx.coroutines.flow.distinctUntilChanged()` on `firstVisibleItemIndex`, preventing per-pixel coroutine wakeups and garbage collection churn during rapid flings.
+  2. Layout Hierarchy Flattening:
+     - In `MainScreen.kt`, flattened `FolderCard` by replacing nested `Card` wrapper with lightweight `Row(modifier = Modifier.fillMaxWidth().clickable { onClick() })`, eliminating redundant measure and layout passes.
+  3. Coil ImageRequest Allocation Caching:
+     - Wrapped Coil `ImageRequest` instances inside `remember(media.uri)` across media lists, avoiding allocation of new request builders on every scroll offset change.
+
+- **Phase 125: Lite Mode Battery Saver & Guaranteed Notification Artwork**
+  1. Persistent Battery Saver Configuration:
+     - In `SettingsManager.kt`, added `liteModeEnabled` StateFlow (default `true`) and `setLiteModeEnabled(enabled: Boolean)`.
+     - In `PlayerSettingsScreen.kt`, added user-facing "Lite Mode (Battery Saver)" switch under Player Settings.
+  2. Dynamic Refresh Rate & Low-Power Idle Clamp:
+     - In `PlayerScreen.kt`, added `DisposableEffect(liteModeEnabled, isPlaying)`: when playing with Lite Mode on, matches video refresh rate (24Hz, 30Hz, 60Hz) via `preferredRefreshRate` and `Surface.setFrameRate(targetRate, FRAME_RATE_COMPATIBILITY_FIXED_SOURCE)`.
+     - During non-active playback periods (pause, buffering, idle), clamps refresh rate to 60Hz to prevent 90Hz/120Hz display battery drain.
+     - On dispose or when Lite Mode is disabled, cleanly restores system default (`preferredRefreshRate = 0f`).
+     - Scaled background UI progress ticker delay to 1000ms when controls are hidden.
+  3. Guaranteed Notification Player Artwork:
+     - Verified that `PlayerActivity.kt` (`extractThumbnailBytes`) and `PlaybackService.kt` (`extractMediaThumbnailBytes`) unconditionally extract artwork bytes and set `MediaMetadata.setArtworkData`, guaranteeing Android 11–15 notification player cards never render blank artwork.
+
+- **Phase 126: Audio Background Noise Reduction Sub-Tool (Video Editor & Audio Trimmer)**
+  1. Video Editor Voice Clarity Sub-Tool:
+     - In `VideoEditorScreen.kt`, extended `VideoEditState` with `denoiseLevel: String = "OFF"` ("OFF", "LIGHT", "MEDIUM", "AGGRESSIVE").
+     - Under `VideoEditorTool.AUDIO`, added "Reduce Background Noise (Voice Clarity)" sub-tool section with informative subtitles and selectable `FilterChip` presets (Off, Light 12dB, Medium 18dB, Strong 24dB).
+     - Integrated FFmpeg FFT adaptive denoiser filter `afftdn=nr=12:nf=-20`, `afftdn=nr=18:nf=-25`, and `afftdn=nr=24:nf=-30` into `audioFilterList` across single video exports, mixed audio tracks, replaced audio, and join sequences.
+  2. Audio Trimmer Voice Clarity Denoise Pipeline:
+     - In `AudioTrimmerScreen.kt`, added `denoiseLevel` state and FilterChip selection row below time selection dials.
+     - Made layout scrollable with `verticalScroll(rememberScrollState())` to prevent clipping across screen sizes.
+     - Implemented dual-pipeline `exportTrimmedAudio`: uses fast native Media3 Transformer when denoise is Off, and high-fidelity FFmpeg `afftdn` FFT denoiser pipeline with AAC 192k encoding when noise reduction is active.
+
+
