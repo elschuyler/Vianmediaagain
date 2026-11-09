@@ -459,3 +459,17 @@
      - Implemented dual-pipeline `exportTrimmedAudio`: uses fast native Media3 Transformer when denoise is Off, and high-fidelity FFmpeg `afftdn` FFT denoiser pipeline with AAC 192k encoding when noise reduction is active.
 
 
+- **Phase 127: CI Pipeline Compilation Fix & App-Wide Navigation Bar Insets Protection**
+  1. GitHub Actions CI Compilation Error Remediation:
+     - In `MainScreen.kt`, resolved `Unresolved reference 'kotlinx'` compiler error by adding top-level `import kotlinx.coroutines.flow.distinctUntilChanged` and replacing invalid inline package call `.kotlinx.coroutines.flow.distinctUntilChanged()` with clean `.distinctUntilChanged()` across all 4 `snapshotFlow` scroll listeners.
+  2. Edge-to-Edge Navigation Bar Insets Padding Across All Settings Pages:
+     - In `SettingsScreen.kt`, fixed `MainSettingsMenu` `LazyColumn` by adding `contentPadding = PaddingValues(bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 24.dp)` and trailing insets spacer (`Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars)); Spacer(Modifier.height(24.dp))`), ensuring the "About" card and bottom action rows are never trapped or occluded under the Android 3-button or gesture bar.
+     - Protected all sub-pages (`StorageSettingsPage`, `MediaConfigPage`, `NotificationsPage`, `DataManagementPage`, `DeveloperSettingsPage`, `GeneralSettingsPage`, `AboutSettingsPage`) with trailing navigationBars spacers and `verticalScroll(rememberScrollState())`.
+     - In `PlayerSettingsScreen.kt`, added `verticalScroll(rememberScrollState())` and trailing `Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))` to guarantee hardware decoder options and bottom controls scroll fully above navigation bars.
+     - In `PermissionsManagerScreen.kt`, added `contentPadding = PaddingValues(bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 24.dp)` and trailing insets spacer.
+  3. Core Capabilities Integrity Re-Verification:
+     - Verified zero regression across all 4 core features:
+       * Library Next-Player Scroll Parity (distinct scroll throttling, flat node layout, cached Coil ImageRequests).
+       * Instant Video Opening across Library & external intents (instant surface attachment, deferred metadata hydration, fast seek).
+       * Lite Mode (Battery Saver, default ON) with dynamic display refresh rate switching (24Hz/30Hz/60Hz) & guaranteed notification player artwork.
+       * Audio Background Noise Reduction Sub-Tools powered by FFmpeg `afftdn` FFT denoiser in Video Editor and Audio Trimmer.

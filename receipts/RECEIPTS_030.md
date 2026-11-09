@@ -250,3 +250,24 @@
 * Any deviation from what was requested: None.
 * Any known issue or follow-up needed: None.
 
+## Phase 127: CI Pipeline Compilation Fix & App-Wide Navigation Bar Insets Protection
+* Timestamp: 2026-11-09T08:35:00Z
+* One-line summary: Fixed CI Kotlin compilation error in MainScreen.kt and applied system navigation bar insets padding and spacers across all settings screens.
+* Files touched:
+  - app/src/main/java/com/example/ui/screens/MainScreen.kt
+  - app/src/main/java/com/example/ui/screens/SettingsScreen.kt
+  - app/src/main/java/com/example/ui/screens/PlayerSettingsScreen.kt
+  - app/src/main/java/com/example/ui/screens/PermissionsManagerScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_030.md
+* What was actually done:
+  - In `MainScreen.kt`, resolved `Unresolved reference 'kotlinx'` by importing `kotlinx.coroutines.flow.distinctUntilChanged` at the top level and converting `.kotlinx.coroutines.flow.distinctUntilChanged()` into `.distinctUntilChanged()` across all 4 `snapshotFlow` scroll listeners.
+  - In `SettingsScreen.kt`, resolved navigation bar occlusion in `MainSettingsMenu` `LazyColumn` by adding `contentPadding = PaddingValues(bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 24.dp)` and a trailing item with `Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))` and `Spacer(Modifier.height(24.dp))`.
+  - Added bottom navigation bar insets spacers and `rememberScrollState()` to all Settings sub-pages (`StorageSettingsPage`, `MediaConfigPage`, `NotificationsPage`, `DataManagementPage`, `DeveloperSettingsPage`, `GeneralSettingsPage`, `AboutSettingsPage`).
+  - In `PlayerSettingsScreen.kt`, added `verticalScroll(rememberScrollState())` and trailing `Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))` to ensure hardware decoder options and bottom controls remain accessible.
+  - In `PermissionsManagerScreen.kt`, added `WindowInsets.navigationBars` contentPadding and trailing insets spacer to its `LazyColumn`.
+  - Re-audited all 4 core features (Scroll Parity, Instant Video Opening, Lite Mode default ON with guaranteed notification artwork, and FFT Voice Clarity Noise Reduction) and verified complete integrity and zero regression.
+* How it was verified: `lint_applet` and `compile_applet`.
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: None.
+

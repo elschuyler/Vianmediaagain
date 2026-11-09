@@ -1,5 +1,7 @@
 package com.example.ui.screens
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -39,6 +41,7 @@ fun PlayerSettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
             var audioBoosterEnabled by remember { mutableStateOf(settingsManager.audioBoosterEnabled) }
@@ -203,6 +206,9 @@ fun PlayerSettingsScreen(
                     }
                 )
             }
+
+            Spacer(modifier = Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }

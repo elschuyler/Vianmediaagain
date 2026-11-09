@@ -66,6 +66,7 @@ import com.example.data.Playlist
 import com.example.data.PlaylistItem
 import com.example.data.PlaylistRepository
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.distinctUntilChanged
 import com.example.data.MediaFolder
 import com.example.data.MediaItem
 import com.example.data.PlaybackTag
@@ -115,7 +116,7 @@ fun MainScreen(
 
     LaunchedEffect(folderListState) {
         snapshotFlow { folderListState.firstVisibleItemIndex }
-            .kotlinx.coroutines.flow.distinctUntilChanged()
+            .distinctUntilChanged()
             .collect { idx ->
                 viewModel.foldersScrollIndex = idx
                 viewModel.foldersScrollOffset = folderListState.firstVisibleItemScrollOffset
@@ -123,7 +124,7 @@ fun MainScreen(
     }
     LaunchedEffect(videoListState) {
         snapshotFlow { videoListState.firstVisibleItemIndex }
-            .kotlinx.coroutines.flow.distinctUntilChanged()
+            .distinctUntilChanged()
             .collect { idx ->
                 viewModel.videosScrollIndex = idx
                 viewModel.videosScrollOffset = videoListState.firstVisibleItemScrollOffset
@@ -131,7 +132,7 @@ fun MainScreen(
     }
     LaunchedEffect(mediaListState) {
         snapshotFlow { mediaListState.firstVisibleItemIndex }
-            .kotlinx.coroutines.flow.distinctUntilChanged()
+            .distinctUntilChanged()
             .collect { idx ->
                 viewModel.folderDetailScrollIndex = idx
                 viewModel.folderDetailScrollOffset = mediaListState.firstVisibleItemScrollOffset
@@ -139,7 +140,7 @@ fun MainScreen(
     }
     LaunchedEffect(playlistListState) {
         snapshotFlow { playlistListState.firstVisibleItemIndex }
-            .kotlinx.coroutines.flow.distinctUntilChanged()
+            .distinctUntilChanged()
             .collect { idx ->
                 viewModel.playlistsScrollIndex = idx
                 viewModel.playlistsScrollOffset = playlistListState.firstVisibleItemScrollOffset

@@ -74,10 +74,12 @@ private fun MainSettingsMenu(onNavigate: (String) -> Unit, onNavigateBack: () ->
             )
         }
     ) { padding ->
+        val navBarBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
+                .padding(padding),
+            contentPadding = PaddingValues(bottom = navBarBottom + 24.dp)
         ) {
             item {
                 SettingsListItem(
@@ -158,6 +160,10 @@ private fun MainSettingsMenu(onNavigate: (String) -> Unit, onNavigateBack: () ->
                     subtitle = "App information, creator credits, and build details",
                     onClick = { onNavigate("about") }
                 )
+            }
+            item {
+                Spacer(modifier = Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
+                Spacer(modifier = Modifier.height(24.dp))
             }
         }
     }
@@ -393,6 +399,9 @@ private fun StorageSettingsPage(onNavigateBack: () -> Unit) {
                     Text("Clear Unused Data")
                 }
             }
+
+            Spacer(modifier = Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
+            Spacer(modifier = Modifier.height(24.dp))
         }
         
         if (showExcludeDialog) {
@@ -448,6 +457,7 @@ private fun MediaConfigPage(onNavigateBack: () -> Unit) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
             Text("Included Extensions:", style = MaterialTheme.typography.labelLarge)
@@ -531,6 +541,9 @@ private fun MediaConfigPage(onNavigateBack: () -> Unit) {
                     onCheckedChange = { settingsManager.setIgnoreNoMediaSubfolders(it) }
                 )
             }
+
+            Spacer(modifier = Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
@@ -603,6 +616,9 @@ private fun NotificationsPage(onNavigateBack: () -> Unit) {
             ) {
                 Text("Save Configuration")
             }
+
+            Spacer(modifier = Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
@@ -700,6 +716,9 @@ private fun DataManagementPage(onNavigateBack: () -> Unit) {
                     Text("Restore (Import)")
                 }
             }
+
+            Spacer(modifier = Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
@@ -751,6 +770,9 @@ private fun DeveloperSettingsPage(onNavigateBack: () -> Unit) {
                 }
                 Switch(checked = showLoggerFab, onCheckedChange = { settingsManager.setShowLoggerFab(it) })
             }
+
+            Spacer(modifier = Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
@@ -823,6 +845,9 @@ private fun GeneralSettingsPage(onNavigateBack: () -> Unit) {
                     Text(font, style = MaterialTheme.typography.bodyLarge)
                 }
             }
+
+            Spacer(modifier = Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
@@ -1013,6 +1038,9 @@ private fun AboutSettingsPage(onNavigateBack: () -> Unit) {
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }

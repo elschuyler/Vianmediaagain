@@ -61,6 +61,7 @@ fun PermissionsManagerScreen(onNavigateBack: () -> Unit) {
                 .fillMaxSize()
                 .padding(innerPadding)
                 .padding(horizontal = 16.dp),
+            contentPadding = PaddingValues(bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item {
@@ -140,6 +141,11 @@ fun PermissionsManagerScreen(onNavigateBack: () -> Unit) {
                         "Mini Player Overlay: Shows a floating mini player that can be dragged around the screen while using other apps."
                     )
                 )
+            }
+
+            item {
+                Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
+                Spacer(Modifier.height(16.dp))
             }
         }
     }
