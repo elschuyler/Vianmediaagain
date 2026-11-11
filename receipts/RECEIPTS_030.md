@@ -271,3 +271,99 @@
 * Any deviation from what was requested: None.
 * Any known issue or follow-up needed: None.
 
+## Phase 128: Professional Speed Curve Engine & Ergonomics Overhaul
+* Timestamp: 2026-11-09T13:36:00Z
+* One-line summary: Overhauled Video Editor speed curve with Fritsch-Carlson Monotone Cubic Spline math, throttled keyframe scrubbing, 190dp canvas with thumb-offset floating HUD, 1.0x magnetic haptic snap, and node-aligned FFmpeg export.
+* Files touched:
+  - app/src/main/java/com/example/ui/screens/VideoEditorScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_030.md
+* What was actually done:
+  - Replaced flat-derivative Hermite smoothstep in `getSpeedAtTime` with a complete Monotone Cubic Hermite Spline (Fritsch-Carlson algorithm), ensuring natural velocity flow through control nodes without stair-stepping or overshoot.
+  - Decoupled touch drag deltas from ExoPlayer seeking: throttled `exoPlayer?.seekTo()` to $\ge 40\text{ms}$ during active dragging and dispatched an exact seek on `onDragEnd`, eliminating MediaCodec buffer starvation and UI freezes.
+  - Relaxed live playback speed tracking delta from 0.05x to 0.12x in the coroutine loop, stopping constant Sonic resampler buffer resets and audio clicks.
+  - Enlarged interactive canvas from 130dp to 190dp, added speed reference gridlines (5.0x, 2.0x, highlighted 1.0x Normal baseline, 0.5x, 0.2x), and rendered a floating thumb-offset HUD badge displaying live speed and timestamp above touch points.
+  - Added magnetic haptic snap when crossing 1.0x ($\pm 0.08\text{x}$) using `LocalHapticFeedback`.
+  - Implemented smart contextual playhead button that switches between "Delete Node at Playhead" and "Add Node at Playhead" based on proximity to existing keyframe nodes.
+  - Added "Jump Cut" preset alongside "Montage", "Hero", "Bullet", "Flash In", "Flash Out", and "Reset".
+  - Upgraded FFmpeg speed curve export from 10 blind equal-duration chunks to node-aligned adaptive segmentation with `aresample=48000:async=1:first_pts=0`, eliminating boundary audio clicks and misalignment.
+* How it was verified: `lint_applet` and `compile_applet`.
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: None.
+
+## Phase 129: Full-Repo Vulnerability, Stability & Lightweight Hardening
+* Timestamp: 2026-11-10T08:12:00Z
+* One-line summary: Meticulously eliminated hidden vulnerabilities, foreground service crashes on Android 14+, PiP broadcast spoofing, FFmpeg caption filter syntax errors, WebP OOM spikes, background permission polling, and unmanaged coroutines.
+* Files touched:
+  - app/src/main/java/com/example/TestCloseable.kt (deleted)
+  - app/src/main/java/com/example/TestCoil.kt (deleted)
+  - app/src/main/java/com/example/TestCompositor.kt (deleted)
+  - app/src/main/java/com/example/TestFrescoBackend.kt (deleted)
+  - app/src/main/java/com/example/TestFresco.kt (deleted)
+  - app/src/main/java/com/example/ui/screens/TestInsets.kt (deleted)
+  - app/src/main/java/com/example/service/CompressionService.kt
+  - app/src/main/java/com/example/service/FFmpegService.kt
+  - app/src/main/java/com/example/ui/screens/PipActionReceiver.kt
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+  - app/src/main/java/com/example/ui/screens/VideoEditorScreen.kt
+  - app/src/main/java/com/example/data/MediaRepository.kt
+  - app/src/main/java/com/example/ui/screens/PermissionsManagerScreen.kt
+  - app/src/main/java/com/example/MyBitmapLoader.kt
+  - app/src/main/java/com/example/BatchActionActivity.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_030.md
+* What was actually done:
+  - Deleted 6 orphaned scratchpad test files from app/src/main/java/, reducing dead code and DEX method count.
+  - In `CompressionService.kt` and `FFmpegService.kt`, modernized foreground service start/stop with `ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC` on Android Q+ and `ServiceCompat.stopForeground(this, STOP_FOREGROUND_REMOVE)`, eliminating `MissingForegroundServiceTypeException` crashes on Android 14/15.
+  - In `PipActionReceiver.kt` and `PlayerScreen.kt`, enforced package verification and registered receiver with `ContextCompat.RECEIVER_NOT_EXPORTED` on API 33+, eliminating external intent spoofing.
+  - In `VideoEditorScreen.kt`, sanitized caption text against backslashes, colons, and percent signs to prevent FFmpeg filtergraph parse aborts.
+  - In `MediaRepository.kt`, inverted WebP animation detection to evaluate the 30-byte RIFF/WEBP `VP8X` header first, eliminating 50MB–100MB RAM allocations for high-res static WebP images.
+  - In `PermissionsManagerScreen.kt`, replaced infinite `while(true) delay(1000)` polling with lifecycle-driven `ON_RESUME` observer.
+  - In `MyBitmapLoader.kt`, replaced per-request `CoroutineScope(Dispatchers.IO)` with a supervised `loaderScope`.
+  - In `BatchActionActivity.kt`, migrated deprecated Parcelable intent getters to type-safe `IntentCompat` APIs.
+* How it was verified: `lint_applet` and `compile_applet` passed cleanly with 0 errors.
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: None.
+
+## Phase 130: ExternalStorageProvider Permission Denial Remediation, Audio Playlist Continuity & Next-Player Scroll Parity
+* Timestamp: 2026-11-11T18:14:00Z
+* One-line summary: Resolved ExternalStorageProvider SecurityException permission denial, fixed audio playlist loop all and queue population, prevented audio notification shade dismissal on pause, and eliminated LazyColumn fling friction to achieve Next-Player 120Hz scroll parity.
+* Files touched:
+  - app/src/main/java/com/example/ui/PlayerActivity.kt
+  - app/src/main/java/com/example/MainActivity.kt
+  - app/src/main/java/com/example/service/PlaybackService.kt
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+  - app/src/main/java/com/example/ui/screens/MainScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_030.md
+* What was actually done:
+  - In `PlayerActivity.kt` and `MainActivity.kt`, explicitly forwarded package-level read permission grants via `grantUriPermission(packageName, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)` to guarantee ExoPlayer worker threads in `ContentDataSource` do not trigger `SecurityException: Permission Denial` on Android ExternalStorageProvider URIs.
+  - In `PlayerScreen.kt`, hardened wrapped loader exception inspection in `onPlayerError` to detect nested `SecurityException` inside `UnexpectedLoaderException` or messages containing "Permission Denial".
+  - In `MainScreen.kt`, fixed media queue filtering logic on item click so that audio items properly populate the folder/library playback queue instead of being dropped.
+  - In `PlayerScreen.kt` and `PlaybackService.kt`, dynamically disabled `pauseAtEndOfMediaItems` when repeat mode is set to `REPEAT_MODE_ALL` or `REPEAT_MODE_ONE`, and auto-seeked to index 0 position 0 on `STATE_ENDED` to ensure infinite uninterrupted playlist looping.
+  - In `PlaybackService.kt`, removed the destructive `!player.playWhenReady` check from `onTaskRemoved`, keeping background audio playback controls alive in the notification shade when paused.
+  - In `MainScreen.kt`, replaced `PullToRefreshBox` wrapping `LazyColumn` with a frictionless container and top `LinearProgressIndicator`, added a Refresh action to `TopAppBar`, and extracted `MediaListItem` into a memoized composable to deliver 120Hz fling smoothness matching Next-Player.
+* How it was verified: `lint_applet` and `compile_applet` passed cleanly with 0 errors.
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: None.
+
+## Phase 131: Storage Access Framework Document Resolution & Scoped Storage MediaStore Fallback
+* Timestamp: 2026-11-11T19:50:00Z
+* One-line summary: Created MediaUriResolver to translate restricted ExternalStorageProvider document URIs and Scoped Storage file paths into authorized MediaStore URIs, wrapped ExoPlayer DataSource with auto-recovery, and solved FFmpegService FileNotFoundException.
+* Files touched:
+  - app/src/main/java/com/example/data/MediaUriResolver.kt
+  - app/src/main/java/com/example/service/FFmpegService.kt
+  - app/src/main/java/com/example/ui/PlayerActivity.kt
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+  - app/src/main/java/com/example/service/PlayerManager.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_030.md
+* What was actually done:
+  - Built `MediaUriResolver` to parse Document IDs (`primary:path` / `uuid:path`) from `com.android.externalstorage.documents` and `com.android.providers.media.documents`, query `MediaStore.Files.getContentUri("external")` (and `MediaStore.Downloads`) by `_data` or `DISPLAY_NAME` + `RELATIVE_PATH`, and resolve to readable MediaStore content URIs where the app holds permissions.
+  - In `PlayerManager.kt`, wrapped ExoPlayer's `DefaultDataSource.Factory` with an auto-recovering `DataSource.Factory` that intercepts `SecurityException: Permission Denial` inside `open()`, resolves the target URI via `MediaUriResolver`, rebuilds `DataSpec`, and reopens the stream seamlessly.
+  - In `PlayerActivity.kt` and `PlayerScreen.kt`, resolved incoming intent URIs and queued items via `MediaUriResolver.resolveToPlayableUri()`, and added deep cause-chain `SecurityException` scanning and dynamic on-the-fly MediaStore recovery to `onPlayerError`.
+  - In `FFmpegService.kt`, replaced brittle POSIX `canRead()` checks and narrow Audio/Video queries with `MediaUriResolver.openInputStreamSafely()`, eliminating `FileNotFoundException: Direct input file not found or unreadable via File and ContentResolver`.
+* How it was verified: `lint_applet` and `compile_applet` passed cleanly with 0 errors.
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: None.
+

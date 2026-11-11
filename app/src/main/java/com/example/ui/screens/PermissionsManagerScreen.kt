@@ -27,6 +27,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -150,25 +153,21 @@ fun PermissionsManagerScreen(onNavigateBack: () -> Unit) {
         }
     }
 
-    // Refresh overlay permission status when coming back to the screen
-    LaunchedEffect(Unit) {
-        // A simple polling or just checking once when composed
-        while(true) {
-            val newOverlay = checkOverlayPermission(context)
-            if (newOverlay != overlayGranted) {
-                overlayGranted = newOverlay
-            }
-            val newStorage = checkStoragePermission(context)
-            if (newStorage != storageGranted) {
-                storageGranted = newStorage
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                val newNotif = checkNotificationPermission(context)
-                if (newNotif != notificationGranted) {
-                    notificationGranted = newNotif
+    // Refresh permission statuses on resume when returning from system settings
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                overlayGranted = checkOverlayPermission(context)
+                storageGranted = checkStoragePermission(context)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    notificationGranted = checkNotificationPermission(context)
                 }
             }
-            kotlinx.coroutines.delay(1000)
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 }

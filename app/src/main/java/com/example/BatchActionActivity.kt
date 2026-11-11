@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.core.content.IntentCompat
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -38,16 +39,17 @@ class BatchActionActivity : ComponentActivity() {
         
         var initialUris: List<String> = emptyList()
         if (intent?.action == Intent.ACTION_SEND_MULTIPLE) {
-            val arrayList = intent?.getParcelableArrayListExtra<android.os.Parcelable>(Intent.EXTRA_STREAM)
+            val arrayList = intent?.let { 
+                IntentCompat.getParcelableArrayListExtra(it, Intent.EXTRA_STREAM, Uri::class.java) 
+            }
             if (arrayList != null) {
-                val uris = mutableListOf<String>()
-                for (parcel in arrayList) {
-                    (parcel as? Uri)?.let { uris.add(it.toString()) }
-                }
-                initialUris = uris
+                initialUris = arrayList.mapNotNull { it?.toString() }
             }
         } else if (intent?.action == Intent.ACTION_SEND) {
-            (intent?.getParcelableExtra<android.os.Parcelable>(Intent.EXTRA_STREAM) as? Uri)?.let { uri ->
+            val uri = intent?.let {
+                IntentCompat.getParcelableExtra(it, Intent.EXTRA_STREAM, Uri::class.java)
+            }
+            if (uri != null) {
                 initialUris = listOf(uri.toString())
             }
         }

@@ -302,7 +302,11 @@ override fun onPlaybackStateChanged(playbackState: Int) {
     com.example.LogKeeper.log("Playback state changed to: $stateName", "PlaybackService")
     if (playbackState == Player.STATE_ENDED) {
         val player = PlayerManager.exoPlayer
-        if (player?.repeatMode == Player.REPEAT_MODE_OFF) {
+        if (player?.repeatMode == Player.REPEAT_MODE_ALL) {
+            com.example.LogKeeper.log("Playback ended with repeatMode ALL -> restarting from first item", "PlaybackService")
+            player.seekTo(0, 0L)
+            player.play()
+        } else if (player?.repeatMode == Player.REPEAT_MODE_OFF) {
             com.example.LogKeeper.log("Playback ended with repeatMode OFF -> stopping service & removing notification", "PlaybackService")
             try {
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
@@ -593,9 +597,11 @@ return mediaSession
 
     override fun onTaskRemoved(rootIntent: android.content.Intent?) {
         super.onTaskRemoved(rootIntent)
-        com.example.LogKeeper.log("onTaskRemoved called, cleaning up.", "PlaybackService")
+        com.example.LogKeeper.log("onTaskRemoved called", "PlaybackService")
         val player = mediaSession?.player
-        if (player != null && (!player.playWhenReady || player.mediaItemCount == 0 || player.playbackState == androidx.media3.common.Player.STATE_ENDED)) {
+        // Only stop if the queue is empty or playback has naturally ended with repeat OFF.
+        // Paused background playback must remain alive in the notification shade so the user can unpause.
+        if (player != null && (player.mediaItemCount == 0 || (player.playbackState == androidx.media3.common.Player.STATE_ENDED && player.repeatMode == androidx.media3.common.Player.REPEAT_MODE_OFF))) {
             try {
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
                     stopForeground(STOP_FOREGROUND_REMOVE)

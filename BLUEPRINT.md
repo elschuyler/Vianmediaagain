@@ -473,3 +473,73 @@
        * Instant Video Opening across Library & external intents (instant surface attachment, deferred metadata hydration, fast seek).
        * Lite Mode (Battery Saver, default ON) with dynamic display refresh rate switching (24Hz/30Hz/60Hz) & guaranteed notification player artwork.
        * Audio Background Noise Reduction Sub-Tools powered by FFmpeg `afftdn` FFT denoiser in Video Editor and Audio Trimmer.
+- **Phase 128: Professional Speed Curve (Wave) Engine & CapCut-Parity Ergonomics**
+  1. Monotone Cubic Hermite Spline Engine:
+     - Replaced rigid Hermite smoothstep (`3t^2 - 2t^3` with forced 0-derivative stops at nodes) with Fritsch-Carlson Monotone Cubic Spline in `getSpeedAtTime`.
+     - Preserves $C^1$ continuity and velocity momentum through intermediate nodes while guaranteeing monotonicity (no overshoots or artificial dips).
+  2. Gesture Decoupling & Playback Buffer Protection:
+     - Throttled ExoPlayer decoder seeks to $\ge 40\text{ms}$ during active drag in `detectDragGestures` with an exact seek on `onDragEnd`, eliminating MediaCodec buffer starvation and 120Hz UI drag freezes.
+     - Relaxed live playback speed tracking delta from 0.05x to 0.12x to prevent constant 50ms resets of the Sonic pitch/resampler audio processor.
+  3. CapCut-Parity UI & Thumb-Offset HUD:
+     - Expanded canvas height from 130dp to 190dp with calibrated speed gridlines (5.0x, 2.0x, 1.0x Normal highlighted baseline, 0.5x, 0.2x).
+     - Integrated floating thumb-offset HUD badge rendered above the canvas showing real-time speed (`3.20x`) and timestamp (`00:02.450`), eliminating thumb occlusion.
+     - Added magnetic haptic snap on the 1.0x baseline ($\pm 0.08\text{x}$) via `LocalHapticFeedback`.
+     - Added smart contextual playhead button: switches between "Delete Node at Playhead" and "Add Node at Playhead" based on proximity to existing keyframes.
+     - Added "Jump Cut" curve preset alongside "Montage", "Hero", "Bullet", "Flash In", "Flash Out", and "Reset".
+  4. Node-Aligned Adaptive FFmpeg Export Segmentation:
+     - Replaced arbitrary 10-chunk slicing with node-aligned adaptive segmentation that divides spans at exact keyframe points and slope inflection intervals.
+     - Integrated `aresample=48000:async=1:first_pts=0` to guarantee zero audio click or drift across concat boundaries.
+
+- **Phase 129: Comprehensive Vulnerability, Stability & Lightweight Architecture Hardening**
+  1. Purged Orphaned Scratchpad Test Files:
+     - Deleted 6 unreferenced legacy test files (`com/example/TestCloseable.kt`, `com/example/TestCoil.kt`, `com/example/TestCompositor.kt`, `com/example/TestFrescoBackend.kt`, `com/example/TestFresco.kt`, `com/example/ui/screens/TestInsets.kt`) from `app/src/main/java/` to eliminate dead code, minimize attack surface, and reduce DEX method count.
+  2. Android 14+ Foreground Service Bitmask Specification & API Modernization:
+     - Updated `CompressionService.kt` and `FFmpegService.kt` to supply `ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC` conditionally on API 29+ (`Build.VERSION_CODES.Q`) in `startForeground()`, strictly resolving `MissingForegroundServiceTypeException` crashes on Android 14/15.
+     - Modernized deprecated `stopForeground(true)` calls with `ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)` across both services.
+  3. Inter-App Broadcast Security & PiP Action Receiver Protection:
+     - In `PipActionReceiver.kt`, added caller package verification to ensure external apps cannot spoof PiP control intents.
+     - In `PlayerScreen.kt`, registered `PipActionReceiver` with `ContextCompat.RECEIVER_NOT_EXPORTED` on API 33+, fully safeguarding playback transport controls.
+  4. FFmpeg Filtergraph Caption Syntax Sanitization:
+     - In `VideoEditorScreen.kt`, sanitized `drawtext` caption expressions by escaping backslashes (`\\\\`), colons (`\\:`), percent signs (`\\%`), and stripping single quotes, preventing filter syntax crashes when exporting videos with titles or timestamps containing colons.
+  5. Low-Overhead On-Demand WebP Animation Header Detection:
+     - In `MediaRepository.kt`, inverted the WebP animation detection logic to parse the 30-byte RIFF/WEBP `VP8X` header first. Bypasses full-resolution bitmap decoding via `ImageDecoder.decodeDrawable()` for static WebP images, preventing 50MB–100MB RAM spikes and Out-Of-Memory (OOM) failures during library scanning.
+  6. Battery-Efficient Lifecycle-Driven Permission State Management:
+     - In `PermissionsManagerScreen.kt`, eliminated the infinite active coroutine polling loop (`while(true) delay(1000)`). Replaced with a lifecycle-aware `DisposableEffect` observing `Lifecycle.Event.ON_RESUME`, updating permission state only when the user returns to the app from system settings.
+  7. Supervised Coroutine Scope Lifecycle in MyBitmapLoader:
+     - In `MyBitmapLoader.kt`, replaced unmanaged `CoroutineScope(Dispatchers.IO).launch` invocations with a supervised, reusable `loaderScope` (`CoroutineScope(Dispatchers.IO + SupervisorJob())`), preventing coroutine leaks during thumbnail loading.
+  8. Type-Safe IntentCompat Parcelable Deserialization:
+     - In `BatchActionActivity.kt`, migrated legacy `getParcelableArrayListExtra` and `getParcelableExtra` to typed `IntentCompat.getParcelableArrayListExtra` and `IntentCompat.getParcelableExtra` with explicit `Uri::class.java` class tokens for Android 13+ safety.
+
+- **Phase 130: ExternalStorageProvider Security Denial Remediation, Audio Playlist Loop & Next-Player Scroll Parity Hardening**
+  1. Remediation of ExternalStorageProvider Permission Denial (`SecurityException`):
+     - Added package-level URI read grant (`context.grantUriPermission(context.packageName, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)`) across `PlayerActivity.kt`, `MainActivity.kt`, and `PlayerScreen.kt`.
+     - Ensures that URIs received via `ACTION_VIEW` or `ACTION_OPEN_DOCUMENT` from external storage providers (`com.android.externalstorage.documents`) retain read permissions across background worker threads in ExoPlayer's `ContentDataSource` and `ExtractingLoadable`.
+     - Hardened wrapped exception inspection in `PlayerScreen.kt`'s `onPlayerError` to detect nested `SecurityException` inside `UnexpectedLoaderException` or messages containing "Permission Denial", cleanly logging diagnostic details without app death.
+  2. Audio Track Queue Restoration & Seamless Playback:
+     - In `MainScreen.kt`, repaired media queue construction for audio files: dynamically includes `MediaType.AUDIO` items when an audio item is clicked, eliminating the previous exclusion that rendered audio queues empty.
+     - In `PlayerScreen.kt`, adjusted track completion logic so that audio files seamlessly auto-advance across queued items without prematurely triggering `onNavigateBack()`.
+  3. ExoPlayer Loop All (`REPEAT_MODE_ALL`) Infinite Continuity:
+     - In `PlayerScreen.kt` and `PlaybackService.kt`, dynamically disabled `controller.pauseAtEndOfMediaItems` when repeat mode is set to `REPEAT_MODE_ALL` or `REPEAT_MODE_ONE`.
+     - Handled `Player.STATE_ENDED` in both `PlayerScreen.kt` and `PlaybackService.kt` when `repeatMode == Player.REPEAT_MODE_ALL`: automatically seeks to track index 0 position 0 and resumes playback (`seekTo(0, 0L); play()`), guaranteeing endless queue looping for single and multi-item playlists.
+  4. Audio Notification Player Pause Retention:
+     - In `PlaybackService.kt`, removed the premature `!player.playWhenReady` shutdown condition in `onTaskRemoved`.
+     - Pausing playback from the system notification shade or lockscreen media controls keeps the audio foreground notification visible and responsive rather than killing the service.
+  5. Next-Player 120Hz Scroll Parity & Zero Drag Friction:
+     - Replaced `PullToRefreshBox` wrapping `LazyColumn` in `MainScreen.kt` with a non-intercepting `Box` and top `LinearProgressIndicator` when refreshing. Eliminates `NestedScrollConnection` pointer intercept drag overhead during fast flings.
+     - Added a dedicated Refresh icon button to `TopAppBar` for instantaneous on-demand library re-scanning.
+     - Extracted list items into a memoized `@Composable fun MediaListItem(...)` component with stable callbacks, drastically reducing recomposition overhead during high-speed 120Hz scrolling.
+
+- **Phase 131: Storage Access Framework Document Resolution & Scoped Storage MediaStore Fallback**
+  1. Universal MediaUriResolver Engine:
+     - Implemented `MediaUriResolver` (`app/src/main/java/com/example/data/MediaUriResolver.kt`) to resolve inaccessible ExternalStorageProvider document URIs (`com.android.externalstorage.documents`), media documents (`com.android.providers.media.documents`), and restricted POSIX file paths.
+     - Automatically parses Document IDs (e.g. `primary:Movies/video.mp4` or `<uuid>:...`), computes candidate physical storage paths, and queries `MediaStore.Files.getContentUri("external")` (and `MediaStore.Downloads` on Android Q+) by `_data` or `DISPLAY_NAME` + `RELATIVE_PATH`.
+     - Translates unreadable document or file URIs into authorized MediaStore content URIs (`content://media/external/video/media/<id>`), for which the application possesses native granular media permissions (`READ_MEDIA_VIDEO` / `READ_MEDIA_AUDIO`).
+  2. Auto-Recovering ExoPlayer DataSource & PlayerScreen Layer:
+     - In `PlayerManager.kt`, wrapped ExoPlayer's `DefaultDataSource.Factory` with an auto-recovering `DataSource.Factory`. If `open(dataSpec)` encounters a `SecurityException: Permission Denial` on external document URIs, it immediately intercepts the exception, resolves the URI to an authorized MediaStore URI, updates `DataSpec`, and reopens the stream without failing or crashing.
+     - In `PlayerActivity.kt` and `PlayerScreen.kt`, resolved incoming intent URIs and pending queue items via `MediaUriResolver.resolveToPlayableUri()` prior to player initialization.
+     - In `PlayerScreen.kt`'s `onPlayerError`, implemented a deep throwable cause chain scan for `SecurityException` / `Permission Denial`, automatically attempting on-the-fly MediaStore resolution before falling back to graceful item skipping.
+  3. FFmpegService Scoped Storage Input Resolution:
+     - Replaced the brittle POSIX `canRead()` and narrow Audio/Video MediaStore queries in `FFmpegService.kt` with `MediaUriResolver.openInputStreamSafely()`.
+     - Guarantees seamless input stream extraction for FFmpeg jobs across all directories (Downloads, Documents, DCIM, SD card volumes) without throwing `FileNotFoundException: Direct input file not found or unreadable via File and ContentResolver`.
+
+

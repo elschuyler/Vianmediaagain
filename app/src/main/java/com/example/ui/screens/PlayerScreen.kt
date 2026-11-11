@@ -673,7 +673,13 @@ fun PlayerScreen(
     }
 
     LaunchedEffect(decodedUri) {
-        val mimeType = try { context.contentResolver.getType(decodedUri) } catch (e: Exception) { null }
+        val playable = com.example.data.MediaUriResolver.resolveToPlayableUri(context, decodedUri)
+        if (playable.scheme == "content") {
+            try {
+                context.grantUriPermission(context.packageName, playable, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            } catch (e: Exception) {}
+        }
+        val mimeType = try { context.contentResolver.getType(playable) } catch (e: Exception) { null }
         val isAudio = mimeType?.startsWith("audio/") == true
         if (isAudio) {
             val settingsManager = com.example.data.SettingsManager.getInstance(context)
@@ -692,14 +698,23 @@ fun PlayerScreen(
             
             if (pendingQueue != null && pendingQueue.first.isNotEmpty()) {
                 val (queueItems, queueIndex) = pendingQueue
-                val activeItem = queueItems.getOrNull(queueIndex)
+                val sanitizedQueue = queueItems.map { item ->
+                    val itemUri = item.localConfiguration?.uri
+                    if (itemUri != null) {
+                        val playable = com.example.data.MediaUriResolver.resolveToPlayableUri(context, itemUri)
+                        if (playable != itemUri) {
+                            item.buildUpon().setUri(playable).build()
+                        } else item
+                    } else item
+                }
+                val activeItem = sanitizedQueue.getOrNull(queueIndex)
                 val activeUri = activeItem?.localConfiguration?.uri ?: decodedUri
                 val activeUriString = activeUri.toString()
                 val activeName = activeItem?.mediaMetadata?.title?.toString() ?: fileName
                 val lastPos = settingsManager.getPlaybackPosition(activeUriString, activeName)
                 val startPos = if (lastPos > 0 && !settingsManager.isFinished(activeUriString, activeName)) lastPos else 0L
 
-                controller.setMediaItems(queueItems, queueIndex, startPos)
+                controller.setMediaItems(sanitizedQueue, queueIndex, startPos)
                 controller.pauseAtEndOfMediaItems = (controller.repeatMode == androidx.media3.common.Player.REPEAT_MODE_OFF)
                 controller.prepare()
                 controller.play()
@@ -715,13 +730,14 @@ fun PlayerScreen(
                     }
                 } catch (e: Exception) {}
             } else {
+                val playableUri = com.example.data.MediaUriResolver.resolveToPlayableUri(context, decodedUri)
                 val mediaMetadataBuilder = androidx.media3.common.MediaMetadata.Builder()
                     .setTitle(fileName)
                     .setDisplayTitle(fileName)
 
-                val siblingSubs = com.example.service.SubtitleAutoDetector.detectSiblingSubtitles(context, decodedUri)
+                val siblingSubs = com.example.service.SubtitleAutoDetector.detectSiblingSubtitles(context, playableUri)
                 val initialMediaItemBuilder = MediaItem.Builder()
-                    .setUri(decodedUri)
+                    .setUri(playableUri)
                     .setMediaId(decodedUri.toString())
                     .setMediaMetadata(mediaMetadataBuilder.build())
 
@@ -942,11 +958,15 @@ fun PlayerScreen(
                     }
                 }
 
-                // If transition happened automatically and repeat mode is OFF, do not auto-play next video
+                // If transition happened automatically and repeat mode is OFF for a video, pause and navigate back
                 if (reason == androidx.media3.common.Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
                     val currentMode = controller.repeatMode
-                    if (currentMode == androidx.media3.common.Player.REPEAT_MODE_OFF) {
-                        com.example.LogKeeper.log("Auto-transition occurred with repeatMode OFF -> pausing playback and navigating back", "PlayerScreen")
+                    val isAudioItem = isAudio || currentMediaUri?.let { u ->
+                        val mime = try { context.contentResolver.getType(u) } catch (e: Exception) { null }
+                        mime?.startsWith("audio/") == true
+                    } == true
+                    if (currentMode == androidx.media3.common.Player.REPEAT_MODE_OFF && !isAudioItem) {
+                        com.example.LogKeeper.log("Auto-transition occurred for video with repeatMode OFF -> pausing playback and navigating back", "PlayerScreen")
                         controller.pause()
                         onNavigateBack()
                     }
@@ -1016,7 +1036,11 @@ fun PlayerScreen(
                 if (playbackState == androidx.media3.common.Player.STATE_ENDED) {
                     val currentMode = controller.repeatMode
                     val hasNext = controller.hasNextMediaItem()
-                    if (currentMode == androidx.media3.common.Player.REPEAT_MODE_OFF && !hasNext) {
+                    if (currentMode == androidx.media3.common.Player.REPEAT_MODE_ALL) {
+                        com.example.LogKeeper.log("Player reached STATE_ENDED with REPEAT_MODE_ALL -> looping to beginning", "PlayerScreen")
+                        controller.seekTo(0, 0L)
+                        controller.play()
+                    } else if (currentMode == androidx.media3.common.Player.REPEAT_MODE_OFF && !hasNext) {
                         com.example.LogKeeper.log("Player reached STATE_ENDED with no loop/next -> navigating back", "PlayerScreen")
                         onNavigateBack()
                     }
@@ -1034,7 +1058,7 @@ fun PlayerScreen(
             override fun onRepeatModeChanged(mode: Int) {
                 com.example.LogKeeper.log("PlayerScreen: onRepeatModeChanged = $mode", "PlayerScreen")
                 repeatMode = mode
-                controller.pauseAtEndOfMediaItems = false
+                controller.pauseAtEndOfMediaItems = (mode == androidx.media3.common.Player.REPEAT_MODE_OFF)
             }
 
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
@@ -1052,9 +1076,41 @@ fun PlayerScreen(
                     com.example.LogKeeper.log("PlayerScreen: Timeout caught during surface detachment or release - ignored gracefully", "PlayerScreen")
                     return
                 }
-                val rootCause = error.cause
-                if (rootCause is SecurityException || error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NO_PERMISSION) {
-                    com.example.LogKeeper.log("PlayerScreen: Permission denied reading media URI - skipping item gracefully: ${rootCause?.message}", "PlayerScreen")
+
+                // Deep scan the throwable cause chain for SecurityException or Permission Denial
+                var isSecurityDenied = false
+                var th: Throwable? = error
+                while (th != null) {
+                    if (th is SecurityException || 
+                        th.message?.contains("SecurityException", ignoreCase = true) == true ||
+                        th.message?.contains("Permission Denial", ignoreCase = true) == true) {
+                        isSecurityDenied = true
+                        break
+                    }
+                    th = th.cause
+                }
+                if (!isSecurityDenied && error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NO_PERMISSION) {
+                    isSecurityDenied = true
+                }
+
+                if (isSecurityDenied) {
+                    com.example.LogKeeper.log("PlayerScreen: Permission denied reading media URI (${error.cause?.message}). Attempting dynamic MediaStore resolution fallback...", "PlayerScreen")
+                    val currentItem = controller.currentMediaItem
+                    val currentUri = currentItem?.localConfiguration?.uri ?: decodedUri
+                    val recoveredUri = com.example.data.MediaUriResolver.resolveToPlayableUri(context, currentUri)
+                    if (recoveredUri != currentUri) {
+                        com.example.LogKeeper.log("PlayerScreen: Recovered playable URI: $recoveredUri. Re-preparing ExoPlayer.", "PlayerScreen")
+                        val updatedItem = (currentItem?.buildUpon() ?: androidx.media3.common.MediaItem.Builder().setMediaId(decodedUri.toString()))
+                            .setUri(recoveredUri)
+                            .build()
+                        val currentPos = controller.currentPosition.coerceAtLeast(0L)
+                        controller.setMediaItem(updatedItem, currentPos)
+                        controller.prepare()
+                        controller.play()
+                        return
+                    }
+
+                    com.example.LogKeeper.log("PlayerScreen: Permission denied reading media URI - skipping item gracefully: ${error.cause?.message}", "PlayerScreen")
                     showControls = true
                     controlsInteractionTrigger = System.currentTimeMillis()
                     try {
@@ -1154,7 +1210,7 @@ fun PlayerScreen(
             context,
             pipReceiver,
             filter,
-            androidx.core.content.ContextCompat.RECEIVER_EXPORTED
+            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
         )
 
         

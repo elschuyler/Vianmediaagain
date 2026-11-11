@@ -52,6 +52,9 @@ class PlayerActivity : ComponentActivity() {
                         contentResolver.takePersistableUriPermission(uri, flags)
                     }
                 } catch (e: Exception) {}
+                try {
+                    grantUriPermission(packageName, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                } catch (e: Exception) {}
             }
         }
     }
@@ -127,7 +130,8 @@ class PlayerActivity : ComponentActivity() {
             String(android.util.Base64.decode(encodedUri, android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP))
         } catch (e: Exception) { encodedUri }
         if (decodedStr.isEmpty()) return
-        val uri = android.net.Uri.parse(decodedStr)
+        val rawUri = android.net.Uri.parse(decodedStr)
+        val uri = com.example.data.MediaUriResolver.resolveToPlayableUri(this, rawUri)
         val player = PlayerManager.exoPlayer
         if (player != null && player.currentMediaItem?.mediaId != decodedStr) {
             val pending = PlayerManager.consumePendingQueue()
@@ -251,9 +255,21 @@ class PlayerActivity : ComponentActivity() {
         setIntent(intent)
         persistUriPermissions(intent)
         val newUri = extractEncodedUri(intent)
-        if (newUri.isNotEmpty() && newUri != activeUriString) {
-            activeUriString = newUri
-            preparePlaybackImmediately(newUri)
+        if (newUri.isNotEmpty()) {
+            val base64Flags = android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING
+            val decodedNew = try {
+                val dec = String(android.util.Base64.decode(newUri, base64Flags))
+                if (dec.contains("://") || dec.startsWith("/")) dec else newUri
+            } catch (e: Exception) { newUri }
+            val resolved = com.example.data.MediaUriResolver.resolveToPlayableUri(this, Uri.parse(decodedNew))
+            val finalNewUri = if (resolved.toString() != decodedNew) {
+                android.util.Base64.encodeToString(resolved.toString().toByteArray(), base64Flags)
+            } else newUri
+
+            if (finalNewUri != activeUriString) {
+                activeUriString = finalNewUri
+                preparePlaybackImmediately(finalNewUri)
+            }
         }
         com.example.service.PlaybackService.hideOverlay(this)
     }
@@ -262,7 +278,24 @@ class PlayerActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         LogKeeper.init(this)
         persistUriPermissions(intent)
-        activeUriString = extractEncodedUri(intent)
+        val rawEncoded = extractEncodedUri(intent)
+        val base64Flags = android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING
+        val decodedStr = try {
+            val decoded = String(android.util.Base64.decode(rawEncoded, base64Flags))
+            if (decoded.contains("://") || decoded.startsWith("/")) decoded else rawEncoded
+        } catch (e: Exception) { rawEncoded }
+        val resolvedUri = if (decodedStr.isNotEmpty()) {
+            com.example.data.MediaUriResolver.resolveToPlayableUri(this, Uri.parse(decodedStr))
+        } else null
+        activeUriString = if (resolvedUri != null && resolvedUri.toString() != decodedStr) {
+            android.util.Base64.encodeToString(resolvedUri.toString().toByteArray(), base64Flags)
+        } else rawEncoded
+
+        if (decodedStr.startsWith("content://")) {
+            try {
+                grantUriPermission(packageName, Uri.parse(decodedStr), Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            } catch (e: Exception) {}
+        }
         PlayerManager.initialize(applicationContext, false)
         com.example.service.PlaybackService.hideOverlay(this)
         preparePlaybackImmediately(activeUriString)

@@ -8,6 +8,7 @@ import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.SettableFuture
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import coil.imageLoader
 import coil.request.ImageRequest
@@ -15,6 +16,8 @@ import coil.request.videoFrameMillis
 
 class MyBitmapLoader(val context: Context) : BitmapLoader {
     override fun supportsMimeType(mimeType: String) = true
+
+    private val loaderScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     private fun decodeDownsampledBitmap(data: ByteArray, maxDim: Int = 256): Bitmap? {
         val options = android.graphics.BitmapFactory.Options().apply {
@@ -42,7 +45,7 @@ class MyBitmapLoader(val context: Context) : BitmapLoader {
 
     override fun loadBitmap(uri: Uri): ListenableFuture<Bitmap> {
         val future = SettableFuture.create<Bitmap>()
-        CoroutineScope(Dispatchers.IO).launch {
+        loaderScope.launch {
             try {
                 // 1. Try ContentResolver loadThumbnail on Android 10+ (fastest hardware thumbnail)
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {

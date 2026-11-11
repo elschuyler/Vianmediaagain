@@ -112,6 +112,9 @@ class MainActivity : ComponentActivity() {
                       contentResolver.takePersistableUriPermission(uri, flags)
                   }
               } catch (e: Exception) {}
+              try {
+                  grantUriPermission(packageName, uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+              } catch (e: Exception) {}
           }
       }
   }

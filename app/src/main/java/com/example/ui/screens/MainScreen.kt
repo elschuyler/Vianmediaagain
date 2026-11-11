@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Label
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
@@ -345,6 +346,9 @@ fun MainScreen(
                         }) {
                             Icon(Icons.Filled.Search, contentDescription = "Search")
                         }
+                        IconButton(onClick = { viewModel.refreshMedia() }) {
+                            Icon(Icons.Filled.Refresh, contentDescription = "Refresh Library")
+                        }
                         if (selectedFolder == null && selectedTab != LibraryTab.PLAYLISTS) {
                             IconButton(onClick = { viewModel.selectTab(LibraryTab.PLAYLISTS) }) {
                                 Icon(Icons.AutoMirrored.Filled.PlaylistPlay, contentDescription = "Playlists")
@@ -490,11 +494,16 @@ fun MainScreen(
             if (isLoading && mediaFolders.isEmpty() && playlists.isEmpty()) {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
             } else {
-                PullToRefreshBox(
-                    isRefreshing = isLoading,
-                    onRefresh = { viewModel.refreshMedia() },
+                Box(
                     modifier = Modifier.fillMaxSize()
                 ) {
+                    if (isLoading) {
+                        LinearProgressIndicator(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .align(Alignment.TopCenter)
+                        )
+                    }
                     if (selectedFolder == null && !isSearchActive && selectedTab == LibraryTab.PLAYLISTS) {
                             if (playlists.isEmpty()) {
                                 Box(
@@ -709,164 +718,74 @@ fun MainScreen(
                                     val isSeen = media.tag == PlaybackTag.SEEN
                                     val isPlaying = media.tag == PlaybackTag.PLAYING
                                     val isLastPlayed = isPlaying && (lastPlayedUri != null && (lastPlayedUri == media.uri.toString() || lastPlayedUri == media.name))
-                                    val titleColor = when {
-                                        isSelected -> MaterialTheme.colorScheme.onPrimaryContainer
-                                        isSeen -> Color(0xFF757575)
-                                        isLastPlayed -> Color(0xFF03A9F4)
-                                        else -> MaterialTheme.colorScheme.onSurface
+                                    val subText = if (selectedFolder != null) {
+                                        media.sizeFormatted
+                                    } else {
+                                        if (media.parentFolderPath.isNotEmpty()) media.parentFolderPath else "Unknown path"
                                     }
-                                    val subTextColor = when {
-                                        isSelected -> MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                                        isSeen -> Color(0xFF606060)
-                                        else -> MaterialTheme.colorScheme.onSurfaceVariant
-                                    }
-                                    Card(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .combinedClickable(
-                                                onClick = {
-                                                    if (isMultiSelectMode) {
-                                                        if (isSelected) selectedMediaItems.remove(media) else selectedMediaItems.add(media)
-                                                        lastSelectedIndex = index
-                                                    } else {
-                                                        viewModel.markAsStarted(media.id)
-                                                        val isAnim = media.mediaType == com.example.data.MediaType.IMAGE && com.example.data.isAnimatedMedia(context, media.uri)
-                                                        if (media.mediaType == com.example.data.MediaType.IMAGE && !isAnim) {
-                                                            onNavigateToPhotoEditor(media.uri.toString())
-                                                        } else {
-                                                            try {
-                                                                val queue = sortedMediaItems.filter {
-                                                                    it.mediaType == com.example.data.MediaType.VIDEO ||
-                                                                    (it.mediaType == com.example.data.MediaType.IMAGE && (it.name.endsWith(".gif", true) || it.name.endsWith(".webp", true)))
-                                                                }.map { m ->
-                                                                    val meta = androidx.media3.common.MediaMetadata.Builder()
-                                                                        .setTitle(m.name)
-                                                                        .setDisplayTitle(m.name)
-                                                                        .build()
-                                                                    androidx.media3.common.MediaItem.Builder()
-                                                                        .setUri(m.uri)
-                                                                        .setMediaId(m.uri.toString())
-                                                                        .setMediaMetadata(meta)
-                                                                        .build()
-                                                                }
-                                                                val targetIdx = queue.indexOfFirst { it.mediaId == media.uri.toString() }.coerceAtLeast(0)
-                                                                com.example.service.PlayerManager.setPendingQueue(queue, targetIdx)
-                                                            } catch (e: Exception) {
-                                                                com.example.LogKeeper.logError("MainScreen", "Failed to build pending folder queue", e)
+                                    MediaListItem(
+                                        media = media,
+                                        isSelected = isSelected,
+                                        isSeen = isSeen,
+                                        isLastPlayed = isLastPlayed,
+                                        subText = subText,
+                                        onClick = {
+                                            if (isMultiSelectMode) {
+                                                if (isSelected) selectedMediaItems.remove(media) else selectedMediaItems.add(media)
+                                                lastSelectedIndex = index
+                                            } else {
+                                                viewModel.markAsStarted(media.id)
+                                                val isAnim = media.mediaType == com.example.data.MediaType.IMAGE && com.example.data.isAnimatedMedia(context, media.uri)
+                                                if (media.mediaType == com.example.data.MediaType.IMAGE && !isAnim) {
+                                                    onNavigateToPhotoEditor(media.uri.toString())
+                                                } else {
+                                                    try {
+                                                        val isTargetAudio = media.mediaType == com.example.data.MediaType.AUDIO
+                                                        val queue = sortedMediaItems.filter {
+                                                            if (isTargetAudio) {
+                                                                it.mediaType == com.example.data.MediaType.AUDIO
+                                                            } else {
+                                                                it.mediaType == com.example.data.MediaType.VIDEO ||
+                                                                (it.mediaType == com.example.data.MediaType.IMAGE && (it.name.endsWith(".gif", true) || it.name.endsWith(".webp", true)))
                                                             }
-                                                            onNavigateToPlayer(media.uri.toString())
+                                                        }.map { m ->
+                                                            val meta = androidx.media3.common.MediaMetadata.Builder()
+                                                                .setTitle(m.name)
+                                                                .setDisplayTitle(m.name)
+                                                                .build()
+                                                            androidx.media3.common.MediaItem.Builder()
+                                                                .setUri(m.uri)
+                                                                .setMediaId(m.uri.toString())
+                                                                .setMediaMetadata(meta)
+                                                                .build()
                                                         }
+                                                        val targetIdx = queue.indexOfFirst { it.mediaId == media.uri.toString() }.coerceAtLeast(0)
+                                                        com.example.service.PlayerManager.setPendingQueue(queue, targetIdx)
+                                                    } catch (e: Exception) {
+                                                        com.example.LogKeeper.logError("MainScreen", "Failed to build pending folder queue", e)
                                                     }
-                                                },
-                                                onLongClick = {
-                                                    if (!isMultiSelectMode) {
-                                                        selectedMediaItems.add(media)
-                                                        lastSelectedIndex = index
-                                                    } else {
-                                                        val start = lastSelectedIndex ?: index
-                                                        val end = index
-                                                        val range = if (start < end) start..end else end..start
-                                                        for (i in range) {
-                                                            val item = sortedMediaItems[i]
-                                                            if (!selectedMediaItems.contains(item)) {
-                                                                selectedMediaItems.add(item)
-                                                            }
-                                                        }
-                                                        lastSelectedIndex = index
-                                                    }
-                                                }
-                                            ),
-                                        colors = CardDefaults.cardColors(
-                                            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
-                                        )
-                                    ) {
-                                        Row(modifier = Modifier.padding(vertical = 8.dp), verticalAlignment = Alignment.Top) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .width(140.dp)
-                                                    .height(80.dp)
-                                                    .clip(RoundedCornerShape(8.dp))
-                                                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                                            ) {
-                                                val thumbRequest = remember(media.uri) {
-                                                    ImageRequest.Builder(context)
-                                                        .data(media.uri)
-                                                        .size(256)
-                                                        .bitmapConfig(android.graphics.Bitmap.Config.RGB_565)
-                                                        .allowHardware(true)
-                                                        .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
-                                                        .diskCachePolicy(coil.request.CachePolicy.ENABLED)
-                                                        .crossfade(false)
-                                                        .build()
-                                                }
-                                                AsyncImage(
-                                                    model = thumbRequest,
-                                                    contentDescription = "Thumbnail",
-                                                    modifier = Modifier.fillMaxSize(),
-                                                    contentScale = ContentScale.Crop
-                                                )
-                                                if (media.tag == PlaybackTag.NEW) {
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .align(Alignment.TopStart)
-                                                            .padding(4.dp)
-                                                            .background(Color.Red, RoundedCornerShape(2.dp))
-                                                            .padding(horizontal = 4.dp, vertical = 2.dp)
-                                                    ) {
-                                                        Text("NEW", style = MaterialTheme.typography.labelSmall, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 8.sp)
-                                                    }
-                                                }
-                                                val badgeAlpha = if (isSeen) 0.45f else 0.7f
-                                                Box(
-                                                    modifier = Modifier
-                                                        .align(Alignment.BottomEnd)
-                                                        .padding(4.dp)
-                                                        .background(Color.Black.copy(alpha = badgeAlpha), RoundedCornerShape(4.dp))
-                                                        .padding(horizontal = 4.dp, vertical = 2.dp)
-                                                ) {
-                                                    Text(media.durationFormatted, style = MaterialTheme.typography.labelSmall, color = if (isSeen) Color(0xFFAAAAAA) else Color.White, fontWeight = FontWeight.Bold)
+                                                    onNavigateToPlayer(media.uri.toString())
                                                 }
                                             }
-                                            Spacer(modifier = Modifier.width(12.dp))
-                                            Column(modifier = Modifier.weight(1f)) {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Text(
-                                                        text = media.name, 
-                                                        style = MaterialTheme.typography.titleMedium,
-                                                        fontWeight = FontWeight.Normal,
-                                                        color = titleColor,
-                                                        maxLines = 2,
-                                                        overflow = TextOverflow.Ellipsis,
-                                                        modifier = Modifier.weight(1f, fill = false)
-                                                    )
-                                                    if (media.hasSubtitle) {
-                                                        Spacer(modifier = Modifier.width(6.dp))
-                                                        Box(
-                                                            modifier = Modifier
-                                                                .background(if (isSeen) Color(0xFF2196F3).copy(alpha = 0.5f) else Color(0xFF2196F3), RoundedCornerShape(2.dp))
-                                                                .padding(horizontal = 4.dp, vertical = 2.dp)
-                                                        ) {
-                                                            Text("SUB", style = MaterialTheme.typography.labelSmall, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 8.sp)
-                                                        }
+                                        },
+                                        onLongClick = {
+                                            if (!isMultiSelectMode) {
+                                                selectedMediaItems.add(media)
+                                                lastSelectedIndex = index
+                                            } else {
+                                                val start = lastSelectedIndex ?: index
+                                                val end = index
+                                                val range = if (start < end) start..end else end..start
+                                                for (i in range) {
+                                                    val item = sortedMediaItems[i]
+                                                    if (!selectedMediaItems.contains(item)) {
+                                                        selectedMediaItems.add(item)
                                                     }
                                                 }
-                                                Spacer(modifier = Modifier.height(4.dp))
-                                                val subText = if (selectedFolder != null) {
-                                                    media.sizeFormatted
-                                                } else {
-                                                    if (media.parentFolderPath.isNotEmpty()) media.parentFolderPath else "Unknown path"
-                                                }
-                                                Text(
-                                                    text = subText,
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = subTextColor,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
-                                                )
+                                                lastSelectedIndex = index
                                             }
                                         }
-                                    }
+                                    )
                                 }
                             }
                         }
@@ -1438,6 +1357,126 @@ fun FolderCard(folder: MediaFolder, onClick: () -> Unit, onOptionsClick: () -> U
         }
         IconButton(onClick = onOptionsClick) {
             Icon(Icons.Filled.MoreVert, contentDescription = "More Options")
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun MediaListItem(
+    media: MediaItem,
+    isSelected: Boolean,
+    isSeen: Boolean,
+    isLastPlayed: Boolean,
+    subText: String,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val titleColor = when {
+        isSelected -> MaterialTheme.colorScheme.onPrimaryContainer
+        isSeen -> Color(0xFF757575)
+        isLastPlayed -> Color(0xFF03A9F4)
+        else -> MaterialTheme.colorScheme.onSurface
+    }
+    val subTextColor = when {
+        isSelected -> MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+        isSeen -> Color(0xFF606060)
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val context = LocalContext.current
+
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            ),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
+        )
+    ) {
+        Row(modifier = Modifier.padding(vertical = 8.dp), verticalAlignment = Alignment.Top) {
+            Box(
+                modifier = Modifier
+                    .width(140.dp)
+                    .height(80.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                val thumbRequest = remember(media.uri) {
+                    ImageRequest.Builder(context)
+                        .data(media.uri)
+                        .size(256)
+                        .bitmapConfig(android.graphics.Bitmap.Config.RGB_565)
+                        .allowHardware(true)
+                        .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
+                        .diskCachePolicy(coil.request.CachePolicy.ENABLED)
+                        .crossfade(false)
+                        .build()
+                }
+                AsyncImage(
+                    model = thumbRequest,
+                    contentDescription = "Thumbnail",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+                if (media.tag == PlaybackTag.NEW) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(4.dp)
+                            .background(Color.Red, RoundedCornerShape(2.dp))
+                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                    ) {
+                        Text("NEW", style = MaterialTheme.typography.labelSmall, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 8.sp)
+                    }
+                }
+                val badgeAlpha = if (isSeen) 0.45f else 0.7f
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(4.dp)
+                        .background(Color.Black.copy(alpha = badgeAlpha), RoundedCornerShape(4.dp))
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                ) {
+                    Text(media.durationFormatted, style = MaterialTheme.typography.labelSmall, color = if (isSeen) Color(0xFFAAAAAA) else Color.White, fontWeight = FontWeight.Bold)
+                }
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = media.name, 
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Normal,
+                        color = titleColor,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    if (media.hasSubtitle) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .background(if (isSeen) Color(0xFF2196F3).copy(alpha = 0.5f) else Color(0xFF2196F3), RoundedCornerShape(2.dp))
+                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                        ) {
+                            Text("SUB", style = MaterialTheme.typography.labelSmall, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 8.sp)
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = subText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = subTextColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }

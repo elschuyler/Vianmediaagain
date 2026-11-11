@@ -8,6 +8,7 @@ import androidx.media3.common.Player
 class PipActionReceiver(private val player: Player?) : BroadcastReceiver() {
     override fun onReceive(context: Context?, intent: Intent?) {
         if (intent == null || intent.action != ACTION_PIP_CONTROL) return
+        if (intent.`package` != null && intent.`package` != context?.packageName) return
         when (intent.getIntExtra(EXTRA_CONTROL_TYPE, 0)) {
             CONTROL_TYPE_PLAY -> player?.play()
             CONTROL_TYPE_PAUSE -> player?.pause()

@@ -98,7 +98,28 @@ object PlayerManager {
         appContext = appCtx
         com.example.LogKeeper.log("Initializing PlayerManager ExoPlayer", "PlayerManager")
         
-        val dataSourceFactory = DefaultDataSource.Factory(appCtx)
+        val baseDataSourceFactory = DefaultDataSource.Factory(appCtx)
+        val dataSourceFactory = androidx.media3.datasource.DataSource.Factory {
+            val baseDataSource = baseDataSourceFactory.createDataSource()
+            object : androidx.media3.datasource.DataSource by baseDataSource {
+                override fun open(dataSpec: androidx.media3.datasource.DataSpec): Long {
+                    return try {
+                        baseDataSource.open(dataSpec)
+                    } catch (e: Exception) {
+                        val isSec = e is SecurityException || e.cause is SecurityException || e.message?.contains("SecurityException", ignoreCase = true) == true || e.message?.contains("Permission Denial", ignoreCase = true) == true
+                        if (isSec) {
+                            val resolved = com.example.data.MediaUriResolver.resolveToPlayableUri(appCtx, dataSpec.uri)
+                            if (resolved != dataSpec.uri) {
+                                com.example.LogKeeper.log("ExoPlayer DataSource auto-recovered from SecurityException: ${dataSpec.uri} -> $resolved", "PlayerManager")
+                                val newSpec = dataSpec.buildUpon().setUri(resolved).build()
+                                return baseDataSource.open(newSpec)
+                            }
+                        }
+                        throw e
+                    }
+                }
+            }
+        }
         val mediaSourceFactory = DefaultMediaSourceFactory(context)
             .setDataSourceFactory(dataSourceFactory)
             

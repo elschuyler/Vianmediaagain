@@ -27,6 +27,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.unit.dp
 import kotlin.math.abs
 import androidx.compose.ui.graphics.graphicsLayer
@@ -69,18 +71,64 @@ fun getSpeedAtTime(points: List<SpeedPoint>, fraction: Float): Float {
     if (points.isEmpty()) return 1.0f
     val clamped = fraction.coerceIn(0f, 1f)
     val sorted = points.sortedBy { it.timeFraction }
-    if (clamped <= sorted.first().timeFraction) return sorted.first().speed
-    if (clamped >= sorted.last().timeFraction) return sorted.last().speed
+    if (sorted.size == 1) return sorted.first().speed.coerceIn(0.2f, 5.0f)
+    if (clamped <= sorted.first().timeFraction) return sorted.first().speed.coerceIn(0.2f, 5.0f)
+    if (clamped >= sorted.last().timeFraction) return sorted.last().speed.coerceIn(0.2f, 5.0f)
 
-    for (i in 0 until sorted.size - 1) {
-        val p1 = sorted[i]
-        val p2 = sorted[i + 1]
-        if (clamped in p1.timeFraction..p2.timeFraction) {
-            val range = p2.timeFraction - p1.timeFraction
-            if (range <= 0.0001f) return p1.speed
-            val t = (clamped - p1.timeFraction) / range
-            val tSmooth = t * t * (3f - 2f * t)
-            return (p1.speed + tSmooth * (p2.speed - p1.speed)).coerceIn(0.2f, 5.0f)
+    val n = sorted.size
+    val x = FloatArray(n) { sorted[it].timeFraction }
+    val y = FloatArray(n) { sorted[it].speed.coerceIn(0.2f, 5.0f) }
+
+    // Consecutive secants (slopes)
+    val delta = FloatArray(n - 1)
+    for (i in 0 until n - 1) {
+        val dx = x[i + 1] - x[i]
+        delta[i] = if (dx > 0.00001f) (y[i + 1] - y[i]) / dx else 0f
+    }
+
+    // Initial tangents (finite differences)
+    val m = FloatArray(n)
+    m[0] = delta[0]
+    m[n - 1] = delta[n - 2]
+    for (i in 1 until n - 1) {
+        if (delta[i - 1] * delta[i] <= 0f) {
+            m[i] = 0f
+        } else {
+            m[i] = (delta[i - 1] + delta[i]) / 2f
+        }
+    }
+
+    // Fritsch-Carlson monotonicity condition
+    for (i in 0 until n - 1) {
+        if (delta[i] == 0f) {
+            m[i] = 0f
+            m[i + 1] = 0f
+        } else {
+            val alpha = m[i] / delta[i]
+            val beta = m[i + 1] / delta[i]
+            val hyp = alpha * alpha + beta * beta
+            if (hyp > 9f) {
+                val tau = 3f / kotlin.math.sqrt(hyp)
+                m[i] = tau * alpha * delta[i]
+                m[i + 1] = tau * beta * delta[i]
+            }
+        }
+    }
+
+    // Evaluate cubic Hermite spline for the active segment
+    for (i in 0 until n - 1) {
+        if (clamped in x[i]..x[i + 1]) {
+            val h = x[i + 1] - x[i]
+            if (h <= 0.0001f) return y[i]
+            val t = (clamped - x[i]) / h
+            val t2 = t * t
+            val t3 = t2 * t
+            val h00 = 2f * t3 - 3f * t2 + 1f
+            val h10 = t3 - 2f * t2 + t
+            val h01 = -2f * t3 + 3f * t2
+            val h11 = t3 - t2
+            val interpolated = h00 * y[i] + h10 * h * m[i] + h01 * y[i + 1] + h11 * h * m[i + 1]
+            return interpolated.coerceIn(0.2f, 5.0f)
         }
     }
     return 1.0f
@@ -1321,7 +1369,7 @@ fun VideoEditorScreen(
                         if (currentEditState.speedMode == "Curve" && durationMs > 0L && exoPlayer?.isPlaying == true) {
                             val tFrac = (currentPositionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
                             val targetSpeed = getSpeedAtTime(currentEditState.speedCurvePoints, tFrac).coerceIn(0.2f, 5.0f)
-                            if (Math.abs((exoPlayer?.playbackParameters?.speed ?: 1f) - targetSpeed) > 0.05f) {
+                            if (Math.abs((exoPlayer?.playbackParameters?.speed ?: 1f) - targetSpeed) > 0.12f) {
                                 exoPlayer?.setPlaybackSpeed(targetSpeed)
                             }
                         }
@@ -1661,6 +1709,12 @@ fun VideoEditorScreen(
                             }
                             VideoEditorTool.SPEED -> {
                                 var selectedPointIndex by remember { mutableIntStateOf(-1) }
+                                var isDraggingNode by remember { mutableStateOf(false) }
+                                var dragSpeedDisplay by remember { mutableFloatStateOf(1.0f) }
+                                var dragTimeDisplayMs by remember { mutableLongStateOf(0L) }
+                                var lastSeekTimeMs by remember { mutableLongStateOf(0L) }
+                                var hasSnappedToNormal by remember { mutableStateOf(false) }
+                                val haptic = LocalHapticFeedback.current
                                 val primaryColor = MaterialTheme.colorScheme.primary
 
                                 Column(modifier = Modifier.fillMaxWidth()) {
@@ -1750,7 +1804,7 @@ fun VideoEditorScreen(
                                         ) {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Text(
-                                                    text = "Speed: ${String.format(java.util.Locale.US, "%.2fx", curPlaySpeed)}",
+                                                    text = "Current: ${String.format(java.util.Locale.US, "%.2fx", curPlaySpeed)}",
                                                     style = MaterialTheme.typography.titleSmall,
                                                     color = MaterialTheme.colorScheme.primary
                                                 )
@@ -1762,57 +1816,90 @@ fun VideoEditorScreen(
                                                 )
                                             }
                                             if (selectedPoint != null) {
-                                                Text(
-                                                    text = "Node: ${String.format(java.util.Locale.US, "%.2fx", selectedPoint.speed)}",
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = MaterialTheme.colorScheme.tertiary
-                                                )
+                                                Surface(
+                                                    shape = RoundedCornerShape(12.dp),
+                                                    color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.7f)
+                                                ) {
+                                                    Text(
+                                                        text = "Node ${selectedPointIndex + 1}: ${String.format(java.util.Locale.US, "%.2fx", selectedPoint.speed)}",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                                    )
+                                                }
                                             }
                                         }
 
                                         Spacer(modifier = Modifier.height(6.dp))
 
-                                        // Action buttons: Add Point, Delete Point, Reset
+                                        // Contextual Action Buttons: Add/Remove at playhead & Reset
+                                        val nearbyPointIndex = editState.speedCurvePoints.indexOfFirst { kotlin.math.abs(it.timeFraction - curPlayFrac) < 0.035f }
+                                        val isAtInternalNode = nearbyPointIndex > 0 && nearbyPointIndex < editState.speedCurvePoints.size - 1
+
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
                                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            FilledTonalButton(
-                                                onClick = {
-                                                    val points = editState.speedCurvePoints.toMutableList()
-                                                    val alreadyNear = points.any { Math.abs(it.timeFraction - curPlayFrac) < 0.03f }
-                                                    if (!alreadyNear && curPlayFrac > 0.02f && curPlayFrac < 0.98f) {
-                                                        points.add(SpeedPoint(curPlayFrac, curPlaySpeed))
-                                                        val sorted = points.sortedBy { it.timeFraction }
-                                                        editState = editState.copy(speedCurvePoints = sorted, speedCurvePreset = "Custom")
-                                                        selectedPointIndex = sorted.indexOfFirst { Math.abs(it.timeFraction - curPlayFrac) < 0.001f }
-                                                    }
-                                                },
-                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                                                modifier = Modifier.height(34.dp)
-                                            ) {
-                                                Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(14.dp))
-                                                Spacer(Modifier.width(4.dp))
-                                                Text("Add Point", style = MaterialTheme.typography.labelMedium)
+                                            if (nearbyPointIndex != -1 && isAtInternalNode) {
+                                                FilledTonalButton(
+                                                    onClick = {
+                                                        val points = editState.speedCurvePoints.toMutableList()
+                                                        points.removeAt(nearbyPointIndex)
+                                                        editState = editState.copy(speedCurvePoints = points, speedCurvePreset = "Custom")
+                                                        selectedPointIndex = -1
+                                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                    },
+                                                    colors = ButtonDefaults.filledTonalButtonColors(
+                                                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                                                        contentColor = MaterialTheme.colorScheme.onErrorContainer
+                                                    ),
+                                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                                    modifier = Modifier.height(34.dp)
+                                                ) {
+                                                    Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(14.dp))
+                                                    Spacer(Modifier.width(4.dp))
+                                                    Text("Delete Node at Playhead", style = MaterialTheme.typography.labelMedium)
+                                                }
+                                            } else {
+                                                FilledTonalButton(
+                                                    onClick = {
+                                                        val points = editState.speedCurvePoints.toMutableList()
+                                                        val alreadyNear = points.any { kotlin.math.abs(it.timeFraction - curPlayFrac) < 0.025f }
+                                                        if (!alreadyNear && curPlayFrac > 0.02f && curPlayFrac < 0.98f) {
+                                                            points.add(SpeedPoint(curPlayFrac, curPlaySpeed))
+                                                            val sorted = points.sortedBy { it.timeFraction }
+                                                            editState = editState.copy(speedCurvePoints = sorted, speedCurvePreset = "Custom")
+                                                            selectedPointIndex = sorted.indexOfFirst { kotlin.math.abs(it.timeFraction - curPlayFrac) < 0.001f }
+                                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                        }
+                                                    },
+                                                    enabled = curPlayFrac > 0.02f && curPlayFrac < 0.98f && nearbyPointIndex == -1,
+                                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                                    modifier = Modifier.height(34.dp)
+                                                ) {
+                                                    Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(14.dp))
+                                                    Spacer(Modifier.width(4.dp))
+                                                    Text("Add Node at Playhead", style = MaterialTheme.typography.labelMedium)
+                                                }
                                             }
 
-                                            OutlinedButton(
-                                                onClick = {
-                                                    if (selectedPointIndex > 0 && selectedPointIndex < editState.speedCurvePoints.size - 1) {
+                                            if (selectedPointIndex > 0 && selectedPointIndex < editState.speedCurvePoints.size - 1 && selectedPointIndex != nearbyPointIndex) {
+                                                OutlinedButton(
+                                                    onClick = {
                                                         val points = editState.speedCurvePoints.toMutableList()
                                                         points.removeAt(selectedPointIndex)
                                                         editState = editState.copy(speedCurvePoints = points, speedCurvePreset = "Custom")
                                                         selectedPointIndex = -1
-                                                    }
-                                                },
-                                                enabled = selectedPointIndex > 0 && selectedPointIndex < editState.speedCurvePoints.size - 1,
-                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                                                modifier = Modifier.height(34.dp)
-                                            ) {
-                                                Icon(Icons.Filled.Remove, contentDescription = null, modifier = Modifier.size(14.dp))
-                                                Spacer(Modifier.width(4.dp))
-                                                Text("Delete Point", style = MaterialTheme.typography.labelMedium)
+                                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                    },
+                                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                                    modifier = Modifier.height(34.dp)
+                                                ) {
+                                                    Icon(Icons.Filled.Remove, contentDescription = null, modifier = Modifier.size(14.dp))
+                                                    Spacer(Modifier.width(4.dp))
+                                                    Text("Delete Node", style = MaterialTheme.typography.labelMedium)
+                                                }
                                             }
 
                                             OutlinedButton(
@@ -1828,6 +1915,7 @@ fun VideoEditorScreen(
                                                         speedCurvePreset = "Reset"
                                                     )
                                                     selectedPointIndex = -1
+                                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                 },
                                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                                                 modifier = Modifier.height(34.dp)
@@ -1838,14 +1926,14 @@ fun VideoEditorScreen(
 
                                         Spacer(modifier = Modifier.height(6.dp))
 
-                                        // Interactive Wave Canvas
+                                        // Interactive Spline Wave Canvas
                                         Box(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .height(130.dp)
-                                                .clip(RoundedCornerShape(8.dp))
+                                                .height(190.dp)
+                                                .clip(RoundedCornerShape(10.dp))
                                                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-                                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
                                         ) {
                                             Canvas(
                                                 modifier = Modifier
@@ -1854,21 +1942,28 @@ fun VideoEditorScreen(
                                                         detectTapGestures(
                                                             onTap = { offset ->
                                                                 val padX = 24.dp.toPx()
-                                                                val padY = 16.dp.toPx()
+                                                                val padY = 18.dp.toPx()
                                                                 val graphW = size.width - 2 * padX
                                                                 val graphH = size.height - 2 * padY
-                                                                val hitThresholdSq = 32.dp.toPx() * 32.dp.toPx()
-                                                                val hitIndex = editState.speedCurvePoints.indexOfFirst { pt ->
+                                                                val hitThresholdSq = 38.dp.toPx() * 38.dp.toPx()
+                                                                var closestIdx = -1
+                                                                var closestDistSq = Float.MAX_VALUE
+                                                                editState.speedCurvePoints.forEachIndexed { idx, pt ->
                                                                     val px = timeToX(pt.timeFraction, padX, padX + graphW)
                                                                     val py = speedToY(pt.speed, padY, padY + graphH)
                                                                     val distSq = (offset.x - px) * (offset.x - px) + (offset.y - py) * (offset.y - py)
-                                                                    distSq <= hitThresholdSq
+                                                                    if (distSq <= hitThresholdSq && distSq < closestDistSq) {
+                                                                        closestDistSq = distSq
+                                                                        closestIdx = idx
+                                                                    }
                                                                 }
-                                                                if (hitIndex != -1) {
-                                                                    selectedPointIndex = hitIndex
-                                                                    val targetMs = (editState.speedCurvePoints[hitIndex].timeFraction * durationMs).toLong()
+                                                                if (closestIdx != -1) {
+                                                                    selectedPointIndex = closestIdx
+                                                                    val targetMs = (editState.speedCurvePoints[closestIdx].timeFraction * durationMs).toLong()
                                                                     exoPlayer?.seekTo(targetMs)
+                                                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                                 } else {
+                                                                    selectedPointIndex = -1
                                                                     val tFrac = xToTime(offset.x, padX, padX + graphW)
                                                                     val targetMs = (tFrac * durationMs).toLong()
                                                                     exoPlayer?.seekTo(targetMs)
@@ -1880,29 +1975,48 @@ fun VideoEditorScreen(
                                                         detectDragGestures(
                                                             onDragStart = { offset ->
                                                                 val padX = 24.dp.toPx()
-                                                                val padY = 16.dp.toPx()
+                                                                val padY = 18.dp.toPx()
                                                                 val graphW = size.width - 2 * padX
                                                                 val graphH = size.height - 2 * padY
-                                                                val hitThresholdSq = 36.dp.toPx() * 36.dp.toPx()
-                                                                val hitIndex = editState.speedCurvePoints.indexOfFirst { pt ->
+                                                                val hitThresholdSq = 42.dp.toPx() * 42.dp.toPx()
+                                                                var closestIdx = -1
+                                                                var closestDistSq = Float.MAX_VALUE
+                                                                editState.speedCurvePoints.forEachIndexed { idx, pt ->
                                                                     val px = timeToX(pt.timeFraction, padX, padX + graphW)
                                                                     val py = speedToY(pt.speed, padY, padY + graphH)
                                                                     val distSq = (offset.x - px) * (offset.x - px) + (offset.y - py) * (offset.y - py)
-                                                                    distSq <= hitThresholdSq
+                                                                    if (distSq <= hitThresholdSq && distSq < closestDistSq) {
+                                                                        closestDistSq = distSq
+                                                                        closestIdx = idx
+                                                                    }
                                                                 }
-                                                                if (hitIndex != -1) {
-                                                                    selectedPointIndex = hitIndex
+                                                                if (closestIdx != -1) {
+                                                                    selectedPointIndex = closestIdx
+                                                                    isDraggingNode = true
+                                                                    dragSpeedDisplay = editState.speedCurvePoints[closestIdx].speed
+                                                                    dragTimeDisplayMs = (editState.speedCurvePoints[closestIdx].timeFraction * durationMs).toLong()
+                                                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                                 }
                                                             },
                                                             onDrag = { change, _ ->
                                                                 if (selectedPointIndex in editState.speedCurvePoints.indices) {
                                                                     change.consume()
                                                                     val padX = 24.dp.toPx()
-                                                                    val padY = 16.dp.toPx()
+                                                                    val padY = 18.dp.toPx()
                                                                     val graphW = size.width - 2 * padX
                                                                     val graphH = size.height - 2 * padY
                                                                     val currentPoints = editState.speedCurvePoints.toMutableList()
-                                                                    val newSpeed = yToSpeed(change.position.y, padY, padY + graphH).coerceIn(0.2f, 5.0f)
+                                                                    val rawSpeed = yToSpeed(change.position.y, padY, padY + graphH).coerceIn(0.2f, 5.0f)
+                                                                    val isNearNormal = kotlin.math.abs(rawSpeed - 1.0f) < 0.08f
+                                                                    val newSpeed = if (isNearNormal) 1.0f else rawSpeed
+
+                                                                    if (isNearNormal && !hasSnappedToNormal) {
+                                                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                                        hasSnappedToNormal = true
+                                                                    } else if (!isNearNormal) {
+                                                                        hasSnappedToNormal = false
+                                                                    }
+
                                                                     val newT = when (selectedPointIndex) {
                                                                         0 -> 0.0f
                                                                         currentPoints.size - 1 -> 1.0f
@@ -1914,49 +2028,107 @@ fun VideoEditorScreen(
                                                                     }
                                                                     currentPoints[selectedPointIndex] = SpeedPoint(newT, newSpeed)
                                                                     editState = editState.copy(speedCurvePoints = currentPoints, speedCurvePreset = "Custom")
+                                                                    dragSpeedDisplay = newSpeed
                                                                     val targetMs = (newT * durationMs).toLong()
+                                                                    dragTimeDisplayMs = targetMs
+
+                                                                    val now = System.currentTimeMillis()
+                                                                    if (now - lastSeekTimeMs > 40L) {
+                                                                        lastSeekTimeMs = now
+                                                                        exoPlayer?.seekTo(targetMs)
+                                                                    }
+                                                                }
+                                                            },
+                                                            onDragEnd = {
+                                                                isDraggingNode = false
+                                                                hasSnappedToNormal = false
+                                                                if (selectedPointIndex in editState.speedCurvePoints.indices) {
+                                                                    val targetMs = (editState.speedCurvePoints[selectedPointIndex].timeFraction * durationMs).toLong()
                                                                     exoPlayer?.seekTo(targetMs)
                                                                 }
                                                             },
-                                                            onDragEnd = {},
-                                                            onDragCancel = {}
+                                                            onDragCancel = {
+                                                                isDraggingNode = false
+                                                                hasSnappedToNormal = false
+                                                            }
                                                         )
                                                     }
                                             ) {
                                                 val padX = 24.dp.toPx()
-                                                val padY = 16.dp.toPx()
+                                                val padY = 18.dp.toPx()
                                                 val graphW = size.width - 2 * padX
                                                 val graphH = size.height - 2 * padY
-                                                val midY = (padY + padY + graphH) / 2f
                                                 val topY = padY
                                                 val bottomY = padY + graphH
 
                                                 // Background reference guide lines
+                                                val y5x = speedToY(5.0f, padY, padY + graphH)
+                                                val y2x = speedToY(2.0f, padY, padY + graphH)
+                                                val y1x = speedToY(1.0f, padY, padY + graphH)
+                                                val y05x = speedToY(0.5f, padY, padY + graphH)
+                                                val y02x = speedToY(0.2f, padY, padY + graphH)
+
+                                                // 5.0x line
                                                 drawLine(
-                                                    color = Color.White.copy(alpha = 0.15f),
-                                                    start = Offset(padX, topY),
-                                                    end = Offset(padX + graphW, topY),
+                                                    color = Color.White.copy(alpha = 0.12f),
+                                                    start = Offset(padX, y5x),
+                                                    end = Offset(padX + graphW, y5x),
                                                     strokeWidth = 1.dp.toPx()
                                                 )
+                                                // 2.0x line
                                                 drawLine(
-                                                    color = Color.White.copy(alpha = 0.35f),
-                                                    start = Offset(padX, midY),
-                                                    end = Offset(padX + graphW, midY),
-                                                    strokeWidth = 1.5.dp.toPx()
+                                                    color = Color.White.copy(alpha = 0.12f),
+                                                    start = Offset(padX, y2x),
+                                                    end = Offset(padX + graphW, y2x),
+                                                    strokeWidth = 1.dp.toPx()
                                                 )
+                                                // 1.0x Baseline (Highlighted Neutral Speed)
                                                 drawLine(
-                                                    color = Color.White.copy(alpha = 0.15f),
-                                                    start = Offset(padX, bottomY),
-                                                    end = Offset(padX + graphW, bottomY),
+                                                    color = primaryColor.copy(alpha = 0.45f),
+                                                    start = Offset(padX, y1x),
+                                                    end = Offset(padX + graphW, y1x),
+                                                    strokeWidth = 1.75.dp.toPx()
+                                                )
+                                                // 0.5x line
+                                                drawLine(
+                                                    color = Color.White.copy(alpha = 0.12f),
+                                                    start = Offset(padX, y05x),
+                                                    end = Offset(padX + graphW, y05x),
+                                                    strokeWidth = 1.dp.toPx()
+                                                )
+                                                // 0.2x line
+                                                drawLine(
+                                                    color = Color.White.copy(alpha = 0.12f),
+                                                    start = Offset(padX, y02x),
+                                                    end = Offset(padX + graphW, y02x),
                                                     strokeWidth = 1.dp.toPx()
                                                 )
 
-                                                // Speed wave path & filled gradient area
+                                                // Active dragging guide lines
+                                                if (isDraggingNode && selectedPointIndex in editState.speedCurvePoints.indices) {
+                                                    val activePt = editState.speedCurvePoints[selectedPointIndex]
+                                                    val activeX = timeToX(activePt.timeFraction, padX, padX + graphW)
+                                                    val activeY = speedToY(activePt.speed, padY, padY + graphH)
+                                                    drawLine(
+                                                        color = primaryColor.copy(alpha = 0.4f),
+                                                        start = Offset(activeX, topY),
+                                                        end = Offset(activeX, bottomY),
+                                                        strokeWidth = 1.5.dp.toPx()
+                                                    )
+                                                    drawLine(
+                                                        color = primaryColor.copy(alpha = 0.4f),
+                                                        start = Offset(padX, activeY),
+                                                        end = Offset(padX + graphW, activeY),
+                                                        strokeWidth = 1.5.dp.toPx()
+                                                    )
+                                                }
+
+                                                // Speed spline wave path & filled gradient area
                                                 val path = Path()
                                                 val fillPath = Path()
                                                 fillPath.moveTo(padX, bottomY)
 
-                                                val sampleSteps = 80
+                                                val sampleSteps = 120
                                                 for (s in 0..sampleSteps) {
                                                     val tFrac = s.toFloat() / sampleSteps.toFloat()
                                                     val spd = getSpeedAtTime(editState.speedCurvePoints, tFrac)
@@ -1977,7 +2149,7 @@ fun VideoEditorScreen(
                                                     path = fillPath,
                                                     brush = Brush.verticalGradient(
                                                         colors = listOf(
-                                                            primaryColor.copy(alpha = 0.35f),
+                                                            primaryColor.copy(alpha = 0.38f),
                                                             primaryColor.copy(alpha = 0.05f)
                                                         ),
                                                         startY = topY,
@@ -1987,7 +2159,7 @@ fun VideoEditorScreen(
                                                 drawPath(
                                                     path = path,
                                                     color = primaryColor,
-                                                    style = Stroke(width = 3.dp.toPx())
+                                                    style = Stroke(width = 3.2.dp.toPx())
                                                 )
 
                                                 // Live Playhead vertical line
@@ -2004,7 +2176,7 @@ fun VideoEditorScreen(
                                                     val playheadY = speedToY(curSpd, padY, padY + graphH)
                                                     drawCircle(
                                                         color = Color.White,
-                                                        radius = 4.dp.toPx(),
+                                                        radius = 4.5.dp.toPx(),
                                                         center = Offset(playheadX, playheadY)
                                                     )
                                                 }
@@ -2016,14 +2188,14 @@ fun VideoEditorScreen(
                                                     val isSelected = index == selectedPointIndex
                                                     if (isSelected) {
                                                         drawCircle(
-                                                            color = primaryColor.copy(alpha = 0.35f),
-                                                            radius = 14.dp.toPx(),
+                                                            color = primaryColor.copy(alpha = if (isDraggingNode) 0.5f else 0.3f),
+                                                            radius = if (isDraggingNode) 18.dp.toPx() else 13.dp.toPx(),
                                                             center = Offset(x, y)
                                                         )
                                                     }
                                                     drawCircle(
                                                         color = if (isSelected) primaryColor else Color.White,
-                                                        radius = 7.dp.toPx(),
+                                                        radius = 7.5.dp.toPx(),
                                                         center = Offset(x, y)
                                                     )
                                                     drawCircle(
@@ -2034,31 +2206,68 @@ fun VideoEditorScreen(
                                                 }
                                             }
 
-                                            // Reference text badges (5.0x Fast, 1.0x Normal, 0.2x Slow)
+                                            // Reference text badges (5.0x, 1.0x Normal, 0.2x)
                                             Text(
-                                                text = "5.0x Fast",
+                                                text = "5.0x",
                                                 style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
                                                 modifier = Modifier
                                                     .align(Alignment.TopStart)
                                                     .padding(start = 6.dp, top = 2.dp)
                                             )
                                             Text(
                                                 text = "1.0x Normal",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.9f),
                                                 modifier = Modifier
                                                     .align(Alignment.CenterStart)
                                                     .padding(start = 6.dp)
                                             )
                                             Text(
-                                                text = "0.2x Slow",
+                                                text = "0.2x",
                                                 style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
                                                 modifier = Modifier
                                                     .align(Alignment.BottomStart)
                                                     .padding(start = 6.dp, bottom = 2.dp)
                                             )
+
+                                            // Floating Thumb-Offset HUD Magnifier Badge
+                                            if (isDraggingNode) {
+                                                Surface(
+                                                    shape = RoundedCornerShape(16.dp),
+                                                    color = MaterialTheme.colorScheme.surfaceVariant,
+                                                    tonalElevation = 6.dp,
+                                                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)),
+                                                    modifier = Modifier
+                                                        .align(Alignment.TopCenter)
+                                                        .padding(top = 8.dp)
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Icon(
+                                                            Icons.Filled.Speed,
+                                                            contentDescription = null,
+                                                            tint = MaterialTheme.colorScheme.primary,
+                                                            modifier = Modifier.size(14.dp)
+                                                        )
+                                                        Spacer(Modifier.width(6.dp))
+                                                        Text(
+                                                            text = "${String.format(java.util.Locale.US, "%.2fx", dragSpeedDisplay)}",
+                                                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                                            color = MaterialTheme.colorScheme.primary
+                                                        )
+                                                        Spacer(Modifier.width(8.dp))
+                                                        Text(
+                                                            text = "• ${formatMs(dragTimeDisplayMs)}",
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                        )
+                                                    }
+                                                }
+                                            }
                                         }
 
                                         Spacer(modifier = Modifier.height(8.dp))
@@ -2093,6 +2302,13 @@ fun VideoEditorScreen(
                                                     SpeedPoint(0.65f, 1.0f),
                                                     SpeedPoint(1.0f, 1.0f)
                                                 ),
+                                                "Jump Cut" to listOf(
+                                                    SpeedPoint(0.0f, 3.0f),
+                                                    SpeedPoint(0.25f, 1.0f),
+                                                    SpeedPoint(0.5f, 3.0f),
+                                                    SpeedPoint(0.75f, 1.0f),
+                                                    SpeedPoint(1.0f, 3.0f)
+                                                ),
                                                 "Flash In" to listOf(
                                                     SpeedPoint(0.0f, 4.0f),
                                                     SpeedPoint(0.2f, 2.0f),
@@ -2124,6 +2340,7 @@ fun VideoEditorScreen(
                                                                 speedCurvePoints = pts
                                                             )
                                                             selectedPointIndex = -1
+                                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                         }
                                                     },
                                                     label = { Text(name) }
@@ -3300,7 +3517,11 @@ fun VideoEditorScreen(
                             if (stretchFilter.isNotEmpty()) filterList.add(stretchFilter)
                         }
                         if (editState.hasCaptions && editState.captionText.isNotBlank()) {
-                            val safeText = editState.captionText.replace("'", "")
+                            val safeText = editState.captionText
+                                .replace("\\", "\\\\")
+                                .replace("'", "")
+                                .replace(":", "\\:")
+                                .replace("%", "\\%")
                             filterList.add("drawtext=text='$safeText':fontcolor=white:fontsize=48:x=(w-text_w)/2:y=h-th-50:fontfile=/system/fonts/Roboto-Regular.ttf")
                         }
                         
@@ -3350,13 +3571,34 @@ fun VideoEditorScreen(
                                 (if (durationMs > 0L) durationMs else 1000L) / 1000f
                             }
 
-                            val numSegments = 10
+                            val sortedPts = editState.speedCurvePoints.sortedBy { it.timeFraction }
+                            val timeSlices = mutableListOf<Float>()
+                            for (i in 0 until sortedPts.size - 1) {
+                                val tA = sortedPts[i].timeFraction
+                                val tB = sortedPts[i + 1].timeFraction
+                                val spdA = sortedPts[i].speed
+                                val spdB = sortedPts[i + 1].speed
+                                val dt = tB - tA
+                                val dSpd = kotlin.math.abs(spdB - spdA)
+                                val subdivisions = when {
+                                    dt > 0.35f || dSpd > 2.0f -> 4
+                                    dt > 0.20f || dSpd > 1.0f -> 3
+                                    dt > 0.10f || dSpd > 0.4f -> 2
+                                    else -> 1
+                                }
+                                for (s in 0 until subdivisions) {
+                                    timeSlices.add(tA + (s.toFloat() / subdivisions.toFloat()) * dt)
+                                }
+                            }
+                            timeSlices.add(1.0f)
+
+                            val numSegments = timeSlices.size - 1
                             val sb = StringBuilder()
                             val hasAudio = videoHasAudio && format != "gif"
 
                             for (k in 0 until numSegments) {
-                                val fStart = k.toFloat() / numSegments.toFloat()
-                                val fEnd = (k + 1).toFloat() / numSegments.toFloat()
+                                val fStart = timeSlices[k]
+                                val fEnd = timeSlices[k + 1]
                                 val sStart = baseStartSec + fStart * activeDurationSec
                                 val sEnd = baseStartSec + fEnd * activeDurationSec
                                 val fMid = (fStart + fEnd) / 2.0f
@@ -3384,11 +3626,8 @@ fun VideoEditorScreen(
                             }
 
                             if (hasAudio) {
-                                if (audioFilterList.isNotEmpty()) {
-                                    sb.append("[a_ramped]${audioFilterList.joinToString(",")},aresample=48000,aformat=channel_layouts=stereo[a_out]")
-                                } else {
-                                    sb.append("[a_ramped]aresample=48000,aformat=channel_layouts=stereo[a_out]")
-                                }
+                                val audioExtras = if (audioFilterList.isNotEmpty()) "${audioFilterList.joinToString(",")}," else ""
+                                sb.append("[a_ramped]${audioExtras}aresample=48000:async=1:first_pts=0,aformat=channel_layouts=stereo[a_out]")
                             }
 
                             val curveFilterComplex = sb.toString().trimEnd(';')

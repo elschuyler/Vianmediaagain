@@ -8,9 +8,11 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
 import com.example.LogKeeper
 import com.example.data.SettingsManager
 import kotlinx.coroutines.CoroutineScope
@@ -58,12 +60,7 @@ class CompressionService : Service() {
             serviceJob.cancel()
             CompressionStatus.isRunning = false
             try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    stopForeground(STOP_FOREGROUND_REMOVE)
-                } else {
-                    @Suppress("DEPRECATION")
-                    stopForeground(true)
-                }
+                ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
                 val nm = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
                 nm?.cancel(1)
             } catch (e: Exception) {}
@@ -84,7 +81,11 @@ class CompressionService : Service() {
             .setSmallIcon(android.R.drawable.stat_sys_upload)
             .build()
 
-        startForeground(1, notification)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+        } else {
+            startForeground(1, notification)
+        }
 
         // Resource Exclusivity: Pause active video playback to prevent memory pressure/OOM during heavy bitmap compression
         try {
@@ -102,7 +103,7 @@ class CompressionService : Service() {
             processImages(uris, maxWidth, maxHeight, quality, formatStr)
             LogKeeper.log("Completed batch compression for ${uris.size} images.", "Compressor")
             CompressionStatus.isRunning = false
-            stopForeground(true)
+            ServiceCompat.stopForeground(this@CompressionService, ServiceCompat.STOP_FOREGROUND_REMOVE)
             stopSelfResult(startId)
         }
 

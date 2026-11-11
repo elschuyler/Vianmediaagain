@@ -191,13 +191,6 @@ fun isAnimatedMedia(context: Context, uri: Uri): Boolean {
     val ext = uriStr.substringAfterLast('.', "").substringBefore('?').lowercase()
     if (ext == "gif" || mimeType == "image/gif") return true
     if (ext == "webp" || mimeType == "image/webp") {
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-            try {
-                val source = android.graphics.ImageDecoder.createSource(context.contentResolver, uri)
-                val drawable = android.graphics.ImageDecoder.decodeDrawable(source)
-                if (drawable is android.graphics.drawable.AnimatedImageDrawable) return true
-            } catch (e: Throwable) {}
-        }
         try {
             context.contentResolver.openInputStream(uri)?.use { stream ->
                 val header = ByteArray(64)
@@ -209,12 +202,23 @@ fun isAnimatedMedia(context: Context, uri: Uri): Boolean {
                         val isVp8x = header[12] == 'V'.code.toByte() && header[13] == 'P'.code.toByte() && header[14] == '8'.code.toByte() && header[15] == 'X'.code.toByte()
                         if (isVp8x) {
                             val flags = header[20].toInt() and 0xFF
-                            if ((flags and 0x02) != 0) return true
+                            return (flags and 0x02) != 0
+                        } else {
+                            // Standard VP8 / VP8L basic containers are single-frame static images
+                            return false
                         }
                     }
                 }
             }
         } catch (e: Throwable) {}
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+            try {
+                val source = android.graphics.ImageDecoder.createSource(context.contentResolver, uri)
+                val drawable = android.graphics.ImageDecoder.decodeDrawable(source)
+                if (drawable is android.graphics.drawable.AnimatedImageDrawable) return true
+            } catch (e: Throwable) {}
+        }
     }
     return false
 }

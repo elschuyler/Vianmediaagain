@@ -5,10 +5,12 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.net.Uri
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
 import com.example.LogKeeper
 import com.example.data.SettingsManager
 import kotlinx.coroutines.CoroutineScope
@@ -57,7 +59,7 @@ class FFmpegService : Service() {
             isCancelled = true
             FFmpegKit.cancel()
             FFmpegStatus.isRunning = false
-            stopForeground(true)
+            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
             stopSelf()
             return START_NOT_STICKY
         }
@@ -75,7 +77,11 @@ class FFmpegService : Service() {
                 android.app.PendingIntent.getService(this, 0, Intent(this, FFmpegService::class.java).apply { setAction("STOP") }, android.app.PendingIntent.FLAG_IMMUTABLE))
             .build()
 
-        startForeground(2, notification)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(2, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+        } else {
+            startForeground(2, notification)
+        }
 
         // Resource Exclusivity: Pause active video playback to yield CPU cores and decoders to FFmpeg
         try {
@@ -100,7 +106,7 @@ class FFmpegService : Service() {
                 LogKeeper.logError("FFmpegService", "Unexpected exception during FFmpeg batch: ${e.message}", e)
             } finally {
                 FFmpegStatus.isRunning = false
-                stopForeground(true)
+                ServiceCompat.stopForeground(this@FFmpegService, ServiceCompat.STOP_FOREGROUND_REMOVE)
                 stopSelfResult(startId)
             }
         }
@@ -125,83 +131,10 @@ class FFmpegService : Service() {
             // 1. Copy to cache for FFmpeg processing
             val tempInFile = java.io.File(cacheDir, "ffmpeg_in_${System.currentTimeMillis()}.${getFileExtension(uri)}")
             try {
-                if (isFileUri) {
-                    val directPath = when {
-                        uriStr.startsWith("file://") -> uriStr.removePrefix("file://")
-                        uriStr.startsWith("file:/") -> uriStr.removePrefix("file:")
-                        uriStr.startsWith("file:") -> uriStr.removePrefix("file:")
-                        else -> uri.path ?: uriStr
+                com.example.data.MediaUriResolver.openInputStreamSafely(this@FFmpegService, uriStr).use { input ->
+                    tempInFile.outputStream().use { output ->
+                        input.copyTo(output)
                     }
-                    val candidate1 = java.io.File(directPath)
-                    val candidate2 = java.io.File(Uri.decode(directPath))
-                    val candidate3 = uri.path?.let { java.io.File(it) }
-                    val candidate4 = uri.path?.let { java.io.File(Uri.decode(it)) }
-                    val src = listOfNotNull(candidate1, candidate2, candidate3, candidate4).firstOrNull { it.exists() && it.canRead() }
-                        ?: candidate1
-                    if (src.exists() && src.canRead()) {
-                        src.inputStream().use { input ->
-                            tempInFile.outputStream().use { output ->
-                                input.copyTo(output)
-                            }
-                        }
-                    } else {
-                        // Under Scoped Storage (API 29+), direct File access to external storage paths may return canRead() == false.
-                        // Fall back to resolving the path against MediaStore or opening via ContentResolver.
-                        var streamCopied = false
-                        try {
-                            val ext = getFileExtension(uri)
-                            val queryUri = if (ext in setOf("mp3", "m4a", "wav", "flac", "ogg", "aac", "opus")) {
-                                android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
-                            } else {
-                                android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI
-                            }
-                            val proj = arrayOf(android.provider.MediaStore.MediaColumns._ID)
-                            val sel = "${android.provider.MediaStore.MediaColumns.DATA} = ?"
-                            val selArgs = arrayOf(directPath)
-                            contentResolver.query(queryUri, proj, sel, selArgs, null)?.use { cursor ->
-                                if (cursor.moveToFirst()) {
-                                    val id = cursor.getLong(0)
-                                    val resolvedUri = android.content.ContentUris.withAppendedId(queryUri, id)
-                                    contentResolver.openInputStream(resolvedUri)?.use { input ->
-                                        tempInFile.outputStream().use { output -> input.copyTo(output) }
-                                        streamCopied = true
-                                    }
-                                }
-                            }
-                        } catch (e: Exception) {
-                            LogKeeper.log("MediaStore query fallback for directPath failed: ${e.message}", "FFmpegService")
-                        }
-
-                        if (!streamCopied) {
-                            try {
-                                contentResolver.openInputStream(uri)?.use { input ->
-                                    tempInFile.outputStream().use { output -> input.copyTo(output) }
-                                    streamCopied = true
-                                }
-                            } catch (e: Exception) {
-                                LogKeeper.log("Direct URI openInputStream fallback failed: ${e.message}", "FFmpegService")
-                            }
-                        }
-
-                        if (!streamCopied && uri.scheme != "file") {
-                            try {
-                                contentResolver.openInputStream(Uri.fromFile(src))?.use { input ->
-                                    tempInFile.outputStream().use { output -> input.copyTo(output) }
-                                    streamCopied = true
-                                }
-                            } catch (e: Exception) {}
-                        }
-
-                        if (!streamCopied) {
-                            throw java.io.FileNotFoundException("Direct input file not found or unreadable via File and ContentResolver: $directPath")
-                        }
-                    }
-                } else {
-                    contentResolver.openInputStream(uri)?.use { input ->
-                        tempInFile.outputStream().use { output ->
-                            input.copyTo(output)
-                        }
-                    } ?: throw java.io.FileNotFoundException("Unable to open input stream for content URI: $uriStr")
                 }
             } catch (e: Exception) {
                 LogKeeper.logError("FFmpegService", "Failed to copy input file: $uriStr", e)
