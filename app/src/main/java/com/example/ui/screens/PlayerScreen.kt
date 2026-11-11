@@ -961,7 +961,7 @@ fun PlayerScreen(
                 // If transition happened automatically and repeat mode is OFF for a video, pause and navigate back
                 if (reason == androidx.media3.common.Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
                     val currentMode = controller.repeatMode
-                    val isAudioItem = isAudio || currentMediaUri?.let { u ->
+                    val isAudioItem = currentMediaUri?.let { u ->
                         val mime = try { context.contentResolver.getType(u) } catch (e: Exception) { null }
                         mime?.startsWith("audio/") == true
                     } == true
@@ -1076,6 +1076,7 @@ fun PlayerScreen(
                     com.example.LogKeeper.log("PlayerScreen: Timeout caught during surface detachment or release - ignored gracefully", "PlayerScreen")
                     return
                 }
+                val rootCause = error.cause
 
                 // Deep scan the throwable cause chain for SecurityException or Permission Denial
                 var isSecurityDenied = false

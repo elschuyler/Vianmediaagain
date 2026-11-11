@@ -366,4 +366,18 @@
 * How it was verified: `lint_applet` and `compile_applet` passed cleanly with 0 errors.
 * Any deviation from what was requested: None.
 * Any known issue or follow-up needed: None.
+## Phase 132: CI Kotlin Compiler Scope Resolution & Symbol Hardening
+* Timestamp: 2026-11-11T20:05:00Z
+* One-line summary: Resolved compilation failures in PlayerScreen.kt caused by out-of-scope 'isAudio' in onMediaItemTransition and missing 'rootCause' in onPlayerError.
+* Files touched:
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_030.md
+* What was actually done:
+  - Eliminated unresolved reference `isAudio` inside `PlayerScreen.kt`'s `onMediaItemTransition` (line 964) by inspecting the dynamic MIME type of `currentMediaUri` via `context.contentResolver.getType()`, guaranteeing reliable audio-detection without relying on a separate `LaunchedEffect` variable scope.
+  - Re-introduced `val rootCause = error.cause` at the start of `onPlayerError` in `PlayerScreen.kt` (line 1079), cleanly resolving references in downstream `FileNotFoundException` handling blocks.
+  - Verified symbol resolution, type safety, and clean project build across all modules.
+* How it was verified: `lint_applet` and `compile_applet` passed cleanly with 0 errors.
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: None.
 

@@ -542,4 +542,11 @@
      - Replaced the brittle POSIX `canRead()` and narrow Audio/Video MediaStore queries in `FFmpegService.kt` with `MediaUriResolver.openInputStreamSafely()`.
      - Guarantees seamless input stream extraction for FFmpeg jobs across all directories (Downloads, Documents, DCIM, SD card volumes) without throwing `FileNotFoundException: Direct input file not found or unreadable via File and ContentResolver`.
 
+- **Phase 132: CI Kotlin Compiler Scope Resolution & Symbol Hardening**
+  1. Resolved Variable Scope Resolution in `PlayerScreen.kt`:
+     - Fixed `Unresolved reference 'isAudio'` at line 964 by evaluating audio type dynamically from `currentMediaUri` MIME type rather than referencing the out-of-scope local variable from a disconnected `LaunchedEffect`.
+     - Fixed `Unresolved reference 'rootCause'` at lines 1127 and 1128 by properly defining `val rootCause = error.cause` at the top of `onPlayerError`.
+     - Validated that all Gradle tasks (including `compileDebugKotlin` and KSP) build cleanly without compiler errors.
+
+
 
