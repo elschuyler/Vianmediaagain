@@ -429,3 +429,27 @@
 * Any deviation from what was requested: None.
 * Any known issue or follow-up needed: None.
 
+## Phase 136: Package Migration Completion & CI Compilation Fix (shura.media)
+* Timestamp: 2026-11-12T12:09:00Z
+* One-line summary: Migrated the remaining 11 Kotlin source and test files under `shura/media/` from `com.example` to `shura.media` and aligned widget `R`, class imports, and IPC action strings to unblock CI `:app:compileDebugKotlin`.
+* Files touched:
+  - app/src/main/java/shura/media/ui/theme/Theme.kt
+  - app/src/main/java/shura/media/ui/theme/Color.kt
+  - app/src/main/java/shura/media/ui/theme/Type.kt
+  - app/src/main/java/shura/media/ui/screens/player/PlayerTopBar.kt
+  - app/src/main/java/shura/media/ui/screens/player/PlayerTransportControls.kt
+  - app/src/main/java/shura/media/widget/MediaWidgetProvider.kt
+  - app/src/main/java/shura/media/widget/MediaWidgetService.kt
+  - app/src/main/java/shura/media/widget/WidgetSearchActivity.kt
+  - app/src/test/java/shura/media/TestVideoSize.kt
+  - app/src/test/java/shura/media/TestPresentation.kt
+  - app/src/test/java/shura/media/ExampleUnitTest.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_030.md
+* What was actually done:
+  - Updated `package` declarations from `com.example.*` to `shura.media.*` in Theme (`Theme.kt`, `Color.kt`, `Type.kt`), Player subcomponents (`PlayerTopBar.kt`, `PlayerTransportControls.kt`), Widget classes (`MediaWidgetProvider.kt`, `MediaWidgetService.kt`, `WidgetSearchActivity.kt`), and unit tests (`TestVideoSize.kt`, `TestPresentation.kt`, `ExampleUnitTest.kt`).
+  - Updated all `com.example.R`, class imports/qualifiers (`MainActivity`, `PlayerActivity`, `PlayerManager`, `PlaybackService`, `LogKeeper`, `MediaRepository`, `AppDatabase`, `Playlist`, `MediaItem`), and IPC action strings (`shura.media.ACTION_OPEN_PLAYER`, `shura.media.ACTION_WIDGET_COMMAND`) in the 3 widget files.
+  - Verified with `grep` and `find` that 0 `com.example` references or `com/example` paths exist in `app/`.
+* How it was verified: Local repo `grep`/`find` confirmed 0 remaining `com.example` references in `app/`, and `lint_applet` + `compile_applet` verified the web wrapper; Android Kotlin/Gradle compilation (`./gradlew assembleDebug`) runs on GitHub Actions CI after export (not tested locally with Gradle).
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: Remote GitHub repository (`elschuyler/Vianmediaagain`) still contains stale `app/src/main/java/com/example/` directories from prior sync; those stale directories must be deleted on GitHub when pushing/exporting or CI will still fail compiling those old `com.example.R` references.

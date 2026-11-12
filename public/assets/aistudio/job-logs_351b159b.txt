@@ -1,0 +1,668 @@
+2026-11-12T11:55:10.9758986Z Current runner version: '2.338.2'
+2026-11-12T11:55:10.9793828Z ##[group]Runner Image Provisioner
+2026-11-12T11:55:10.9795496Z Hosted Compute Agent
+2026-11-12T11:55:10.9796247Z Version: 20261028.624
+2026-11-12T11:55:10.9797216Z Commit: 54898b74c23fde5556c9b3c3a2290865feef0dfe
+2026-11-12T11:55:10.9798481Z Build Date: 2026-10-28T21:51:42Z
+2026-11-12T11:55:10.9799540Z Worker ID: {06c14351-f899-449e-8421-e3b0127a4c62}
+2026-11-12T11:55:10.9800516Z Region: eastus2
+2026-11-12T11:55:10.9801254Z Cloud: Azure
+2026-11-12T11:55:10.9802136Z ##[endgroup]
+2026-11-12T11:55:10.9804029Z ##[group]Operating System
+2026-11-12T11:55:10.9804842Z Ubuntu
+2026-11-12T11:55:10.9805711Z 26.04.1
+2026-11-12T11:55:10.9806469Z LTS
+2026-11-12T11:55:10.9807218Z ##[endgroup]
+2026-11-12T11:55:10.9808170Z ##[group]Runner Image
+2026-11-12T11:55:10.9809018Z Image: ubuntu-26.04
+2026-11-12T11:55:10.9809833Z Version: 20261101.186.1
+2026-11-12T11:55:10.9811558Z Included Software: https://github.com/actions/runner-images/blob/ubuntu26/20261101.186/images/ubuntu/Ubuntu2604-Readme.md
+2026-11-12T11:55:10.9813666Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu26%2F20261101.186
+2026-11-12T11:55:10.9815019Z ##[endgroup]
+2026-11-12T11:55:10.9816744Z ##[group]GITHUB_TOKEN Permissions
+2026-11-12T11:55:10.9820424Z Contents: read
+2026-11-12T11:55:10.9821325Z Metadata: read
+2026-11-12T11:55:10.9822099Z Packages: read
+2026-11-12T11:55:10.9822859Z ##[endgroup]
+2026-11-12T11:55:10.9825566Z Secret source: Actions
+2026-11-12T11:55:10.9826890Z Cache mode: write
+2026-11-12T11:55:10.9828569Z Prepare workflow directory
+2026-11-12T11:55:11.0286164Z Prepare all required actions
+2026-11-12T11:55:11.0361012Z Getting action download info
+2026-11-12T11:55:11.2630567Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+2026-11-12T11:55:11.3695807Z Download action repository 'actions/setup-java@v4' (SHA:cf277c60eb25467037889841efdb72551f06f6c3)
+2026-11-12T11:55:11.6703693Z Download action repository 'gradle/actions@v3' (SHA:d9c87d481d55275bb5441eef3fe0e46805f9ef70)
+2026-11-12T11:55:12.3084751Z Download action repository 'actions/upload-artifact@v4' (SHA:ea165f8d65b6e75b540449e92b4886f43607fa02)
+2026-11-12T11:55:12.5678692Z Complete job name: build
+2026-11-12T11:55:12.6609148Z ##[group]Run actions/checkout@v4
+2026-11-12T11:55:12.6610691Z with:
+2026-11-12T11:55:12.6611809Z   repository: elschuyler/Vianmediaagain
+2026-11-12T11:55:12.6621782Z   token: ***
+2026-11-12T11:55:12.6622809Z   ssh-strict: true
+2026-11-12T11:55:12.6623827Z   ssh-user: git
+2026-11-12T11:55:12.6624844Z   persist-credentials: true
+2026-11-12T11:55:12.6625987Z   clean: true
+2026-11-12T11:55:12.6627031Z   sparse-checkout-cone-mode: true
+2026-11-12T11:55:12.6628338Z   fetch-depth: 1
+2026-11-12T11:55:12.6629428Z   fetch-tags: false
+2026-11-12T11:55:12.6630449Z   show-progress: true
+2026-11-12T11:55:12.6631505Z   lfs: false
+2026-11-12T11:55:12.6632491Z   submodules: false
+2026-11-12T11:55:12.6633511Z   set-safe-directory: true
+2026-11-12T11:55:12.6634702Z   allow-unsafe-pr-checkout: false
+2026-11-12T11:55:12.6636259Z ##[endgroup]
+2026-11-12T11:55:12.9316845Z Syncing repository: elschuyler/Vianmediaagain
+2026-11-12T11:55:12.9319560Z ##[group]Getting Git version info
+2026-11-12T11:55:12.9320784Z Working directory is '/home/runner/work/Vianmediaagain/Vianmediaagain'
+2026-11-12T11:55:12.9322103Z [command]/usr/bin/git version
+2026-11-12T11:55:12.9322919Z git version 2.56.0
+2026-11-12T11:55:12.9344601Z ##[endgroup]
+2026-11-12T11:55:12.9359167Z Temporarily overriding HOME='/home/runner/work/_temp/734d1c86-e845-41cb-859a-884cd0df14bd' before making global git config changes
+2026-11-12T11:55:12.9360711Z Adding repository directory to the temporary git global config as a safe directory
+2026-11-12T11:55:12.9366881Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/Vianmediaagain/Vianmediaagain
+2026-11-12T11:55:12.9440909Z Deleting the contents of '/home/runner/work/Vianmediaagain/Vianmediaagain'
+2026-11-12T11:55:12.9462899Z ##[group]Initializing the repository
+2026-11-12T11:55:12.9467506Z [command]/usr/bin/git init /home/runner/work/Vianmediaagain/Vianmediaagain
+2026-11-12T11:55:12.9594488Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-11-12T11:55:12.9595829Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-11-12T11:55:12.9596507Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-11-12T11:55:12.9597215Z hint: call:
+2026-11-12T11:55:12.9597601Z hint:
+2026-11-12T11:55:12.9598447Z hint: 	git config --global init.defaultBranch <name>
+2026-11-12T11:55:12.9598947Z hint:
+2026-11-12T11:55:12.9599399Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-11-12T11:55:12.9600082Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-11-12T11:55:12.9600634Z hint:
+2026-11-12T11:55:12.9601156Z hint: 	git branch -m <name>
+2026-11-12T11:55:12.9601606Z hint:
+2026-11-12T11:55:12.9602120Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-11-12T11:55:12.9609126Z Initialized empty Git repository in /home/runner/work/Vianmediaagain/Vianmediaagain/.git/
+2026-11-12T11:55:12.9619806Z [command]/usr/bin/git remote add origin https://github.com/elschuyler/Vianmediaagain
+2026-11-12T11:55:12.9673727Z ##[endgroup]
+2026-11-12T11:55:12.9674497Z ##[group]Disabling automatic garbage collection
+2026-11-12T11:55:12.9678376Z [command]/usr/bin/git config --local gc.auto 0
+2026-11-12T11:55:12.9709162Z ##[endgroup]
+2026-11-12T11:55:12.9709912Z ##[group]Setting up auth
+2026-11-12T11:55:12.9717203Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-11-12T11:55:12.9747791Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-11-12T11:55:13.0289958Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-11-12T11:55:13.0327098Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-11-12T11:55:13.0563410Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-11-12T11:55:13.0594674Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-11-12T11:55:13.0871531Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-11-12T11:55:13.0880487Z ##[endgroup]
+2026-11-12T11:55:13.0881595Z ##[group]Fetching the repository
+2026-11-12T11:55:13.0891804Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +fd53184997da1bbe0091264b5b2fa092ba65408c:refs/remotes/origin/main
+2026-11-12T11:55:13.5239445Z From https://github.com/elschuyler/Vianmediaagain
+2026-11-12T11:55:13.5241199Z  * [new ref]         fd53184997da1bbe0091264b5b2fa092ba65408c -> origin/main
+2026-11-12T11:55:13.5242720Z ##[endgroup]
+2026-11-12T11:55:13.5243295Z ##[group]Determining the checkout info
+2026-11-12T11:55:13.5243944Z ##[endgroup]
+2026-11-12T11:55:13.5249144Z [command]/usr/bin/git sparse-checkout disable
+2026-11-12T11:55:13.5451324Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-11-12T11:55:13.5482774Z ##[group]Checking out the ref
+2026-11-12T11:55:13.5487018Z [command]/usr/bin/git checkout --progress --force -B main refs/remotes/origin/main
+2026-11-12T11:55:13.5722539Z Switched to a new branch 'main'
+2026-11-12T11:55:13.5730222Z branch 'main' set up to track 'origin/main'.
+2026-11-12T11:55:13.5733721Z ##[endgroup]
+2026-11-12T11:55:13.5772839Z [command]/usr/bin/git log -1 --format=%H
+2026-11-12T11:55:13.5793254Z fd53184997da1bbe0091264b5b2fa092ba65408c
+2026-11-12T11:55:13.6090504Z ##[group]Run actions/setup-java@v4
+2026-11-12T11:55:13.6091017Z with:
+2026-11-12T11:55:13.6091314Z   java-version: 21
+2026-11-12T11:55:13.6091631Z   distribution: temurin
+2026-11-12T11:55:13.6091921Z   java-package: jdk
+2026-11-12T11:55:13.6092216Z   check-latest: false
+2026-11-12T11:55:13.6092508Z   server-id: github
+2026-11-12T11:55:13.6092790Z   server-username: GITHUB_ACTOR
+2026-11-12T11:55:13.6093116Z   server-password: GITHUB_TOKEN
+2026-11-12T11:55:13.6093439Z   overwrite-settings: true
+2026-11-12T11:55:13.6093740Z   job-status: success
+2026-11-12T11:55:13.6096301Z   token: ***
+2026-11-12T11:55:13.6096580Z ##[endgroup]
+2026-11-12T11:55:13.7804679Z ##[warning]setup-java v4 is deprecated and will no longer receive updates. Please migrate to actions/setup-java@v5.
+2026-11-12T11:55:13.7813273Z ##[group]Installed distributions
+2026-11-12T11:55:13.8300613Z Resolved Java 21.0.13+9 from tool-cache
+2026-11-12T11:55:13.8301294Z Setting Java 21.0.13+9 as the default
+2026-11-12T11:55:13.8310778Z (node:2408) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-11-12T11:55:13.8312004Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-11-12T11:55:13.8313540Z Creating toolchains.xml for JDK version 21 from temurin
+2026-11-12T11:55:13.8379670Z Writing to /home/runner/.m2/toolchains.xml
+2026-11-12T11:55:13.8380140Z 
+2026-11-12T11:55:13.8380333Z Java configuration:
+2026-11-12T11:55:13.8380782Z   Distribution: temurin
+2026-11-12T11:55:13.8381223Z   Version: 21.0.13+9
+2026-11-12T11:55:13.8381829Z   Path: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/21.0.13-9/x64
+2026-11-12T11:55:13.8382292Z 
+2026-11-12T11:55:13.8382974Z ##[endgroup]
+2026-11-12T11:55:13.8405517Z Creating settings.xml with server-id: github
+2026-11-12T11:55:13.8425671Z Writing to /home/runner/.m2/settings.xml
+2026-11-12T11:55:13.8724898Z ##[group]Run gradle/actions/setup-gradle@v3
+2026-11-12T11:55:13.8725735Z with:
+2026-11-12T11:55:13.8726395Z   cache-disabled: false
+2026-11-12T11:55:13.8726924Z   cache-read-only: false
+2026-11-12T11:55:13.8727380Z   cache-write-only: false
+2026-11-12T11:55:13.8727999Z   cache-overwrite-existing: false
+2026-11-12T11:55:13.8728551Z   gradle-home-cache-includes: caches
+notifications
+
+2026-11-12T11:55:13.8729216Z   gradle-home-cache-cleanup: false
+2026-11-12T11:55:13.8729719Z   add-job-summary: always
+2026-11-12T11:55:13.8730275Z   add-job-summary-as-pr-comment: never
+2026-11-12T11:55:13.8730769Z   dependency-graph: disabled
+2026-11-12T11:55:13.8731454Z   dependency-graph-continue-on-failure: true
+2026-11-12T11:55:13.8731942Z   build-scan-publish: false
+2026-11-12T11:55:13.8732289Z   validate-wrappers: false
+2026-11-12T11:55:13.8732612Z   generate-job-summary: true
+2026-11-12T11:55:13.8732959Z   gradle-home-cache-strict-match: false
+2026-11-12T11:55:13.8733403Z   workflow-job-context: null
+2026-11-12T11:55:13.8736087Z   github-token: ***
+2026-11-12T11:55:13.8736596Z env:
+2026-11-12T11:55:13.8736957Z   JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/21.0.13-9/x64
+2026-11-12T11:55:13.8737515Z   JAVA_HOME_21_X64: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/21.0.13-9/x64
+2026-11-12T11:55:13.8738148Z ##[endgroup]
+2026-11-12T11:55:14.0632578Z (node:2420) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-11-12T11:55:14.0633839Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-11-12T11:55:15.8817332Z Merged default JDK locations into /home/runner/.m2/toolchains.xml
+2026-11-12T11:55:15.8820882Z ##[group]Restore Gradle state from cache
+2026-11-12T11:55:15.9858286Z ##[warning]Failed to restore gradle-home-v1|Linux|build[e080f0fdc288b6f0c5023fd4b86f7a10]-fd53184997da1bbe0091264b5b2fa092ba65408c: Error: Cache service responded with 400
+2026-11-12T11:55:15.9945764Z Gradle User Home cache not found. Will initialize empty.
+2026-11-12T11:55:15.9946664Z ##[endgroup]
+2026-11-12T11:55:16.0056840Z ##[group]Run if [ -f "./gradlew" ]; then
+2026-11-12T11:55:16.0057258Z [36;1mif [ -f "./gradlew" ]; then[0m
+2026-11-12T11:55:16.0058048Z [36;1m  chmod +x ./gradlew[0m
+2026-11-12T11:55:16.0058366Z [36;1m  ./gradlew assembleDebug --stacktrace[0m
+2026-11-12T11:55:16.0058715Z [36;1melse[0m
+2026-11-12T11:55:16.0058998Z [36;1m  gradle assembleDebug --stacktrace[0m
+2026-11-12T11:55:16.0059327Z [36;1mfi[0m
+2026-11-12T11:55:16.0096313Z shell: /usr/bin/bash -e {0}
+2026-11-12T11:55:16.0096636Z env:
+2026-11-12T11:55:16.0096971Z   JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/21.0.13-9/x64
+2026-11-12T11:55:16.0097472Z   JAVA_HOME_21_X64: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/21.0.13-9/x64
+2026-11-12T11:55:16.0098094Z   GRADLE_ACTION_ID: gradle/actions/setup-gradle
+2026-11-12T11:55:16.0098430Z   GRADLE_BUILD_ACTION_SETUP_COMPLETED: true
+2026-11-12T11:55:16.0098743Z   GRADLE_BUILD_ACTION_CACHE_RESTORED: true
+2026-11-12T11:55:16.0099392Z   DEVELOCITY_INJECTION_INIT_SCRIPT_NAME: gradle-actions.inject-develocity.init.gradle
+2026-11-12T11:55:16.0099865Z   DEVELOCITY_AUTO_INJECTION_CUSTOM_VALUE: gradle-actions
+2026-11-12T11:55:16.0100211Z   GITHUB_DEPENDENCY_GRAPH_ENABLED: false
+2026-11-12T11:55:16.0100478Z ##[endgroup]
+2026-11-12T11:55:19.5645437Z 
+2026-11-12T11:55:19.5646589Z Welcome to Gradle 9.8.2!
+2026-11-12T11:55:19.5647751Z 
+2026-11-12T11:55:19.5648222Z Here are the highlights of this release:
+2026-11-12T11:55:19.5648943Z  - Java 27 support
+2026-11-12T11:55:19.5649501Z  - Maven mirror settings reuse
+2026-11-12T11:55:19.5650123Z  - Linked problem locations in build output
+2026-11-12T11:55:19.5650471Z 
+2026-11-12T11:55:19.5650888Z For more details see https://docs.gradle.org/9.8.2/release-notes.html
+2026-11-12T11:55:19.5652620Z 
+2026-11-12T11:55:20.4616696Z Starting a Gradle Daemon (subsequent builds will be faster)
+2026-11-12T11:55:28.9617272Z Calculating task graph as no cached configuration is available for tasks: assembleDebug
+2026-11-12T11:56:59.5680012Z > Task :app:preBuild UP-TO-DATE
+2026-11-12T11:56:59.5719043Z > Task :app:generateDebugAssets UP-TO-DATE
+2026-11-12T11:56:59.5739115Z > Task :app:preDebugBuild UP-TO-DATE
+2026-11-12T11:56:59.6620636Z > Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+2026-11-12T11:56:59.7633359Z > Task :app:generateDebugResources
+2026-11-12T11:56:59.7678877Z > Task :app:generateDebugBuildConfig
+2026-11-12T11:56:59.9621798Z > Task :app:packageDebugResources
+2026-11-12T11:57:05.5615821Z > Task :app:processDebugNavigationResources
+2026-11-12T11:57:06.7668807Z > Task :app:javaPreCompileDebug
+2026-11-12T11:57:06.7698673Z > Task :app:mergeDebugAssets
+2026-11-12T11:57:08.7639193Z > Task :app:parseDebugLocalResources
+2026-11-12T11:57:08.7678940Z > Task :app:compressDebugAssets
+2026-11-12T11:57:08.7738778Z > Task :app:desugarDebugFileDependencies
+2026-11-12T11:57:10.2634921Z > Task :app:checkDebugAarMetadata
+2026-11-12T11:57:10.2669140Z > Task :app:mapDebugSourceSetPaths
+2026-11-12T11:57:10.2729002Z > Task :app:generateDebugRFile
+2026-11-12T11:57:10.5653397Z > Task :app:compileDebugNavigationResources
+2026-11-12T11:57:10.5699077Z > Task :app:createDebugCompatibleScreenManifests
+2026-11-12T11:57:10.5781455Z > Task :app:extractDeepLinksDebug
+2026-11-12T11:57:10.6679090Z > Task :app:checkDebugDuplicateClasses
+2026-11-12T11:57:11.4616683Z > Task :app:processDebugMainManifest
+2026-11-12T11:57:29.7616727Z > Task :app:kspDebugKotlin
+2026-11-12T11:57:35.7615241Z 
+2026-11-12T11:57:35.7663943Z ##[error]Exception in thread "AWT-EventQueue-0" java.lang.NullPointerException: Cannot invoke "ksp.com.intellij.openapi.application.Application.getService(java.lang.Class)" because the return value of "ksp.com.intellij.openapi.application.ApplicationManager.getApplication()" is null
+2026-11-12T11:57:35.7668497Z 	at ksp.com.intellij.openapi.fileEditor.FileDocumentManager.getInstance(FileDocumentManager.java:35)
+2026-11-12T11:57:35.7670572Z 	at ksp.com.intellij.openapi.fileTypes.BinaryFileTypeDecompilers.lambda$notifyDecompilerSetChange$1(BinaryFileTypeDecompilers.java:29)
+2026-11-12T11:57:35.7671960Z 	at java.desktop/java.awt.event.InvocationEvent.dispatch(InvocationEvent.java:318)
+2026-11-12T11:57:35.7673055Z 	at java.desktop/java.awt.EventQueue.dispatchEventImpl(EventQueue.java:773)
+2026-11-12T11:57:35.7673894Z 	at java.desktop/java.awt.EventQueue$4.run(EventQueue.java:720)
+2026-11-12T11:57:35.7674641Z 	at java.desktop/java.awt.EventQueue$4.run(EventQueue.java:714)
+2026-11-12T11:57:35.7675521Z 	at java.base/java.security.AccessController.doPrivileged(AccessController.java:400)
+2026-11-12T11:57:35.7676776Z 	at java.base/java.security.ProtectionDomain$JavaSecurityAccessImpl.doIntersectionPrivilege(ProtectionDomain.java:87)
+2026-11-12T11:57:35.7678039Z 	at java.desktop/java.awt.EventQueue.dispatchEvent(EventQueue.java:742)
+2026-11-12T11:57:35.7679106Z 	at java.desktop/java.awt.EventDispatchThread.pumpOneEventForFilters(EventDispatchThread.java:203)
+2026-11-12T11:57:35.8645046Z 	at java.desktop/java.awt.EventDispatchThread.pumpEventsForFilter(EventDispatchThread.java:124)
+2026-11-12T11:57:35.8669359Z 	at java.desktop/java.awt.EventDispatchThread.pumpEventsForHierarchy(EventDispatchThread.java:113)
+2026-11-12T11:57:35.8706282Z 	at java.desktop/java.awt.EventDispatchThread.pumpEvents(EventDispatchThread.java:109)
+2026-11-12T11:57:35.8722214Z 	at java.desktop/java.awt.EventDispatchThread.pumpEvents(EventDispatchThread.java:101)
+2026-11-12T11:57:35.8778832Z 	at java.desktop/java.awt.EventDispatchThread.run(EventDispatchThread.java:90)
+2026-11-12T11:57:40.2638241Z 
+2026-11-12T11:57:40.2698856Z > Task :app:mergeDebugResources
+2026-11-12T11:57:40.6629053Z > Task :app:mergeExtDexDebug
+2026-11-12T11:57:41.4629074Z > Task :app:mergeLibDexDebug
+2026-11-12T11:58:05.8616719Z > Task :app:compileDebugKotlin
+2026-11-12T11:58:31.7634147Z > Task :app:processDebugManifest
+2026-11-12T11:58:31.8658973Z > Task :app:processDebugManifestForPackage
+2026-11-12T11:58:33.9639000Z > Task :app:mergeDebugJniLibFolders
+2026-11-12T11:58:35.2638621Z > Task :app:mergeDebugNativeLibs
+2026-11-12T11:58:36.0638910Z > Task :app:processDebugResources
+2026-11-12T11:58:36.7658533Z 
+2026-11-12T11:58:36.7688949Z > Task :app:stripDebugDebugSymbols
+2026-11-12T11:58:36.7780498Z Unable to strip the following libraries, packaging them as they are: libandroidx.graphics.path.so, libavcodec.so, libavdevice.so, libavfilter.so, libavformat.so, libavutil.so, libc++_shared.so, libffmpegJNI.so, libffmpegkit.so, libffmpegkit_abidetect.so, libimagepipeline.so, libnative-filters.so, libnative-imagetranscoder.so, libstatic-webp.so, libswresample.so, libswscale.so. Run with --info option to learn more.
+2026-11-12T11:58:36.7848125Z 
+2026-11-12T11:58:36.7893283Z > Task :app:writeDebugAppMetadata
+2026-11-12T11:58:36.7908978Z > Task :app:writeDebugSigningConfigVersions
+2026-11-12T11:58:37.6628960Z > Task :app:validateSigningDebug
+2026-11-12T11:58:49.0616826Z 
+2026-11-12T11:58:49.0620484Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/service/PlaybackService.kt:128:39 Unresolved reference 'R'.
+2026-11-12T11:58:49.0621849Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/service/PlaybackService.kt:135:51 Unresolved reference 'R'.
+2026-11-12T11:58:49.0623139Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/service/PlaybackService.kt:135:95 Unresolved reference 'R'.
+2026-11-12T11:58:49.0649798Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/service/PlaybackService.kt:149:39 Unresolved reference 'R'.
+2026-11-12T11:58:49.0678780Z > Task :app:compileDebugKotlin FAILED
+2026-11-12T11:58:49.0680617Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/service/PlaybackService.kt:156:43 Unresolved reference 'R'.
+2026-11-12T11:58:49.0686884Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/service/PlaybackService.kt:163:43 Unresolved reference 'R'.
+2026-11-12T11:58:49.0689316Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/service/PlaybackService.kt:1061:39 Unresolved reference 'R'.
+2026-11-12T11:58:49.0691127Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/service/PlaybackService.kt:1067:39 Unresolved reference 'R'.
+2026-11-12T11:58:49.0693631Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/service/PlaybackService.kt:1176:81 Unresolved reference 'R'.
+2026-11-12T11:58:49.0695283Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/service/PlaybackService.kt:1177:51 Unresolved reference 'R'.
+2026-11-12T11:58:49.0696880Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/service/PlaybackService.kt:1178:56 Unresolved reference 'R'.
+2026-11-12T11:58:49.0698621Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/service/PlaybackService.kt:1178:112 Unresolved reference 'R'.
+2026-11-12T11:58:49.0700262Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/service/PlaybackService.kt:1178:156 Unresolved reference 'R'.
+2026-11-12T11:58:49.0701851Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/service/PlaybackService.kt:1182:50 Unresolved reference 'R'.
+2026-11-12T11:58:49.0703446Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/service/PlaybackService.kt:1186:90 Unresolved reference 'R'.
+2026-11-12T11:58:49.0705146Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/ui/components/FloatingVideoPlayerOverlay.kt:100:84 Unresolved reference 'R'.
+2026-11-12T11:58:49.0706898Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/ui/components/FloatingVideoPlayerOverlay.kt:315:88 Unresolved reference 'R'.
+2026-11-12T11:58:49.0708988Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/ui/components/MiniPlayerOverlay.kt:164:84 Unresolved reference 'R'.
+2026-11-12T11:58:49.0710688Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/ui/screens/PipHelper.kt:12:20 Unresolved reference 'R'.
+2026-11-12T11:58:49.0712308Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/ui/screens/PipHelper.kt:36:21 Unresolved reference 'R'.
+2026-11-12T11:58:49.0713903Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/ui/screens/PipHelper.kt:46:25 Unresolved reference 'R'.
+2026-11-12T11:58:49.0715539Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/ui/screens/PipHelper.kt:55:25 Unresolved reference 'R'.
+2026-11-12T11:58:49.0717171Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/ui/screens/PipHelper.kt:65:21 Unresolved reference 'R'.
+2026-11-12T11:58:49.0719152Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/ui/screens/VideoEditorScreen.kt:1082:102 Unresolved reference 'R'.
+2026-11-12T11:58:49.0721006Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/ui/screens/VideoEditorScreen.kt:1082:111 Unresolved reference 'player_view_texture'.
+2026-11-12T11:58:49.0722941Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/ui/screens/player/PlayerRightTools.kt:111:60 Unresolved reference 'R'.
+2026-11-12T11:58:49.0724674Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:10:20 Unresolved reference 'R'.
+2026-11-12T11:58:49.0726368Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:20:71 Unresolved reference 'R'.
+2026-11-12T11:58:49.0728080Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:39:54 Unresolved reference 'R'.
+2026-11-12T11:58:49.0730114Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:51:39 Unresolved reference 'R'.
+2026-11-12T11:58:49.0732074Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:54:39 Unresolved reference 'R'.
+2026-11-12T11:58:49.0733838Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:55:39 Unresolved reference 'R'.
+2026-11-12T11:58:49.0735574Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:56:39 Unresolved reference 'R'.
+2026-11-12T11:58:49.0737282Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:59:39 Unresolved reference 'R'.
+2026-11-12T11:58:49.0739222Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:60:39 Unresolved reference 'R'.
+2026-11-12T11:58:49.0740886Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:61:39 Unresolved reference 'R'.
+2026-11-12T11:58:49.0742639Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:62:39 Unresolved reference 'R'.
+2026-11-12T11:58:49.0744374Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:63:39 Unresolved reference 'R'.
+2026-11-12T11:58:49.0746017Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:64:39 Unresolved reference 'R'.
+2026-11-12T11:58:49.0747829Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:65:39 Unresolved reference 'R'.
+2026-11-12T11:58:49.0749504Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:66:39 Unresolved reference 'R'.
+2026-11-12T11:58:49.0751278Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:69:39 Unresolved reference 'R'.
+2026-11-12T11:58:49.0752995Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:72:39 Unresolved reference 'R'.
+2026-11-12T11:58:49.0754594Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:78:44 Unresolved reference 'R'.
+2026-11-12T11:58:49.0756248Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:78:66 Unresolved reference 'R'.
+2026-11-12T11:58:49.0757986Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:80:44 Unresolved reference 'R'.
+2026-11-12T11:58:49.0759810Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:80:66 Unresolved reference 'R'.
+2026-11-12T11:58:49.0761451Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:89:44 Unresolved reference 'R'.
+2026-11-12T11:58:49.0763056Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:89:66 Unresolved reference 'R'.
+2026-11-12T11:58:49.0764671Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:90:30 Unresolved reference 'R'.
+2026-11-12T11:58:49.0766248Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:92:44 Unresolved reference 'R'.
+2026-11-12T11:58:49.0767978Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:92:66 Unresolved reference 'R'.
+2026-11-12T11:58:49.0769947Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:93:30 Unresolved reference 'R'.
+2026-11-12T11:58:49.0771781Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:95:44 Unresolved reference 'R'.
+2026-11-12T11:58:49.0773402Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:95:66 Unresolved reference 'R'.
+2026-11-12T11:58:49.0775001Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:96:30 Unresolved reference 'R'.
+2026-11-12T11:58:49.0776709Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:101:30 Unresolved reference 'R'.
+2026-11-12T11:58:49.0778810Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:103:30 Unresolved reference 'R'.
+2026-11-12T11:58:49.0781150Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:107:40 Unresolved reference 'R'.
+2026-11-12T11:58:49.0782752Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:107:62 Unresolved reference 'R'.
+2026-11-12T11:58:49.0784276Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:108:26 Unresolved reference 'R'.
+2026-11-12T11:58:49.0785805Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:109:26 Unresolved reference 'R'.
+2026-11-12T11:58:49.0787285Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:119:35 Unresolved reference 'R'.
+2026-11-12T11:58:49.0788817Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:120:37 Unresolved reference 'R'.
+2026-11-12T11:58:49.0790432Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:124:43 Unresolved reference 'R'.
+2026-11-12T11:58:49.0791990Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:125:45 Unresolved reference 'R'.
+2026-11-12T11:58:49.0793264Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:128:43 Unresolved reference 'R'.
+2026-11-12T11:58:49.0794704Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:129:45 Unresolved reference 'R'.
+2026-11-12T11:58:49.0796216Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:132:43 Unresolved reference 'R'.
+2026-11-12T11:58:49.0797962Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:133:45 Unresolved reference 'R'.
+2026-11-12T11:58:49.0799404Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:136:43 Unresolved reference 'R'.
+2026-11-12T11:58:49.0800822Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:137:45 Unresolved reference 'R'.
+2026-11-12T11:58:49.0802277Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:140:43 Unresolved reference 'R'.
+2026-11-12T11:58:49.0803697Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:141:45 Unresolved reference 'R'.
+2026-11-12T11:58:49.0805514Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:155:39 Unresolved reference 'R'.
+2026-11-12T11:58:49.0807029Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:159:32 Unresolved reference 'R'.
+2026-11-12T11:58:49.0808898Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetProvider.kt:167:40 Unresolved reference 'R'.
+2026-11-12T11:58:49.0810481Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetService.kt:7:20 Unresolved reference 'R'.
+2026-11-12T11:58:49.0812026Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetService.kt:119:58 Unresolved reference 'R'.
+2026-11-12T11:58:49.0813745Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetService.kt:122:37 Unresolved reference 'R'.
+2026-11-12T11:58:49.0815159Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetService.kt:128:51 Unresolved reference 'R'.
+2026-11-12T11:58:49.0816556Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetService.kt:129:56 Unresolved reference 'R'.
+2026-11-12T11:58:49.0818188Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetService.kt:129:79 Unresolved reference 'R'.
+2026-11-12T11:58:49.0819641Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetService.kt:130:58 Unresolved reference 'R'.
+2026-11-12T11:58:49.0821131Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetService.kt:133:51 Unresolved reference 'R'.
+2026-11-12T11:58:49.0822422Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetService.kt:134:56 Unresolved reference 'R'.
+2026-11-12T11:58:49.0823800Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetService.kt:134:79 Unresolved reference 'R'.
+2026-11-12T11:58:49.0825265Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetService.kt:135:58 Unresolved reference 'R'.
+2026-11-12T11:58:49.0826805Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetService.kt:138:51 Unresolved reference 'R'.
+2026-11-12T11:58:49.0828456Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetService.kt:139:56 Unresolved reference 'R'.
+2026-11-12T11:58:49.0829911Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetService.kt:139:79 Unresolved reference 'R'.
+2026-11-12T11:58:49.0831297Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetService.kt:140:58 Unresolved reference 'R'.
+2026-11-12T11:58:49.0832752Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetService.kt:145:45 Unresolved reference 'R'.
+2026-11-12T11:58:49.0834178Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetService.kt:147:43 Unresolved reference 'R'.
+2026-11-12T11:58:49.0835665Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetService.kt:150:38 Unresolved reference 'R'.
+2026-11-12T11:58:49.0837137Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetService.kt:152:38 Unresolved reference 'R'.
+2026-11-12T11:58:49.0838781Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetService.kt:155:50 Unresolved reference 'R'.
+2026-11-12T11:58:49.0840634Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetService.kt:158:45 Unresolved reference 'R'.
+2026-11-12T11:58:49.0842129Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetService.kt:159:48 Unresolved reference 'R'.
+2026-11-12T11:58:49.0844011Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetService.kt:159:71 Unresolved reference 'R'.
+2026-11-12T11:58:49.0845544Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetService.kt:161:43 Unresolved reference 'R'.
+2026-11-12T11:58:49.0847142Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetService.kt:162:34 Unresolved reference 'R'.
+2026-11-12T11:58:49.0849035Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetService.kt:163:50 Unresolved reference 'R'.
+2026-11-12T11:58:49.0850494Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetService.kt:166:45 Unresolved reference 'R'.
+2026-11-12T11:58:49.0851970Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetService.kt:167:48 Unresolved reference 'R'.
+2026-11-12T11:58:49.0853461Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetService.kt:167:71 Unresolved reference 'R'.
+2026-11-12T11:58:49.0854914Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetService.kt:169:43 Unresolved reference 'R'.
+2026-11-12T11:58:49.0856355Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetService.kt:170:34 Unresolved reference 'R'.
+2026-11-12T11:58:49.0857997Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetService.kt:171:50 Unresolved reference 'R'.
+2026-11-12T11:58:49.0859264Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetService.kt:174:45 Unresolved reference 'R'.
+2026-11-12T11:58:49.0860688Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetService.kt:176:43 Unresolved reference 'R'.
+2026-11-12T11:58:49.0862203Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetService.kt:177:50 Unresolved reference 'R'.
+2026-11-12T11:58:49.0863773Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/MediaWidgetService.kt:182:53 Unresolved reference 'R'.
+2026-11-12T11:58:49.0865231Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/com/example/widget/WidgetSearchActivity.kt:107:122 Unresolved reference 'R'.
+2026-11-12T11:58:49.0866779Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/BatchActionActivity.kt:33:23 Unresolved reference 'theme'.
+2026-11-12T11:58:49.0868520Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/BatchActionActivity.kt:65:13 Unresolved reference 'MyApplicationTheme'.
+2026-11-12T11:58:49.0871205Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/BatchActionActivity.kt:66:42 @Composable invocations can only happen from the context of a @Composable function
+2026-11-12T11:58:49.0873206Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/BatchActionActivity.kt:67:45 @Composable invocations can only happen from the context of a @Composable function
+2026-11-12T11:58:49.0875096Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/BatchActionActivity.kt:69:17 @Composable invocations can only happen from the context of a @Composable function
+2026-11-12T11:58:49.0877776Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/BatchActionActivity.kt:96:17 @Composable invocations can only happen from the context of a @Composable function
+2026-11-12T11:58:49.0879806Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/BatchActionActivity.kt:102:17 @Composable invocations can only happen from the context of a @Composable function
+2026-11-12T11:58:49.0881716Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/MainActivity.kt:26:23 Unresolved reference 'theme'.
+2026-11-12T11:58:49.0883278Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/MainActivity.kt:466:7 Unresolved reference 'MyApplicationTheme'.
+2026-11-12T11:58:49.0885054Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/MainActivity.kt:467:29 @Composable invocations can only happen from the context of a @Composable function
+2026-11-12T11:58:49.0886975Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/MainActivity.kt:470:11 @Composable invocations can only happen from the context of a @Composable function
+2026-11-12T11:58:49.0889022Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/MainActivity.kt:472:11 @Composable invocations can only happen from the context of a @Composable function
+2026-11-12T11:58:49.0890728Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/service/PlaybackService.kt:787:16 Unresolved reference 'theme'.
+2026-11-12T11:58:49.0892511Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/service/PlaybackService.kt:789:27 @Composable invocations can only happen from the context of a @Composable function
+2026-11-12T11:58:49.0894536Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/service/PlaybackService.kt:909:27 @Composable invocations can only happen from the context of a @Composable function
+2026-11-12T11:58:49.0896257Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/service/PlaybackService.kt:1171:77 Unresolved reference 'widget'.
+2026-11-12T11:58:49.0897994Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/service/PlaybackService.kt:1171:111 Cannot infer type for this parameter. Specify it explicitly.
+2026-11-12T11:58:49.0900008Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/service/PlaybackService.kt:1171:111 Unresolved reference. None of the following candidates is applicable because of a receiver type mismatch:
+2026-11-12T11:58:49.0901435Z val <T> KClass<T>.java: Class<T>
+2026-11-12T11:58:49.0902372Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/EditorActivity.kt:21:23 Unresolved reference 'theme'.
+2026-11-12T11:58:49.0903967Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/EditorActivity.kt:190:13 Unresolved reference 'MyApplicationTheme'.
+2026-11-12T11:58:49.0905652Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/EditorActivity.kt:195:25 @Composable invocations can only happen from the context of a @Composable function
+2026-11-12T11:58:49.0907521Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/EditorActivity.kt:202:25 @Composable invocations can only happen from the context of a @Composable function
+2026-11-12T11:58:49.0909444Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/EditorActivity.kt:208:25 @Composable invocations can only happen from the context of a @Composable function
+2026-11-12T11:58:49.0911230Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/PlayerActivity.kt:21:23 Unresolved reference 'theme'.
+2026-11-12T11:58:49.0913021Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/PlayerActivity.kt:319:13 Unresolved reference 'MyApplicationTheme'.
+2026-11-12T11:58:49.0914791Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/PlayerActivity.kt:320:17 @Composable invocations can only happen from the context of a @Composable function
+2026-11-12T11:58:49.0916677Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/screens/PlayerScreen.kt:1706:25 Unresolved reference 'PlayerTopBar'.
+2026-11-12T11:58:49.0918416Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/screens/PlayerScreen.kt:1710:53 Cannot infer type for this parameter. Specify it explicitly.
+2026-11-12T11:58:49.0920294Z e: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/screens/player/PlayerBottomBar.kt:148:21 Unresolved reference 'PlayerTransportControls'.
+2026-11-12T11:59:11.9615250Z 
+2026-11-12T11:59:11.9628391Z 
+2026-11-12T11:59:11.9629678Z [Incubating] Problems report is available at: file:///home/runner/work/Vianmediaagain/Vianmediaagain/build/reports/problems/problems-report.html
+2026-11-12T11:59:11.9631144Z FAILURE: Build failed with an exception.
+2026-11-12T11:59:11.9631623Z 
+2026-11-12T11:59:11.9631879Z * What went wrong:
+2026-11-12T11:59:11.9632821Z Execution failed for task ':app:compileDebugKotlin' (registered by plugin 'com.android.internal.application').
+2026-11-12T11:59:11.9634413Z > A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+2026-11-12T11:59:11.9635646Z    > Compilation error. See log for more details
+2026-11-12T11:59:11.9636156Z 
+2026-11-12T11:59:11.9636381Z * Try:
+2026-11-12T11:59:11.9636954Z > Run with --info or --debug option to get more log output.
+2026-11-12T11:59:11.9637856Z > Run with --scan to get full insights from a Build Scan (powered by Develocity).
+2026-11-12T11:59:11.9638514Z > Get more help at https://help.gradle.org.
+2026-11-12T11:59:11.9638874Z 
+2026-11-12T11:59:11.9639105Z * Exception is:
+2026-11-12T11:59:11.9640016Z org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':app:compileDebugKotlin' (registered by plugin 'com.android.internal.application').
+2026-11-12T11:59:11.9641516Z 	at org.gradle.api.internal.tasks.execution.DefaultTaskNodeExecutor.lambda$doExecute$1(DefaultTaskNodeExecutor.java:367)
+2026-11-12T11:59:11.9642664Z 	at org.gradle.internal.Try$Failure.ifSuccessfulOrElse(Try.java:288)
+2026-11-12T11:59:11.9643731Z 	at org.gradle.api.internal.tasks.execution.DefaultTaskNodeExecutor.doExecute(DefaultTaskNodeExecutor.java:365)
+2026-11-12T11:59:11.9645293Z 	at org.gradle.api.internal.tasks.execution.DefaultTaskNodeExecutor.executeTrackingTaskIdentity(DefaultTaskNodeExecutor.java:332)
+2026-11-12T11:59:11.9646986Z 	at org.gradle.api.internal.tasks.execution.DefaultTaskNodeExecutor.executeFinalizingProperties(DefaultTaskNodeExecutor.java:318)
+2026-11-12T11:59:11.9648898Z 	at org.gradle.api.internal.tasks.execution.DefaultTaskNodeExecutor.executeSkippingWithNoActions(DefaultTaskNodeExecutor.java:289)
+2026-11-12T11:59:11.9650478Z 	at org.gradle.api.internal.tasks.execution.DefaultTaskNodeExecutor.executeSkippingOnlyIf(DefaultTaskNodeExecutor.java:272)
+2026-11-12T11:59:11.9652107Z 	at org.gradle.api.internal.tasks.execution.DefaultTaskNodeExecutor.executeCatchingFailures(DefaultTaskNodeExecutor.java:228)
+2026-11-12T11:59:11.9653724Z 	at org.gradle.api.internal.tasks.execution.DefaultTaskNodeExecutor.executeWithFallbackOperationId(DefaultTaskNodeExecutor.java:197)
+2026-11-12T11:59:11.9655258Z 	at org.gradle.api.internal.tasks.execution.DefaultTaskNodeExecutor.executeWithLifecycle(DefaultTaskNodeExecutor.java:171)
+2026-11-12T11:59:11.9656483Z 	at org.gradle.api.internal.tasks.execution.DefaultTaskNodeExecutor.access$000(DefaultTaskNodeExecutor.java:67)
+2026-11-12T11:59:11.9657892Z 	at org.gradle.api.internal.tasks.execution.DefaultTaskNodeExecutor$1.run(DefaultTaskNodeExecutor.java:136)
+2026-11-12T11:59:11.9659629Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:30)
+2026-11-12T11:59:11.9661056Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:27)
+2026-11-12T11:59:11.9667554Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
+2026-11-12T11:59:11.9683812Z 
+2026-11-12T11:59:11.9691920Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
+2026-11-12T11:59:11.9693670Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
+2026-11-12T11:59:11.9695237Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
+2026-11-12T11:59:11.9698888Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner.run(DefaultBuildOperationRunner.java:48)
+2026-11-12T11:59:11.9699800Z Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+2026-11-12T11:59:11.9719473Z 	at org.gradle.api.internal.tasks.execution.DefaultTaskNodeExecutor.execute(DefaultTaskNodeExecutor.java:133)
+2026-11-12T11:59:11.9720788Z 
+2026-11-12T11:59:11.9721491Z You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+2026-11-12T11:59:11.9722535Z 
+2026-11-12T11:59:11.9723510Z For more on this, please refer to https://docs.gradle.org/9.8.2/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+2026-11-12T11:59:11.9724812Z 31 actionable tasks: 31 executed
+2026-11-12T11:59:11.9725466Z Configuration cache entry stored.
+2026-11-12T11:59:11.9726843Z 	at org.gradle.execution.plan.LocalTaskNode.execute(LocalTaskNode.java:229)
+2026-11-12T11:59:11.9728112Z 	at org.gradle.execution.DefaultBuildWorkExecutor.lambda$executePlan$0(DefaultBuildWorkExecutor.java:153)
+2026-11-12T11:59:11.9729362Z 	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.lambda$execute$0(DefaultPlanExecutor.java:476)
+2026-11-12T11:59:11.9730654Z 	at org.gradle.internal.operations.CurrentBuildOperationRef.with(CurrentBuildOperationRef.java:85)
+2026-11-12T11:59:11.9731780Z 	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.execute(DefaultPlanExecutor.java:475)
+2026-11-12T11:59:11.9732859Z 	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.run(DefaultPlanExecutor.java:392)
+2026-11-12T11:59:11.9733972Z 	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:65)
+2026-11-12T11:59:11.9735091Z 	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:47)
+2026-11-12T11:59:11.9736808Z Caused by: org.gradle.workers.internal.DefaultWorkerExecutor$WorkExecutionException: A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+2026-11-12T11:59:11.9738966Z 	at org.gradle.workers.internal.DefaultWorkerExecutor$WorkItemExecution.waitForCompletion(DefaultWorkerExecutor.java:273)
+2026-11-12T11:59:11.9740369Z 	at org.gradle.internal.work.DefaultAsyncWorkTracker.lambda$waitForItemsAndGatherFailures$2(DefaultAsyncWorkTracker.java:132)
+2026-11-12T11:59:11.9741414Z 	at org.gradle.internal.Factories$1.create(Factories.java:30)
+2026-11-12T11:59:11.9742409Z 	at org.gradle.internal.work.DefaultWorkerLeaseService.lambda$withoutLocksBlocking$0(DefaultWorkerLeaseService.java:406)
+2026-11-12T11:59:11.9743584Z 	at org.gradle.internal.work.ResourceLockStatistics$1.measure(ResourceLockStatistics.java:43)
+2026-11-12T11:59:11.9744743Z 	at org.gradle.internal.work.DefaultWorkerLeaseService.withoutLocksBlocking(DefaultWorkerLeaseService.java:401)
+2026-11-12T11:59:11.9745737Z 	at org.gradle.internal.work.DefaultWorkerLeaseService.blocking(DefaultWorkerLeaseService.java:261)
+2026-11-12T11:59:11.9746662Z 	at org.gradle.internal.work.DefaultWorkerLeaseService.blocking(DefaultWorkerLeaseService.java:243)
+2026-11-12T11:59:11.9748989Z 	at org.gradle.internal.work.DefaultAsyncWorkTracker.lambda$waitForItemsAndGatherFailures$1(DefaultAsyncWorkTracker.java:128)
+2026-11-12T11:59:11.9750030Z 	at org.gradle.internal.Factories$1.create(Factories.java:30)
+2026-11-12T11:59:11.9751152Z 	at org.gradle.internal.resources.AbstractResourceLockRegistry.whileDisallowingLockChanges(AbstractResourceLockRegistry.java:51)
+2026-11-12T11:59:11.9752594Z 	at org.gradle.internal.work.DefaultWorkerLeaseService.whileDisallowingProjectLockChanges(DefaultWorkerLeaseService.java:266)
+2026-11-12T11:59:11.9754125Z 	at org.gradle.internal.work.DefaultAsyncWorkTracker.waitForItemsAndGatherFailures(DefaultAsyncWorkTracker.java:127)
+2026-11-12T11:59:11.9755064Z 	at org.gradle.internal.work.DefaultAsyncWorkTracker.waitForItemsAndGatherFailures(DefaultAsyncWorkTracker.java:93)
+2026-11-12T11:59:11.9755790Z 	at org.gradle.internal.work.DefaultAsyncWorkTracker.waitForAll(DefaultAsyncWorkTracker.java:79)
+2026-11-12T11:59:11.9756500Z 	at org.gradle.internal.work.DefaultAsyncWorkTracker.waitForCompletion(DefaultAsyncWorkTracker.java:67)
+2026-11-12T11:59:11.9757146Z 	at org.gradle.api.internal.tasks.execution.TaskExecution$3.run(TaskExecution.java:276)
+2026-11-12T11:59:11.9758094Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:30)
+2026-11-12T11:59:11.9759302Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:27)
+2026-11-12T11:59:11.9760400Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
+2026-11-12T11:59:11.9761461Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
+2026-11-12T11:59:11.9762621Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
+2026-11-12T11:59:11.9763731Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
+2026-11-12T11:59:11.9764967Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner.run(DefaultBuildOperationRunner.java:48)
+2026-11-12T11:59:11.9766074Z 	at org.gradle.api.internal.tasks.execution.TaskExecution.executeAction(TaskExecution.java:253)
+2026-11-12T11:59:11.9767196Z 	at org.gradle.api.internal.tasks.execution.TaskExecution.executeActions(TaskExecution.java:236)
+2026-11-12T11:59:11.9768504Z 	at org.gradle.api.internal.tasks.execution.TaskExecution.executeWithPreviousOutputFiles(TaskExecution.java:219)
+2026-11-12T11:59:11.9769419Z 	at org.gradle.api.internal.tasks.execution.TaskExecution.execute(TaskExecution.java:185)
+2026-11-12T11:59:11.9770360Z 	at org.gradle.internal.execution.steps.ExecuteStep.executeInternal(ExecuteStep.java:167)
+2026-11-12T11:59:11.9771100Z 	at org.gradle.internal.execution.steps.ExecuteStep.access$000(ExecuteStep.java:47)
+2026-11-12T11:59:11.9771808Z 	at org.gradle.internal.execution.steps.ExecuteStep$1.call(ExecuteStep.java:137)
+2026-11-12T11:59:11.9772501Z 	at org.gradle.internal.execution.steps.ExecuteStep$1.call(ExecuteStep.java:134)
+2026-11-12T11:59:11.9773470Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:210)
+2026-11-12T11:59:11.9774752Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:205)
+2026-11-12T11:59:11.9775882Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
+2026-11-12T11:59:11.9776872Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
+2026-11-12T11:59:11.9777981Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
+2026-11-12T11:59:11.9778982Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
+2026-11-12T11:59:11.9780280Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:54)
+2026-11-12T11:59:11.9781108Z 	at org.gradle.internal.execution.steps.ExecuteStep.execute(ExecuteStep.java:134)
+2026-11-12T11:59:11.9781926Z 	at org.gradle.internal.execution.steps.ExecuteStep$Mutable.execute(ExecuteStep.java:80)
+2026-11-12T11:59:11.9782715Z 	at org.gradle.internal.execution.steps.CancelExecutionStep.execute(CancelExecutionStep.java:42)
+2026-11-12T11:59:11.9783541Z 	at org.gradle.internal.execution.steps.TimeoutStep.executeWithoutTimeout(TimeoutStep.java:75)
+2026-11-12T11:59:11.9784304Z 	at org.gradle.internal.execution.steps.TimeoutStep.execute(TimeoutStep.java:55)
+2026-11-12T11:59:11.9785136Z 	at org.gradle.internal.execution.steps.PreCreateOutputParentsStep.execute(PreCreateOutputParentsStep.java:51)
+2026-11-12T11:59:11.9786124Z 	at org.gradle.internal.execution.steps.PreCreateOutputParentsStep.execute(PreCreateOutputParentsStep.java:29)
+2026-11-12T11:59:11.9787237Z 	at org.gradle.internal.execution.steps.RemovePreviousOutputsStep.executeMutable(RemovePreviousOutputsStep.java:67)
+2026-11-12T11:59:11.9788465Z 	at org.gradle.internal.execution.steps.RemovePreviousOutputsStep.executeMutable(RemovePreviousOutputsStep.java:39)
+2026-11-12T11:59:11.9789363Z 	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
+2026-11-12T11:59:11.9790247Z 	at org.gradle.internal.execution.steps.BroadcastChangingOutputsStep.execute(BroadcastChangingOutputsStep.java:42)
+2026-11-12T11:59:11.9791308Z 	at org.gradle.internal.execution.steps.BroadcastChangingOutputsStep.execute(BroadcastChangingOutputsStep.java:24)
+2026-11-12T11:59:11.9792411Z 	at org.gradle.internal.execution.steps.CaptureOutputsAfterExecutionStep.execute(CaptureOutputsAfterExecutionStep.java:69)
+2026-11-12T11:59:11.9793546Z 	at org.gradle.internal.execution.steps.CaptureOutputsAfterExecutionStep.execute(CaptureOutputsAfterExecutionStep.java:46)
+2026-11-12T11:59:11.9794643Z 	at org.gradle.internal.execution.steps.ResolveInputChangesStep.executeMutable(ResolveInputChangesStep.java:39)
+2026-11-12T11:59:11.9795678Z 	at org.gradle.internal.execution.steps.ResolveInputChangesStep.executeMutable(ResolveInputChangesStep.java:28)
+2026-11-12T11:59:11.9796844Z 	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
+2026-11-12T11:59:11.9797719Z 	at org.gradle.internal.execution.steps.BuildCacheStep.executeWithoutCache(BuildCacheStep.java:189)
+2026-11-12T11:59:11.9798696Z 	at org.gradle.internal.execution.steps.BuildCacheStep.executeAndStoreInCache(BuildCacheStep.java:145)
+2026-11-12T11:59:11.9799871Z 	at org.gradle.internal.execution.steps.BuildCacheStep.lambda$executeWithCache$3(BuildCacheStep.java:104)
+2026-11-12T11:59:11.9800865Z 	at org.gradle.internal.execution.steps.BuildCacheStep.lambda$executeWithCache$1(BuildCacheStep.java:104)
+2026-11-12T11:59:11.9801388Z 	at org.gradle.internal.Try$Success.map(Try.java:170)
+2026-11-12T11:59:11.9801879Z 	at org.gradle.internal.execution.steps.BuildCacheStep.executeWithCache(BuildCacheStep.java:88)
+2026-11-12T11:59:11.9802527Z 	at org.gradle.internal.execution.steps.BuildCacheStep.lambda$execute$0(BuildCacheStep.java:75)
+2026-11-12T11:59:11.9803026Z 	at org.gradle.internal.Either$Left.fold(Either.java:116)
+2026-11-12T11:59:11.9803477Z 	at org.gradle.internal.execution.caching.CachingState.fold(CachingState.java:62)
+2026-11-12T11:59:11.9804028Z 	at org.gradle.internal.execution.steps.BuildCacheStep.execute(BuildCacheStep.java:74)
+2026-11-12T11:59:11.9804629Z 	at org.gradle.internal.execution.steps.BuildCacheStep.execute(BuildCacheStep.java:49)
+2026-11-12T11:59:11.9805372Z 	at org.gradle.internal.execution.steps.StoreExecutionStateStep.executeMutable(StoreExecutionStateStep.java:46)
+2026-11-12T11:59:11.9806127Z 	at org.gradle.internal.execution.steps.StoreExecutionStateStep.executeMutable(StoreExecutionStateStep.java:35)
+2026-11-12T11:59:11.9806781Z 	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
+2026-11-12T11:59:11.9807430Z 	at org.gradle.internal.execution.steps.SkipUpToDateStep.executeBecause(SkipUpToDateStep.java:75)
+2026-11-12T11:59:11.9808501Z 	at org.gradle.internal.execution.steps.SkipUpToDateStep.lambda$execute$2(SkipUpToDateStep.java:53)
+2026-11-12T11:59:11.9809314Z 	at org.gradle.internal.execution.steps.SkipUpToDateStep.execute(SkipUpToDateStep.java:53)
+2026-11-12T11:59:11.9809963Z 	at org.gradle.internal.execution.steps.SkipUpToDateStep.execute(SkipUpToDateStep.java:35)
+2026-11-12T11:59:11.9810740Z 	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsFinishedStep.execute(MarkSnapshottingInputsFinishedStep.java:37)
+2026-11-12T11:59:11.9811683Z 	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsFinishedStep.execute(MarkSnapshottingInputsFinishedStep.java:27)
+2026-11-12T11:59:11.9812588Z 	at org.gradle.internal.execution.steps.ResolveMutableCachingStateStep.executeDelegate(ResolveMutableCachingStateStep.java:70)
+2026-11-12T11:59:11.9813473Z 	at org.gradle.internal.execution.steps.ResolveMutableCachingStateStep.executeDelegate(ResolveMutableCachingStateStep.java:32)
+2026-11-12T11:59:11.9814339Z 	at org.gradle.internal.execution.steps.AbstractResolveCachingStateStep.execute(AbstractResolveCachingStateStep.java:69)
+2026-11-12T11:59:11.9815182Z 	at org.gradle.internal.execution.steps.AbstractResolveCachingStateStep.execute(AbstractResolveCachingStateStep.java:37)
+2026-11-12T11:59:11.9816025Z 	at org.gradle.internal.execution.steps.ResolveChangesStep.executeMutable(ResolveChangesStep.java:63)
+2026-11-12T11:59:11.9816808Z 	at org.gradle.internal.execution.steps.ResolveChangesStep.executeMutable(ResolveChangesStep.java:34)
+2026-11-12T11:59:11.9817472Z 	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
+2026-11-12T11:59:11.9818429Z 	at org.gradle.internal.execution.steps.ValidateStep$Mutable.executeDelegate(ValidateStep.java:79)
+2026-11-12T11:59:11.9819421Z 	at org.gradle.internal.execution.steps.ValidateStep$Mutable.executeDelegate(ValidateStep.java:65)
+2026-11-12T11:59:11.9820383Z 	at org.gradle.internal.execution.steps.ValidateStep.execute(ValidateStep.java:105)
+2026-11-12T11:59:11.9821342Z 	at org.gradle.internal.execution.steps.ValidateStep$Mutable.execute(ValidateStep.java:65)
+2026-11-12T11:59:11.9822661Z 	at org.gradle.internal.execution.steps.CaptureMutableStateBeforeExecutionStep.executeMutable(CaptureMutableStateBeforeExecutionStep.java:86)
+2026-11-12T11:59:11.9824349Z 	at org.gradle.internal.execution.steps.CaptureMutableStateBeforeExecutionStep.execute(CaptureMutableStateBeforeExecutionStep.java:65)
+2026-11-12T11:59:11.9825937Z 	at org.gradle.internal.execution.steps.CaptureMutableStateBeforeExecutionStep.execute(CaptureMutableStateBeforeExecutionStep.java:45)
+2026-11-12T11:59:11.9827375Z 	at org.gradle.internal.execution.steps.SkipEmptyMutableWorkStep.executeWithNonEmptySources(SkipEmptyMutableWorkStep.java:210)
+2026-11-12T11:59:11.9828878Z 	at org.gradle.internal.execution.steps.SkipEmptyMutableWorkStep.executeMutable(SkipEmptyMutableWorkStep.java:90)
+2026-11-12T11:59:11.9830217Z 	at org.gradle.internal.execution.steps.SkipEmptyMutableWorkStep.executeMutable(SkipEmptyMutableWorkStep.java:53)
+2026-11-12T11:59:11.9831400Z 	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
+2026-11-12T11:59:11.9832728Z 	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsStartedStep.execute(MarkSnapshottingInputsStartedStep.java:38)
+2026-11-12T11:59:11.9834367Z 	at org.gradle.internal.execution.steps.LoadPreviousExecutionStateStep.executeMutable(LoadPreviousExecutionStateStep.java:36)
+2026-11-12T11:59:11.9835872Z 	at org.gradle.internal.execution.steps.LoadPreviousExecutionStateStep.executeMutable(LoadPreviousExecutionStateStep.java:23)
+2026-11-12T11:59:11.9837091Z 	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
+2026-11-12T11:59:11.9838357Z 	at org.gradle.internal.execution.steps.HandleStaleOutputsStep.executeMutable(HandleStaleOutputsStep.java:77)
+2026-11-12T11:59:11.9839639Z 	at org.gradle.internal.execution.steps.HandleStaleOutputsStep.executeMutable(HandleStaleOutputsStep.java:43)
+2026-11-12T11:59:11.9841112Z 	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
+2026-11-12T11:59:11.9842310Z 	at org.gradle.internal.execution.steps.AssignMutableWorkspaceStep.lambda$executeMutable$0(AssignMutableWorkspaceStep.java:34)
+2026-11-12T11:59:11.9843704Z 	at org.gradle.api.internal.tasks.execution.TaskExecution$4.withWorkspace(TaskExecution.java:314)
+2026-11-12T11:59:11.9844979Z 	at org.gradle.internal.execution.steps.AssignMutableWorkspaceStep.executeMutable(AssignMutableWorkspaceStep.java:30)
+2026-11-12T11:59:11.9846383Z 	at org.gradle.internal.execution.steps.AssignMutableWorkspaceStep.executeMutable(AssignMutableWorkspaceStep.java:21)
+2026-11-12T11:59:11.9847498Z 	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
+2026-11-12T11:59:11.9848617Z 	at org.gradle.internal.execution.steps.ChoosePipelineStep.execute(ChoosePipelineStep.java:40)
+2026-11-12T11:59:11.9849705Z 	at org.gradle.internal.execution.steps.ChoosePipelineStep.execute(ChoosePipelineStep.java:23)
+2026-11-12T11:59:11.9851051Z 	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.lambda$execute$2(ExecuteWorkBuildOperationFiringStep.java:67)
+2026-11-12T11:59:11.9852593Z 	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.execute(ExecuteWorkBuildOperationFiringStep.java:67)
+2026-11-12T11:59:11.9854128Z 	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.execute(ExecuteWorkBuildOperationFiringStep.java:39)
+2026-11-12T11:59:11.9855423Z 	at org.gradle.internal.execution.steps.IdentityCacheStep.execute(IdentityCacheStep.java:46)
+2026-11-12T11:59:11.9856456Z 	at org.gradle.internal.execution.steps.IdentityCacheStep.execute(IdentityCacheStep.java:34)
+2026-11-12T11:59:11.9857442Z 	at org.gradle.internal.execution.steps.IdentifyStep.execute(IdentifyStep.java:56)
+2026-11-12T11:59:11.9858409Z 	at org.gradle.internal.execution.steps.IdentifyStep.execute(IdentifyStep.java:38)
+2026-11-12T11:59:11.9859335Z 	at org.gradle.internal.execution.impl.DefaultExecutionEngine$1.execute(DefaultExecutionEngine.java:68)
+2026-11-12T11:59:11.9860701Z 	at org.gradle.api.internal.tasks.execution.DefaultTaskNodeExecutor.doExecute(DefaultTaskNodeExecutor.java:364)
+2026-11-12T11:59:11.9861479Z 	... 25 more
+2026-11-12T11:59:11.9862162Z Caused by: org.jetbrains.kotlin.gradle.tasks.CompilationErrorException: Compilation error. See log for more details
+2026-11-12T11:59:11.9863278Z 	at org.jetbrains.kotlin.gradle.tasks.TasksUtilsKt.throwExceptionIfCompilationFailed(tasksUtils.kt:21)
+2026-11-12T11:59:11.9864451Z 	at org.jetbrains.kotlin.compilerRunner.GradleKotlinCompilerWork.run(GradleKotlinCompilerWork.kt:119)
+2026-11-12T11:59:11.9865935Z 	at org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction.execute(GradleCompilerRunnerWithWorkers.kt:74)
+2026-11-12T11:59:11.9867350Z 	at org.gradle.workers.internal.DefaultWorkerServer.execute(DefaultWorkerServer.java:68)
+2026-11-12T11:59:11.9868690Z 	at org.gradle.workers.internal.NoIsolationWorkerFactory$1$1.create(NoIsolationWorkerFactory.java:64)
+2026-11-12T11:59:11.9869836Z 	at org.gradle.workers.internal.NoIsolationWorkerFactory$1$1.create(NoIsolationWorkerFactory.java:61)
+2026-11-12T11:59:11.9870987Z 	at org.gradle.internal.classloader.ClassLoaderUtils.executeInClassloader(ClassLoaderUtils.java:103)
+2026-11-12T11:59:11.9872191Z 	at org.gradle.workers.internal.NoIsolationWorkerFactory$1.lambda$execute$0(NoIsolationWorkerFactory.java:61)
+2026-11-12T11:59:11.9873171Z 	at org.gradle.workers.internal.AbstractWorker$1.call(AbstractWorker.java:44)
+2026-11-12T11:59:11.9873967Z 	at org.gradle.workers.internal.AbstractWorker$1.call(AbstractWorker.java:41)
+2026-11-12T11:59:11.9875151Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:210)
+2026-11-12T11:59:11.9876741Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:205)
+2026-11-12T11:59:11.9878575Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
+2026-11-12T11:59:11.9879888Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
+2026-11-12T11:59:11.9880812Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
+2026-11-12T11:59:11.9881543Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
+2026-11-12T11:59:11.9882259Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:54)
+2026-11-12T11:59:11.9882954Z 	at org.gradle.workers.internal.AbstractWorker.executeWrappedInBuildOperation(AbstractWorker.java:41)
+2026-11-12T11:59:11.9883620Z 	at org.gradle.workers.internal.NoIsolationWorkerFactory$1.execute(NoIsolationWorkerFactory.java:58)
+2026-11-12T11:59:11.9884311Z 	at org.gradle.workers.internal.DefaultWorkerExecutor.lambda$submitWork$1(DefaultWorkerExecutor.java:169)
+2026-11-12T11:59:11.9885154Z 	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.runExecution(DefaultConditionalExecutionQueue.java:191)
+2026-11-12T11:59:11.9886481Z 	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.access$600(DefaultConditionalExecutionQueue.java:112)
+2026-11-12T11:59:11.9887881Z 	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner$1.run(DefaultConditionalExecutionQueue.java:168)
+2026-11-12T11:59:11.9888572Z 	at org.gradle.internal.Factories$1.create(Factories.java:30)
+2026-11-12T11:59:11.9889284Z 	at org.gradle.internal.work.DefaultWorkerLeaseService.lambda$runAndReleaseLocks$0(DefaultWorkerLeaseService.java:296)
+2026-11-12T11:59:11.9889995Z 	at org.gradle.internal.work.ResourceLockStatistics$1.measure(ResourceLockStatistics.java:43)
+2026-11-12T11:59:11.9890943Z 	at org.gradle.internal.work.DefaultWorkerLeaseService.runAndReleaseLocks(DefaultWorkerLeaseService.java:294)
+2026-11-12T11:59:11.9891798Z 	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocksAcquired(DefaultWorkerLeaseService.java:290)
+2026-11-12T11:59:11.9892643Z 	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocks(DefaultWorkerLeaseService.java:282)
+2026-11-12T11:59:11.9893439Z 	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:132)
+2026-11-12T11:59:11.9894247Z 	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:138)
+2026-11-12T11:59:11.9895134Z 	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.runBatch(DefaultConditionalExecutionQueue.java:163)
+2026-11-12T11:59:11.9896230Z 	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.run(DefaultConditionalExecutionQueue.java:125)
+2026-11-12T11:59:11.9897240Z 	... 2 more
+2026-11-12T11:59:11.9897455Z 
+2026-11-12T11:59:11.9897463Z 
+2026-11-12T11:59:11.9897782Z BUILD FAILED in 3m 55s
+2026-11-12T11:59:12.4385483Z ##[error]Process completed with exit code 1.
+2026-11-12T11:59:12.4579929Z Post job cleanup.
+2026-11-12T11:59:12.6446687Z In post-action step
+2026-11-12T11:59:12.6455827Z Stopping all Gradle daemons before saving Gradle User Home state
+2026-11-12T11:59:12.6457203Z Stopping Gradle daemons for /usr/share/gradle-9.8.2
+2026-11-12T11:59:12.6468148Z (node:2907) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-11-12T11:59:12.6469407Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-11-12T11:59:12.6473981Z [command]/usr/share/gradle-9.8.2/bin/gradle --stop
+2026-11-12T11:59:13.3439571Z Stopping Daemon(s)
+2026-11-12T11:59:13.3696559Z 1 Daemon stopped
+2026-11-12T11:59:13.3772606Z ##[group]Caching Gradle state
+2026-11-12T11:59:13.3956106Z Not saving configuration-cache state, as no encryption key was provided
+2026-11-12T11:59:13.6690896Z Caching dependencies with path '/home/runner/.gradle/caches/modules-*/files-*/*/*/*/*' and cache key: gradle-dependencies-v1-96c394bf8021ec41e9b6d7ea7b204bdd
+2026-11-12T11:59:13.6774027Z Caching instrumented-jars with path '/home/runner/.gradle/caches/jars-*/*/' and cache key: gradle-instrumented-jars-v1-f26582a10734d4095ec594bc8fe748dd
+2026-11-12T11:59:13.6920390Z Caching kotlin-dsl with path '/home/runner/.gradle/caches/*/kotlin-dsl/accessors/*/
+2026-11-12T11:59:13.6921721Z /home/runner/.gradle/caches/*/kotlin-dsl/scripts/*/' and cache key: gradle-kotlin-dsl-v1-88819d312e1fe28b8979b03e4e60408e
+2026-11-12T11:59:13.6945123Z [command]/usr/bin/tar --posix -cf cache.tzst --exclude cache.tzst -P -C /home/runner/work/Vianmediaagain/Vianmediaagain --files-from manifest.txt --use-compress-program zstdmt
+2026-11-12T11:59:13.7229002Z Caching groovy-dsl with path '/home/runner/.gradle/caches/*/groovy-dsl/*/' and cache key: gradle-groovy-dsl-v1-71727953a890a2c8da393b8b26748e30
+2026-11-12T11:59:13.7488320Z [command]/usr/bin/tar --posix -cf cache.tzst --exclude cache.tzst -P -C /home/runner/work/Vianmediaagain/Vianmediaagain --files-from manifest.txt --use-compress-program zstdmt
+2026-11-12T11:59:13.7626534Z [command]/usr/bin/tar --posix -cf cache.tzst --exclude cache.tzst -P -C /home/runner/work/Vianmediaagain/Vianmediaagain --files-from manifest.txt --use-compress-program zstdmt
+2026-11-12T11:59:13.8057232Z ##[warning]Failed to save cache entry with path '/home/runner/.gradle/caches/jars-*/*/' and key: gradle-instrumented-jars-v1-f26582a10734d4095ec594bc8fe748dd: Error: <h2>Our services aren't available right now</h2><p>We're working to restore all services as soon as possible. Please check back soon.</p>0Ear1agAAAACQS/ctrkIuQK1yPfSQnQYLUEhMMzBFREdFMDQwOABFZGdl
+2026-11-12T11:59:13.8425546Z ##[warning]Failed to save cache entry with path '/home/runner/.gradle/caches/*/kotlin-dsl/accessors/*/
+/home/runner/.gradle/caches/*/kotlin-dsl/scripts/*/' and key: gradle-kotlin-dsl-v1-88819d312e1fe28b8979b03e4e60408e: Error: <h2>Our services aren't available right now</h2><p>We're working to restore all services as soon as possible. Please check back soon.</p>0Ear1agAAAAByKxpJ94UlSYL+Ms5wvS+PUEhMMzBFREdFMDExMwBFZGdl
+2026-11-12T11:59:13.8711418Z ##[warning]Failed to save cache entry with path '/home/runner/.gradle/caches/*/groovy-dsl/*/' and key: gradle-groovy-dsl-v1-71727953a890a2c8da393b8b26748e30: Error: <h2>Our services aren't available right now</h2><p>We're working to restore all services as soon as possible. Please check back soon.</p>0Ear1agAAAADEdFgsq7WXQ4sDSLBB5AicUEhMMzBFREdFMDIyMABFZGdl
+2026-11-12T11:59:14.1517944Z [command]/usr/bin/tar --posix -cf cache.tzst --exclude cache.tzst -P -C /home/runner/work/Vianmediaagain/Vianmediaagain --files-from manifest.txt --use-compress-program zstdmt
+2026-11-12T11:59:14.3355374Z Caching transforms with path '/home/runner/.gradle/caches/transforms-4/*/
+2026-11-12T11:59:14.3356346Z /home/runner/.gradle/caches/*/transforms/*/' and cache key: gradle-transforms-v1-f94f601d8b7c03c0a5b22877fef45a7a
+2026-11-12T11:59:14.7010492Z [command]/usr/bin/tar --posix -cf cache.tzst --exclude cache.tzst -P -C /home/runner/work/Vianmediaagain/Vianmediaagain --files-from manifest.txt --use-compress-program zstdmt
+2026-11-12T11:59:15.6833492Z ##[warning]Failed to save cache entry with path '/home/runner/.gradle/caches/modules-*/files-*/*/*/*/*' and key: gradle-dependencies-v1-96c394bf8021ec41e9b6d7ea7b204bdd: Error: <h2>Our services aren't available right now</h2><p>We're working to restore all services as soon as possible. Please check back soon.</p>0E6r1agAAAADejVUtEtE5RLpDMU5wdOu/UEhMMzBFREdFMDExNwBFZGdl
+2026-11-12T11:59:17.1007251Z ##[warning]Failed to save cache entry with path '/home/runner/.gradle/caches/transforms-4/*/
+/home/runner/.gradle/caches/*/transforms/*/' and key: gradle-transforms-v1-f94f601d8b7c03c0a5b22877fef45a7a: Error: <h2>Our services aren't available right now</h2><p>We're working to restore all services as soon as possible. Please check back soon.</p>0Far1agAAAAAPS7ql0EE5T73KObwqF3j0UEhMMzBFREdFMDEwNwBFZGdl
+2026-11-12T11:59:18.8737062Z Caching Gradle User Home with cache key: gradle-home-v1|Linux|build[e080f0fdc288b6f0c5023fd4b86f7a10]-fd53184997da1bbe0091264b5b2fa092ba65408c
+2026-11-12T11:59:18.8817246Z [command]/usr/bin/tar --posix -cf cache.tzst --exclude cache.tzst -P -C /home/runner/work/Vianmediaagain/Vianmediaagain --files-from manifest.txt --use-compress-program zstdmt
+2026-11-12T11:59:19.0956681Z ##[warning]Failed to save cache entry with path '/home/runner/.gradle/caches,/home/runner/.gradle/notifications,/home/runner/.gradle/.setup-gradle' and key: gradle-home-v1|Linux|build[e080f0fdc288b6f0c5023fd4b86f7a10]-fd53184997da1bbe0091264b5b2fa092ba65408c: Error: <h2>Our services aren't available right now</h2><p>We're working to restore all services as soon as possible. Please check back soon.</p>0F6r1agAAAAA/6jb+sphaSoxEp+Mo20wSUEhMMzBFREdFMDEwNwBFZGdl
+2026-11-12T11:59:19.0961008Z ##[endgroup]
+2026-11-12T11:59:19.0961371Z Generating Job Summary
+2026-11-12T11:59:19.0987238Z Completed post-action step
+2026-11-12T11:59:19.1170588Z Post job cleanup.
+2026-11-12T11:59:19.2500602Z (node:3009) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-11-12T11:59:19.2501299Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-11-12T11:59:19.2704167Z Post job cleanup.
+2026-11-12T11:59:19.3578482Z [command]/usr/bin/git version
+2026-11-12T11:59:19.3609490Z git version 2.56.0
+2026-11-12T11:59:19.3643610Z Temporarily overriding HOME='/home/runner/work/_temp/4a8149ce-839d-418f-869c-c038a2f97e66' before making global git config changes
+2026-11-12T11:59:19.3645013Z Adding repository directory to the temporary git global config as a safe directory
+2026-11-12T11:59:19.3648869Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/Vianmediaagain/Vianmediaagain
+2026-11-12T11:59:19.3700653Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-11-12T11:59:19.3733629Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-11-12T11:59:19.3990539Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-11-12T11:59:19.4021445Z http.https://github.com/.extraheader
+2026-11-12T11:59:19.4031657Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-11-12T11:59:19.4065966Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-11-12T11:59:19.4338675Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-11-12T11:59:19.4367991Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-11-12T11:59:19.4732583Z Cleaning up orphan processes
+2026-11-12T11:59:19.4989589Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-java@v4, gradle/actions/setup-gradle@v3. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

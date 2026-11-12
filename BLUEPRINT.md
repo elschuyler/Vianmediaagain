@@ -577,3 +577,11 @@
      - Synchronized `taskAffinity` attributes to `shura.media.player` and `shura.media.editor`.
      - Migrated intent actions (including `shura.media.ACTION_OPEN_PLAYER`, `shura.media.ACTION_WIDGET_COMMAND`, `shura.media.ACTION_ENTER_PIP`) across all receivers and activities, completely eliminating legacy `com.example` traces.
 
+- **Phase 136: Package Migration Completion & CI Compilation Fix (`shura.media`)**
+  1. Remaining Theme, Player Subcomponent, Widget & Test Package Migration:
+     - Updated `package` headers from `com.example.*` to `shura.media.*` in `ui/theme/{Theme.kt, Color.kt, Type.kt}`, `ui/screens/player/{PlayerTopBar.kt, PlayerTransportControls.kt}`, `widget/{MediaWidgetProvider.kt, MediaWidgetService.kt, WidgetSearchActivity.kt}`, and `app/src/test/java/shura/media/{TestVideoSize.kt, TestPresentation.kt, ExampleUnitTest.kt}`.
+     - Migrated widget `R`, `MainActivity`, `PlayerActivity`, `PlayerManager`, `PlaybackService`, `LogKeeper`, `MediaRepository`, `AppDatabase`, and widget IPC action strings (`shura.media.ACTION_OPEN_PLAYER`, `shura.media.ACTION_WIDGET_COMMAND`) to `shura.media.*`.
+  2. Repository & Remote Sync Verification:
+     - Verified zero `com.example` symbols or legacy `com/example` paths remain under `app/`.
+     - Documented GitHub remote sync prerequisite: stale `app/src/main/java/com/example/` files remaining on GitHub must be deleted alongside pushing updated `shura/media/` sources.
+
