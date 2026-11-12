@@ -380,4 +380,52 @@
 * How it was verified: `lint_applet` and `compile_applet` passed cleanly with 0 errors.
 * Any deviation from what was requested: None.
 * Any known issue or follow-up needed: None.
+## Phase 133: Coroutine Lifecycle Binding, SAF Scoped Storage Hardening & IPC Deduplication
+* Timestamp: 2026-11-11T21:40:00Z
+* One-line summary: Replaced detached CoroutineScopes in PlayerScreen with managed lifecycle scopes, hardened VideoEditor against SAF permission denials with MediaUriResolver, and removed duplicate broadcast dispatch in widget provider.
+* Files touched:
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+  - app/src/main/java/com/example/ui/screens/VideoEditorScreen.kt
+  - app/src/main/java/com/example/widget/MediaWidgetProvider.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_030.md
+* What was actually done:
+  - Replaced unmanaged raw `CoroutineScope(Dispatchers.IO).launch` calls in `PlayerScreen.kt` (lines 728, 762, 793, 942) with `coroutineScope.launch(Dispatchers.IO)` bound to Compose's `rememberCoroutineScope()`, eliminating lifecycle decoupling and dangling background executions.
+  - Replaced brittle POSIX checks and direct `contentResolver.openInputStream()` calls in `VideoEditorScreen.kt` for input file copying, repair processing, multi-video join concatenation, and audio addition with `MediaUriResolver.openInputStreamSafely()`, eliminating `SecurityException: Permission Denial` on Scoped Storage and External Storage Provider URIs.
+  - Removed duplicate `ACTION_PIP` condition and broadcast dispatch in `MediaWidgetProvider.kt`, preventing double overlay trigger and unnecessary IPC calls.
+* How it was verified: `lint_applet` and `compile_applet` co-executed and verified with 0 errors.
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: None.
+## Phase 134: Uninterrupted Playback Completion & Next Player Transition Parity
+* Timestamp: 2026-11-12T01:00:00Z
+* One-line summary: Eliminated end-of-track freeze by setting pauseAtEndOfMediaItems = false universally, hardened playlist auto-advance in onPlaybackStateChanged and onPlayWhenReadyChanged, and removed premature auto-transition back navigation.
+* Files touched:
+  - app/src/main/java/com/example/ui/screens/PlayerScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_030.md
+* What was actually done:
+  - Configured `controller.pauseAtEndOfMediaItems = false` across both queue setup and `onRepeatModeChanged` in `PlayerScreen.kt`, eliminating premature pausing at the final millisecond of video and audio tracks.
+  - Implemented seamless auto-advance (`controller.seekToNextMediaItem(); controller.prepare(); controller.play()`) in both `onPlaybackStateChanged` and `onPlayWhenReadyChanged` when `hasNextMediaItem()` is true.
+  - Handled single/last-item completion: automatically loops back to track 0 when `repeatMode == REPEAT_MODE_ALL`, or cleanly exits via `onNavigateBack()` when `repeatMode == REPEAT_MODE_OFF`.
+  - Removed artificial interruption block inside `onMediaItemTransition` (`reason == MEDIA_ITEM_TRANSITION_REASON_AUTO`), restoring consecutive video playlist playback aligned with Next Player architecture.
+* How it was verified: `lint_applet` and `compile_applet` co-executed and verified with 0 errors.
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: None.
+## Phase 135: Complete Codebase Namespace & Package Migration to shura.media
+* Timestamp: 2026-11-12T03:32:00Z
+* One-line summary: Migrated full codebase namespace and directory tree to shura.media, updating all 70+ Kotlin files, manifests, and IPC intent actions with zero compiler regressions.
+* Files touched:
+  - app/build.gradle.kts
+  - app/src/main/AndroidManifest.xml
+  - All 70+ Kotlin files under app/src/main/java/shura/media, app/src/test/java/shura/media, app/src/androidTest/java/shura/media
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_030.md
+* What was actually done:
+  - Updated `namespace = "shura.media"` in `app/build.gradle.kts`.
+  - Moved directory structure from `app/src/*/java/com/example` to `app/src/*/java/shura/media`.
+  - Refactored all `package` headers, imports, task affinities, and custom intent actions to `shura.media.*`.
+  - Confirmed 0 remaining instances of `com.example` in the entire source tree.
+* How it was verified: `lint_applet` and `compile_applet` co-executed and verified with 0 errors.
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: None.
 

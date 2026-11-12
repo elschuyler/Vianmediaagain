@@ -548,5 +548,32 @@
      - Fixed `Unresolved reference 'rootCause'` at lines 1127 and 1128 by properly defining `val rootCause = error.cause` at the top of `onPlayerError`.
      - Validated that all Gradle tasks (including `compileDebugKotlin` and KSP) build cleanly without compiler errors.
 
+- **Phase 133: Coroutine Lifecycle Binding, SAF Scoped Storage Hardening & IPC Deduplication**
+  1. Lifecycle-Managed Coroutine Binding in `PlayerScreen.kt`:
+     - Replaced unmanaged raw `CoroutineScope(Dispatchers.IO).launch` invocations with `coroutineScope.launch(Dispatchers.IO)` bound to Compose's `rememberCoroutineScope()`.
+     - Ensures asynchronous display name queries and playlist database synchronizations are automatically cancelled upon screen disposal, preventing memory leaks, race conditions, and detached background thread activity.
+  2. SAF & Scoped Storage Hardening in `VideoEditorScreen.kt`:
+     - Migrated initial video input copying, converted repair stream copying, multi-video join concatenation (`joinPaths`), and background audio attachment (`addedAudioUri`) to use `MediaUriResolver.openInputStreamSafely()`.
+     - Completely eliminates `SecurityException: Permission Denial` and `FileNotFoundException` when importing or editing videos from External Storage, SD cards, and Documents.
+- **Phase 134: Uninterrupted Playback Completion & Next Player Transition Parity**
+  1. Universal Elimination of Final-Frame Freeze:
+     - Set `controller.pauseAtEndOfMediaItems = false` universally in `PlayerScreen.kt` across both initialization and repeat mode changes.
+     - Prevents ExoPlayer from prematurely setting `playWhenReady = false` on the final millisecond, allowing tracks to reach true completion.
+  2. Next Player Playlist Auto-Advance & Completion Flow:
+     - In `PlayerScreen.kt`'s `onPlaybackStateChanged` and `onPlayWhenReadyChanged`, implemented seamless auto-advance (`controller.seekToNextMediaItem(); controller.prepare(); controller.play()`) whenever `hasNextMediaItem()` is true.
+     - For the final or only item in a queue:
+       - If `repeatMode == REPEAT_MODE_ALL`: Automatically loops back to track 0 (`seekTo(0, 0L); prepare(); play()`).
+       - If `repeatMode == REPEAT_MODE_OFF`: Seamlessly triggers `onNavigateBack()`, cleanly exiting without freezing the video on the last frame.
+  3. Removed Premature Auto-Transition Interruption:
+     - Eliminated artificial video interruption block in `onMediaItemTransition` (`reason == MEDIA_ITEM_TRANSITION_REASON_AUTO`), restoring consecutive video playlist playback aligned with Next Player architecture.
 
+- **Phase 135: Complete Codebase Namespace & Package Migration to `shura.media`**
+  1. Gradle Namespace Alignment:
+     - Updated `namespace = "shura.media"` in `app/build.gradle.kts`, cleanly aligning the generated R symbol scope, BuildConfig, and package identity with `applicationId = "shura.media"`.
+  2. Source Directory & Package Reorganization:
+     - Relocated all 70+ source and test Kotlin files from `app/src/main/java/com/example/...`, `app/src/test/java/com/example/...`, and `app/src/androidTest/java/com/example/...` to `shura/media/...`.
+     - Updated all package statements (`package shura.media.*`) and internal import trees across UI, data, service, widget, and components.
+  3. AndroidManifest & IPC Identifier Synchronization:
+     - Synchronized `taskAffinity` attributes to `shura.media.player` and `shura.media.editor`.
+     - Migrated intent actions (including `shura.media.ACTION_OPEN_PLAYER`, `shura.media.ACTION_WIDGET_COMMAND`, `shura.media.ACTION_ENTER_PIP`) across all receivers and activities, completely eliminating legacy `com.example` traces.
 

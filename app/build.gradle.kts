@@ -7,7 +7,7 @@ plugins {
 }
 
 android {
-  namespace = "com.example"
+  namespace = "shura.media"
   compileSdk = 36
 
   defaultConfig {

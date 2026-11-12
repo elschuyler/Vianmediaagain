@@ -63,7 +63,7 @@
             android:icon="@mipmap/ic_play_launcher"
             android:roundIcon="@mipmap/ic_play_launcher_round"
             android:launchMode="singleTask"
-            android:taskAffinity="com.example.player"
+            android:taskAffinity="shura.media.player"
             android:supportsPictureInPicture="true"
             android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|uiMode|keyboard|keyboardHidden|colorMode|density"
             android:theme="@style/Theme.MyApplication"
@@ -147,7 +147,7 @@
                 <data android:mimeType="audio/*" />
             </intent-filter>
             <intent-filter>
-                <action android:name="com.example.ACTION_OPEN_PLAYER" />
+                <action android:name="shura.media.ACTION_OPEN_PLAYER" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
@@ -167,7 +167,7 @@
             android:icon="@mipmap/ic_edit_launcher"
             android:roundIcon="@mipmap/ic_edit_launcher_round"
             android:launchMode="singleTask"
-            android:taskAffinity="com.example.editor"
+            android:taskAffinity="shura.media.editor"
             android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|uiMode|keyboard|keyboardHidden|colorMode|density"
             android:theme="@style/Theme.MyApplication"
             android:enableOnBackInvokedCallback="true">

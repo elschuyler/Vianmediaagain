@@ -1,0 +1,666 @@
+package shura.media.ui.components
+import androidx.compose.foundation.border
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.ui.PlayerView
+import kotlinx.coroutines.delay
+
+@Composable
+fun FloatingVideoPlayerOverlay(
+    player: Player?,
+    onClose: () -> Unit,
+    onMinimize: () -> Unit,
+    onDrag: (Float, Float) -> Unit,
+    onResize: (Float, Float) -> Unit,
+    onOpenMainPlayer: () -> Unit,
+    onSwitchToMiniPlayer: () -> Unit,
+    onAspectRatioChanged: (Float) -> Unit = {},
+    isMinimizedExternal: Boolean = false,
+    onMinimizeChange: (Boolean) -> Unit = {},
+    isAspectRatioBroken: Boolean = false,
+    onToggleBreakAspectRatio: (Boolean) -> Unit = {}
+) {
+    androidx.compose.runtime.LaunchedEffect(isMinimizedExternal) {
+        if (isMinimizedExternal) {
+            shura.media.service.PlayerManager.isFloatingVideoActive = false
+            shura.media.service.PlayerManager.detachVideoSurface()
+        } else {
+            shura.media.service.PlayerManager.isFloatingVideoActive = true
+        }
+    }
+
+    if (isMinimizedExternal) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(androidx.compose.foundation.shape.CircleShape)
+                .background(Color(0xFF2196F3))
+                .border(1.dp, Color.White.copy(alpha = 0.35f), androidx.compose.foundation.shape.CircleShape)
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            var isDrag = false
+                            var totalDragX = 0f
+                            var totalDragY = 0f
+                            val touchSlop = viewConfiguration.touchSlop
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                if (!change.pressed) {
+                                    if (!isDrag) {
+                                        onMinimizeChange(false)
+                                    }
+                                    break
+                                }
+                                val dragAmount = change.position - change.previousPosition
+                                totalDragX += dragAmount.x
+                                totalDragY += dragAmount.y
+                                val dist = kotlin.math.hypot(totalDragX, totalDragY)
+                                if (!isDrag && dist > touchSlop) {
+                                    isDrag = true
+                                }
+                                if (isDrag) {
+                                    change.consume()
+                                    onDrag(dragAmount.x, dragAmount.y)
+                                }
+                            }
+                        }
+                    }
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                painter = androidx.compose.ui.res.painterResource(id = shura.media.R.drawable.ic_launcher_foreground),
+                contentDescription = "Expand Floating Player",
+                tint = Color.Unspecified,
+                modifier = Modifier.fillMaxSize(0.9f)
+            )
+        }
+        return
+    }
+
+    val playerSnapshot by shura.media.service.PlayerManager.playbackState.collectAsState()
+
+    var title by remember { mutableStateOf(playerSnapshot.currentTitle.ifEmpty { player?.currentMediaItem?.mediaMetadata?.title?.toString() ?: "Unknown" }) }
+    var isPlaying by remember { mutableStateOf(playerSnapshot.isPlaying) }
+    var repeatMode by remember { mutableIntStateOf(playerSnapshot.repeatMode) }
+    var currentSpeed by remember { mutableFloatStateOf(playerSnapshot.playbackSpeed) }
+    val playlist = remember { mutableStateListOf<MediaItem>() }
+    var currentIndex by remember { mutableIntStateOf(playerSnapshot.currentIndex.coerceAtLeast(0)) }
+    var gestureFeedbackText by remember { mutableStateOf("") }
+    var showGestureFeedback by remember { mutableStateOf(false) }
+
+
+    val refreshPlaylist: () -> Unit = {
+        playlist.clear()
+        player?.let { p ->
+            for (i in 0 until p.mediaItemCount) {
+                playlist.add(p.getMediaItemAt(i))
+            }
+            currentIndex = p.currentMediaItemIndex
+        }
+    }
+
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val settingsManager = remember { shura.media.data.SettingsManager.getInstance(context) }
+    val keepScreenAwake by settingsManager.keepScreenAwake.collectAsState()
+
+    LaunchedEffect(playerSnapshot) {
+        isPlaying = playerSnapshot.isPlaying
+        repeatMode = playerSnapshot.repeatMode
+        currentSpeed = playerSnapshot.playbackSpeed
+        if (playerSnapshot.currentTitle.isNotEmpty()) {
+            title = playerSnapshot.currentTitle
+        }
+        if (playerSnapshot.currentIndex >= 0) {
+            currentIndex = playerSnapshot.currentIndex
+        }
+        if (playerSnapshot.playlist.isNotEmpty() && playerSnapshot.playlist.size != playlist.size) {
+            playlist.clear()
+            playlist.addAll(playerSnapshot.playlist)
+        }
+    }
+
+    LaunchedEffect(player) {
+        refreshPlaylist()
+        currentSpeed = player?.playbackParameters?.speed ?: 1.0f
+        player?.videoSize?.let { vs ->
+            if (vs.width > 0 && vs.height > 0) {
+                onAspectRatioChanged(vs.width.toFloat() / vs.height.toFloat())
+            }
+        }
+    }
+
+    DisposableEffect(player) {
+        if (player == null) return@DisposableEffect onDispose {}
+        val listener = object : Player.Listener {
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                title = mediaItem?.mediaMetadata?.title?.toString() ?: "Unknown"
+                currentIndex = player.currentMediaItemIndex
+                currentSpeed = player.playbackParameters.speed
+            }
+            override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
+                refreshPlaylist()
+            }
+            override fun onIsPlayingChanged(isPlayingChange: Boolean) {
+                isPlaying = isPlayingChange
+            }
+            override fun onRepeatModeChanged(mode: Int) {
+                repeatMode = mode
+            }
+            override fun onPlaybackParametersChanged(playbackParameters: androidx.media3.common.PlaybackParameters) {
+                currentSpeed = playbackParameters.speed
+            }
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                val vs = player.videoSize
+                if (vs.width > 0 && vs.height > 0) {
+                    onAspectRatioChanged(vs.width.toFloat() / vs.height.toFloat())
+                }
+            }
+            override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
+                if (videoSize.width > 0 && videoSize.height > 0) {
+                    onAspectRatioChanged(videoSize.width.toFloat() / videoSize.height.toFloat())
+                }
+            }
+        }
+        player.addListener(listener)
+        refreshPlaylist()
+        onDispose {
+            player.removeListener(listener)
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Topbar
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .pointerInput(Unit) {
+                        detectDragGesturesAfterLongPress(
+                            onDrag = { change, dragAmount ->
+                                change.consume()
+                                onDrag(dragAmount.x, dragAmount.y)
+                            }
+                        )
+                    }
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onDoubleTap = { onOpenMainPlayer() }
+                        )
+                    }
+                    .padding(horizontal = 8.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Filled.DragIndicator, contentDescription = "Drag", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(
+                    onClick = {
+                        val newBroken = !isAspectRatioBroken
+                        onToggleBreakAspectRatio(newBroken)
+                        gestureFeedbackText = if (newBroken) "Freeform" else "Locked Aspect"
+                        showGestureFeedback = true
+                    },
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isAspectRatioBroken) Icons.Filled.CropFree else Icons.Filled.AspectRatio,
+                        contentDescription = if (isAspectRatioBroken) "Locked Aspect Ratio" else "Break Aspect Ratio (Freeform)",
+                        tint = if (isAspectRatioBroken) Color(0xFF2196F3) else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                IconButton(
+                    onClick = {
+                        shura.media.service.PlayerManager.flushProgressToStorage()
+                        shura.media.service.PlayerManager.isFloatingVideoActive = false
+                        onSwitchToMiniPlayer()
+                    },
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.QueueMusic,
+                        contentDescription = "Switch to Mini Player",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                IconButton(
+                    onClick = {
+                        shura.media.service.PlayerManager.flushProgressToStorage()
+                        shura.media.service.PlayerManager.isFloatingVideoActive = false
+                        onOpenMainPlayer()
+                    },
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.OpenInFull,
+                        contentDescription = "Open Full-Screen Player",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            // Video Player
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .background(Color.Black),
+                contentAlignment = Alignment.Center
+            ) {
+                var showControls by remember { mutableStateOf(false) }
+                var lastInteractionTime by remember { mutableLongStateOf(0L) }
+
+                LaunchedEffect(showGestureFeedback, gestureFeedbackText) {
+                    if (showGestureFeedback) {
+                        delay(650)
+                        showGestureFeedback = false
+                    }
+                }
+
+                LaunchedEffect(showControls, lastInteractionTime) {
+                    if (showControls) {
+                        delay(3000)
+                        showControls = false
+                    }
+                }
+
+                if (player != null) {
+                    AndroidView(
+                        factory = { ctx ->
+                            (android.view.LayoutInflater.from(ctx).inflate(shura.media.R.layout.player_view_texture, null) as PlayerView).apply {
+                                this.player = player
+                                useController = false
+                                resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                                setShutterBackgroundColor(android.graphics.Color.TRANSPARENT)
+                            }
+                        },
+                        update = { view ->
+                            if (view.player != player) {
+                                view.player = player
+                            }
+                            view.resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                            view.keepScreenOn = keepScreenAwake && isPlaying
+                        },
+                        modifier = Modifier.fillMaxSize().pointerInput(Unit) {
+                            detectTapGestures(
+                                onTap = {
+                                    showControls = !showControls
+                                    if (showControls) {
+                                        lastInteractionTime = System.currentTimeMillis()
+                                    }
+                                },
+                                onDoubleTap = { offset ->
+                                    lastInteractionTime = System.currentTimeMillis()
+                                    val width = size.width.toFloat()
+                                    if (width > 0f) {
+                                        val ratio = offset.x / width
+                                        if (ratio < 0.35f) {
+                                            // Left 35%: Rewind 10s
+                                            player?.let { p ->
+                                                val target = (p.currentPosition - 10000L).coerceAtLeast(0L)
+                                                p.seekTo(target)
+                                                gestureFeedbackText = "-10s"
+                                                showGestureFeedback = true
+                                            }
+                                        } else if (ratio > 0.65f) {
+                                            // Right 35%: Forward 10s
+                                            player?.let { p ->
+                                                val duration = p.duration.coerceAtLeast(0L)
+                                                val target = (p.currentPosition + 10000L).coerceAtMost(duration)
+                                                p.seekTo(target)
+                                                gestureFeedbackText = "+10s"
+                                                showGestureFeedback = true
+                                            }
+                                        } else {
+                                            // Center 30%: Toggle Play/Pause
+                                            player?.let { p ->
+                                                if (p.playbackState == Player.STATE_ENDED) {
+                                                    p.seekTo(0)
+                                                    p.prepare()
+                                                    p.play()
+                                                    gestureFeedbackText = "Play"
+                                                } else if (p.playbackState == Player.STATE_IDLE) {
+                                                    p.prepare()
+                                                    p.play()
+                                                    gestureFeedbackText = "Play"
+                                                } else if (p.isPlaying) {
+                                                    p.pause()
+                                                    gestureFeedbackText = "Pause"
+                                                } else {
+                                                    p.play()
+                                                    gestureFeedbackText = "Play"
+                                                }
+                                                showGestureFeedback = true
+                                            }
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                    )
+                    
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = showControls,
+                        enter = androidx.compose.animation.fadeIn(),
+                        exit = androidx.compose.animation.fadeOut(),
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color.Black.copy(alpha = 0.5f))
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .fillMaxWidth()
+                                    .padding(start = 4.dp, end = 4.dp, bottom = 0.dp)
+                            ) {
+                                shura.media.ui.screens.PlaybackProgressRow(
+                                    mediaController = player,
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 0.dp)
+                                )
+                                
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(start = 4.dp, end = 4.dp, top = 0.dp, bottom = 2.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    // Left/Center Playback controls
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.Start),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        IconButton(
+                                            onClick = { 
+                                                player?.let { controller ->
+                                                    if (controller.hasPreviousMediaItem()) {
+                                                        controller.seekToPreviousMediaItem()
+                                                    } else {
+                                                        controller.seekTo(0)
+                                                    }
+                                                }
+                                            },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Filled.SkipPrevious,
+                                                contentDescription = "Previous",
+                                                tint = Color.White,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+
+                                        IconButton(
+                                            onClick = { 
+                                                player?.let { controller ->
+                                                    if (controller.playbackState == androidx.media3.common.Player.STATE_ENDED) {
+                                                        controller.seekTo(0)
+                                                        controller.prepare()
+                                                        controller.play()
+                                                    } else if (controller.playbackState == androidx.media3.common.Player.STATE_IDLE) {
+                                                        controller.prepare()
+                                                        controller.play()
+                                                    } else if (controller.isPlaying) {
+                                                        controller.pause()
+                                                    } else {
+                                                        controller.play()
+                                                    }
+                                                }
+                                            },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                                                contentDescription = "Play/Pause",
+                                                tint = Color.White,
+                                                modifier = Modifier.size(22.dp)
+                                            )
+                                        }
+                                        
+                                        IconButton(
+                                            onClick = { 
+                                                player?.let { controller ->
+                                                    if (controller.hasNextMediaItem()) {
+                                                        controller.seekToNextMediaItem()
+                                                    }
+                                                }
+                                            },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Filled.SkipNext,
+                                                contentDescription = "Next",
+                                                tint = Color.White,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+
+
+
+                                        IconButton(
+                                            onClick = {
+                                                player?.let { controller ->
+                                                    val nextMode = when (controller.repeatMode) {
+                                                        Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+                                                        Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+                                                        else -> Player.REPEAT_MODE_OFF
+                                                    }
+                                                    controller.repeatMode = nextMode
+                                                    repeatMode = nextMode
+                                                }
+                                            },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            val loopIcon = if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Filled.RepeatOne else Icons.Filled.Repeat
+                                            val loopTint = if (repeatMode != Player.REPEAT_MODE_OFF) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.7f)
+                                            Icon(
+                                                imageVector = loopIcon,
+                                                contentDescription = "Loop Mode",
+                                                tint = loopTint,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+
+                                        // Speed Toggle Pill (Option A - Compact Pill / Badge with Speed Text, Tap Only)
+                                        val speedDisplay = if (kotlin.math.abs(currentSpeed - 0.25f) < 0.01f) "0.25"
+                                            else if (kotlin.math.abs(currentSpeed - 0.5f) < 0.01f) "0.5"
+                                            else if (kotlin.math.abs(currentSpeed - 1.0f) < 0.01f) "1"
+                                            else if (kotlin.math.abs(currentSpeed - 1.2f) < 0.01f) "1.2"
+                                            else if (kotlin.math.abs(currentSpeed - 2.0f) < 0.01f) "2"
+                                            else String.format(java.util.Locale.US, "%.1f", currentSpeed)
+
+                                        val isNonStandardSpeed = kotlin.math.abs(currentSpeed - 1.0f) >= 0.05f
+
+                                        Box(
+                                            modifier = Modifier
+                                                .height(24.dp)
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(
+                                                    if (isNonStandardSpeed) Color(0xFF2196F3).copy(alpha = 0.25f)
+                                                    else Color.White.copy(alpha = 0.15f)
+                                                )
+                                                .border(
+                                                    width = 1.dp,
+                                                    color = if (isNonStandardSpeed) Color(0xFF2196F3) else Color.White.copy(alpha = 0.4f),
+                                                    shape = RoundedCornerShape(6.dp)
+                                                )
+                                                .clickable {
+                                                    val speedCycle = listOf(1.0f, 1.2f, 2.0f, 0.5f, 0.25f)
+                                                    val currentIndex = speedCycle.indexOfFirst { kotlin.math.abs(it - currentSpeed) < 0.05f }
+                                                    val nextSpeed = if (currentIndex != -1) {
+                                                        speedCycle[(currentIndex + 1) % speedCycle.size]
+                                                    } else {
+                                                        1.0f
+                                                    }
+                                                    currentSpeed = nextSpeed
+                                                    player?.setPlaybackSpeed(nextSpeed)
+                                                    player?.currentMediaItem?.mediaId?.let { uriStr ->
+                                                        settingsManager.savePlaybackSpeed(uriStr, nextSpeed)
+                                                    }
+                                                }
+                                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = "${speedDisplay}x",
+                                                color = if (isNonStandardSpeed) Color(0xFF2196F3) else Color.White,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1
+                                            )
+                                        }
+                                    }
+
+                                    // Right Action buttons ordered from right to left: Resize, Minimize, Exit (Exit, Minimize, Resize from left to right)
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.End)
+                                    ) {
+                                        // Exit (Close) button
+                                        IconButton(onClick = {
+                                            shura.media.service.PlayerManager.isFloatingVideoActive = false
+                                            onClose()
+                                        }, modifier = Modifier.size(32.dp)) {
+                                            Icon(Icons.Filled.Close, "Exit", tint = Color.White, modifier = Modifier.size(18.dp))
+                                        }
+                                        // Minimize button
+                                        IconButton(
+                                            onClick = {
+                                                onMinimizeChange(true)
+                                                onMinimize()
+                                            },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(Icons.Filled.Remove, "Minimize", tint = Color.White, modifier = Modifier.size(18.dp))
+                                        }
+                                        // Resize button (with drag gesture)
+                                        Box(
+                                            modifier = Modifier
+                                                .size(32.dp)
+                                                .pointerInput(Unit) {
+                                                    detectDragGestures { change, dragAmount ->
+                                                        change.consume()
+                                                        onResize(dragAmount.x, dragAmount.y)
+                                                    }
+                                                },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                Icons.Filled.ZoomOutMap,
+                                                contentDescription = "Resize",
+                                                tint = Color.White,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Double-tap visual feedback badge
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = showGestureFeedback,
+                        enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.scaleIn(initialScale = 0.85f),
+                        exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.scaleOut(targetScale = 0.85f),
+                        modifier = Modifier.align(Alignment.Center)
+                    ) {
+                        val isPlayPause = gestureFeedbackText == "Play" || gestureFeedbackText == "Pause"
+                        Box(
+                            modifier = Modifier
+                                .background(
+                                    Color.Black.copy(alpha = 0.75f),
+                                    if (isPlayPause) CircleShape else RoundedCornerShape(14.dp)
+                                )
+                                .padding(if (isPlayPause) 14.dp else 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isPlayPause) {
+                                val icon = if (gestureFeedbackText == "Pause") Icons.Filled.Pause else Icons.Filled.PlayArrow
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = gestureFeedbackText,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(30.dp)
+                                )
+                            } else {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    val icon = when (gestureFeedbackText) {
+                                        "-10s" -> Icons.Filled.FastRewind
+                                        "+10s" -> Icons.Filled.FastForward
+                                        "Freeform" -> Icons.Filled.CropFree
+                                        "Locked Aspect" -> Icons.Filled.AspectRatio
+                                        else -> Icons.Filled.PlayArrow
+                                    }
+                                    Icon(
+                                        imageVector = icon,
+                                        contentDescription = null,
+                                        tint = if (gestureFeedbackText == "Freeform") Color(0xFF2196F3) else Color.White,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Text(
+                                        text = gestureFeedbackText,
+                                        color = Color.White,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
