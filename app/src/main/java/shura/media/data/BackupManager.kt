@@ -1,13 +1,41 @@
 package shura.media.data
 
 import android.content.Context
+import androidx.room.withTransaction
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import shura.media.LogKeeper
 import org.json.JSONArray
 import org.json.JSONObject
 
 object BackupManager {
 
-    suspend fun createBackup(context: Context): String {
+    private val ALLOWED_MEDIA_SCHEMES = setOf("content", "file", "http", "https", "rtsp", "rtmp", "rtmpe", "rtmps", "rtp")
+    private val ALLOWED_FOLDER_SCHEMES = setOf("content", "file")
+
+    private fun isAllowedUriScheme(uriStr: String?, allowedSchemes: Set<String>): Boolean {
+        if (uriStr.isNullOrBlank()) return false
+        val scheme = try {
+            android.net.Uri.parse(uriStr).scheme?.lowercase()
+        } catch (_: Exception) {
+            null
+        }
+        return scheme != null && scheme in allowedSchemes
+    }
+
+    private data class ParsedPlaylistItem(
+        val mediaUri: String,
+        val timestamp: Long,
+        val isNotFound: Boolean
+    )
+
+    private data class ParsedPlaylist(
+        val name: String,
+        val timestamp: Long,
+        val items: List<ParsedPlaylistItem>
+    )
+
+    suspend fun createBackup(context: Context): String = withContext(Dispatchers.IO) {
         LogKeeper.log("Creating full app backup...", "BackupManager")
         val db = AppDatabase.getDatabase(context)
         val dao = db.playlistDao()
@@ -59,77 +87,72 @@ object BackupManager {
 
         val backupStr = root.toString(2) // Pretty print with indent of 2
         LogKeeper.log("Backup created successfully. Size: ${backupStr.length} chars.", "BackupManager")
-        return backupStr
+        backupStr
     }
 
-    suspend fun restoreBackup(context: Context, backupJsonStr: String): Boolean {
+    suspend fun restoreBackup(context: Context, backupJsonStr: String): Boolean = withContext(Dispatchers.IO) {
         LogKeeper.log("Starting full app restore...", "BackupManager")
         try {
             val root = JSONObject(backupJsonStr)
             val version = root.optInt("version", 1)
             if (version != 1) {
                 LogKeeper.logError("BackupManager", "Unsupported backup version: $version")
-                return false
+                return@withContext false
             }
 
-            val db = AppDatabase.getDatabase(context)
-            val dao = db.playlistDao()
-            val settings = SettingsManager.getInstance(context)
+            // 1. Pre-parse and validate settings payload before mutating anything
+            val hasSettings = root.has("settings")
+            var outputFolderUri: String? = null
+            var showLoggerFab = true
+            var hasSeenWelcome = true
+            var excludedFoldersParsed: List<String>? = null
+            var extensionsParsed: List<String>? = null
 
-            // 1. Restore Settings
-            if (root.has("settings")) {
+            if (hasSettings) {
                 val settingsJson = root.getJSONObject("settings")
-                
-                val outputFolderUri = if (settingsJson.isNull("output_folder_uri")) null else settingsJson.getString("output_folder_uri")
-                settings.setOutputFolderUri(outputFolderUri)
-
-                val showLoggerFab = settingsJson.optBoolean("show_logger_fab", true)
-                settings.setShowLoggerFab(showLoggerFab)
-
-                val hasSeenWelcome = settingsJson.optBoolean("has_seen_welcome", true)
-                settings.hasSeenWelcome = hasSeenWelcome
+                val rawOutputFolderUri = if (settingsJson.isNull("output_folder_uri")) null else settingsJson.getString("output_folder_uri")
+                outputFolderUri = if (isAllowedUriScheme(rawOutputFolderUri, ALLOWED_FOLDER_SCHEMES)) rawOutputFolderUri else null
+                showLoggerFab = settingsJson.optBoolean("show_logger_fab", true)
+                hasSeenWelcome = settingsJson.optBoolean("has_seen_welcome", true)
 
                 if (settingsJson.has("excluded_folders")) {
                     val excludedArray = settingsJson.getJSONArray("excluded_folders")
-                    // Clear existing and add new
-                    settings.excludedFolders.value.forEach { settings.removeExcludedFolder(it) }
+                    val list = mutableListOf<String>()
                     for (i in 0 until excludedArray.length()) {
-                        settings.addExcludedFolder(excludedArray.getString(i))
+                        list.add(excludedArray.getString(i))
                     }
+                    excludedFoldersParsed = list
                 }
 
                 if (settingsJson.has("extensions")) {
                     val extensionsArray = settingsJson.getJSONArray("extensions")
-                    val exts = mutableListOf<String>()
+                    val list = mutableListOf<String>()
                     for (i in 0 until extensionsArray.length()) {
-                        exts.add(extensionsArray.getString(i))
+                        list.add(extensionsArray.getString(i))
                     }
-                    if (exts.isNotEmpty()) {
-                        settings.setExtensions(exts)
-                    }
+                    extensionsParsed = list
                 }
             }
 
-            // 2. Restore Database (Playlists and Playlist Items)
-            if (root.has("playlists")) {
-                // Clear existing database
-                dao.clearAllPlaylists()
-
+            // 2. Pre-parse and validate entire playlists graph before clearing Room DB
+            val hasPlaylists = root.has("playlists")
+            val parsedPlaylists = mutableListOf<ParsedPlaylist>()
+            if (hasPlaylists) {
                 val playlistsArray = root.getJSONArray("playlists")
                 for (i in 0 until playlistsArray.length()) {
                     val playlistJson = playlistsArray.getJSONObject(i)
                     val name = playlistJson.getString("name")
                     val timestamp = playlistJson.optLong("timestamp", System.currentTimeMillis())
+                    val parsedItems = mutableListOf<ParsedPlaylistItem>()
 
-                    // Insert Playlist
-                    val playlistId = dao.insertPlaylist(Playlist(name = name, timestamp = timestamp))
-
-                    // Insert Items
                     if (playlistJson.has("items")) {
                         val itemsArray = playlistJson.getJSONArray("items")
                         for (j in 0 until itemsArray.length()) {
                             val itemJson = itemsArray.getJSONObject(j)
                             val mediaUri = itemJson.getString("media_uri")
+                            if (!isAllowedUriScheme(mediaUri, ALLOWED_MEDIA_SCHEMES)) {
+                                continue
+                            }
                             val itemTimestamp = itemJson.optLong("timestamp", System.currentTimeMillis())
 
                             var isNotFound = false
@@ -146,9 +169,8 @@ object BackupManager {
                                 isNotFound = true
                             }
 
-                            dao.insertPlaylistItem(
-                                PlaylistItem(
-                                    playlistId = playlistId.toInt(),
+                            parsedItems.add(
+                                ParsedPlaylistItem(
                                     mediaUri = mediaUri,
                                     timestamp = itemTimestamp,
                                     isNotFound = isNotFound
@@ -156,14 +178,66 @@ object BackupManager {
                             )
                         }
                     }
+
+                    parsedPlaylists.add(
+                        ParsedPlaylist(
+                            name = name,
+                            timestamp = timestamp,
+                            items = parsedItems
+                        )
+                    )
+                }
+            }
+
+            val db = AppDatabase.getDatabase(context)
+            val dao = db.playlistDao()
+            val settings = SettingsManager.getInstance(context)
+
+            // 3. Apply database changes atomically inside Room transaction
+            if (hasPlaylists) {
+                db.withTransaction {
+                    dao.clearAllPlaylists()
+                    for (playlist in parsedPlaylists) {
+                        val playlistId = dao.insertPlaylist(
+                            Playlist(name = playlist.name, timestamp = playlist.timestamp)
+                        )
+                        for (item in playlist.items) {
+                            dao.insertPlaylistItem(
+                                PlaylistItem(
+                                    playlistId = playlistId.toInt(),
+                                    mediaUri = item.mediaUri,
+                                    timestamp = item.timestamp,
+                                    isNotFound = item.isNotFound
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+
+            // 4. Apply settings only after DB restore succeeds
+            if (hasSettings) {
+                settings.setOutputFolderUri(outputFolderUri)
+                settings.setShowLoggerFab(showLoggerFab)
+                settings.hasSeenWelcome = hasSeenWelcome
+
+                excludedFoldersParsed?.let { parsedExcluded ->
+                    settings.excludedFolders.value.forEach { settings.removeExcludedFolder(it) }
+                    parsedExcluded.forEach { settings.addExcludedFolder(it) }
+                }
+
+                extensionsParsed?.let { parsedExts ->
+                    if (parsedExts.isNotEmpty()) {
+                        settings.setExtensions(parsedExts)
+                    }
                 }
             }
 
             LogKeeper.log("Full app restore completed successfully.", "BackupManager")
-            return true
+            true
         } catch (e: Exception) {
             LogKeeper.logError("BackupManager", "Error restoring backup: ${e.message}", e)
-            return false
+            false
         }
     }
 }

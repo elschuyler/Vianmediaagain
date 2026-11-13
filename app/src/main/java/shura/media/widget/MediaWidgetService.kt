@@ -36,22 +36,10 @@ class MediaWidgetFactory(private val context: Context) : RemoteViewsService.Remo
             folderId = prefs.getString("folder_id", null)
             val searchQuery = prefs.getString("search_query", "") ?: ""
 
-            // Always fetch the current playlist in case it's needed
-            val items = mutableListOf<MediaItem>()
-            runBlocking {
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                    val player = PlayerManager.exoPlayer
-                    if (player != null && !player.currentTimeline.isEmpty) {
-                        currentIndex = player.currentMediaItemIndex
-                        for (i in 0 until player.currentTimeline.windowCount) {
-                            val window = androidx.media3.common.Timeline.Window()
-                            player.currentTimeline.getWindow(i, window)
-                            items.add(window.mediaItem)
-                        }
-                    }
-                }
-            }
-            playlist = items
+            // Fetch current playlist snapshot directly without blocking Binder on Main Looper
+            val snapshot = PlayerManager.playbackState.value
+            currentIndex = snapshot.currentIndex
+            playlist = snapshot.playlist
 
             if (searchQuery.isNotBlank()) {
                 currentMode = "search_results"
@@ -76,9 +64,10 @@ class MediaWidgetFactory(private val context: Context) : RemoteViewsService.Remo
                 runBlocking {
                     val dao = shura.media.data.AppDatabase.getDatabase(context).playlistDao()
                     dbPlaylists = dao.getAllPlaylistsSync()
-                    if (folderId != null) {
+                    val targetPlaylistId = folderId?.toIntOrNull()
+                    if (targetPlaylistId != null) {
                         val allItems = dao.getAllPlaylistItemsSync()
-                        val items = allItems.filter { it.playlistId == folderId!!.toInt() }.sortedBy { it.timestamp }
+                        val items = allItems.filter { it.playlistId == targetPlaylistId }.sortedBy { it.timestamp }
                         val allFolders = MediaRepository(context).getMediaFolders()
                         val allMediaItems = allFolders.flatMap { it.mediaItems }
                         

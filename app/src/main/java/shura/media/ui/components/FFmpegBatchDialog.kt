@@ -12,7 +12,7 @@ import androidx.compose.ui.unit.dp
 fun FFmpegBatchDialog(
     uris: List<String>,
     onDismiss: () -> Unit,
-    onStartProcessing: (List<String>, String, String) -> Unit
+    onStartProcessing: (List<String>, List<String>, String) -> Unit
 ) {
     var format by remember { mutableStateOf("mp4") }
     var resolutionIndex by remember { mutableIntStateOf(4) }
@@ -92,24 +92,31 @@ fun FFmpegBatchDialog(
                     else -> "60"
                 }
                 val crf = (35 - (quality * 17)).toInt()
-                
                 val presetArg = if (fastExport) "ultrafast" else "medium"
-                val resArg = if (res == "Original" || format != "mp4") "" else {
-                    val parts = res.split("x")
-                    val targetW = parts[0].toInt()
-                    val targetH = parts[1].toInt()
-                    val maxDim = maxOf(targetW, targetH)
-                    val minDim = minOf(targetW, targetH)
-                    "-vf \"scale=w='if(gte(iw,ih),$maxDim,$minDim)':h='if(gte(iw,ih),$minDim,$maxDim)':force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2\""
+
+                val args = mutableListOf("-y", "-i", "%INPUT%")
+                when (format) {
+                    "mp4" -> {
+                        if (res != "Original") {
+                            val parts = res.split("x")
+                            val targetW = parts[0].toInt()
+                            val targetH = parts[1].toInt()
+                            val maxDim = maxOf(targetW, targetH)
+                            val minDim = minOf(targetW, targetH)
+                            args.add("-vf")
+                            args.add("scale=w='if(gte(iw,ih),$maxDim,$minDim)':h='if(gte(iw,ih),$minDim,$maxDim)':force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2")
+                        }
+                        args.addAll(listOf("-r", fps, "-vcodec", "libx264", "-crf", crf.toString(), "-preset", presetArg, "-metadata:s:v:0", "rotate=0"))
+                    }
+                    "mp3" -> {
+                        args.addAll(listOf("-vn", "-acodec", "libmp3lame", "-q:a", "2"))
+                    }
+                    "gif" -> {
+                        args.addAll(listOf("-vf", "fps=15,scale=320:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse", "-loop", "0"))
+                    }
                 }
-                
-                val cmd = when(format) {
-                    "mp4" -> "-y -i %INPUT% $resArg -r $fps -vcodec libx264 -crf $crf -preset $presetArg -metadata:s:v:0 rotate=0 %OUTPUT%"
-                    "mp3" -> "-y -i %INPUT% -vn -acodec libmp3lame -q:a 2 %OUTPUT%"
-                    "gif" -> "-y -i %INPUT% -vf \"fps=15,scale=320:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse\" -loop 0 %OUTPUT%"
-                    else -> "-y -i %INPUT% %OUTPUT%"
-                }
-                onStartProcessing(uris, cmd, format)
+                args.add("%OUTPUT%")
+                onStartProcessing(uris, args, format)
             }) {
                 Text("SAVE (Render)")
             }

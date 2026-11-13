@@ -31,7 +31,10 @@ object LogCatcher {
     private const val ACTIVE_LOG_FILE_NAME = "active_session.log"
     const val MAX_LOG_SIZE_BYTES: Long = 2L * 1024 * 1024 // 2 MB
 
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    private val diskDispatcher = Dispatchers.IO.limitedParallelism(1)
+    private val diskScope = CoroutineScope(diskDispatcher + SupervisorJob())
+    private val fileLock = Any()
     private lateinit var appContext: Context
     private lateinit var prefs: SharedPreferences
     private lateinit var logFile: File
@@ -78,6 +81,7 @@ object LogCatcher {
 
     private val URL_REGEX = Regex("""(?i)\b(?:https?|ftp|rtsp|smb|file)://[^\s"'<>]+""")
     private val CONTENT_URI_REGEX = Regex("""(?i)\bcontent://[^\s"'<>]+""")
+    private val SPACED_STORAGE_PATH_REGEX = Regex("""(?i)(?:/storage|/data|/sdcard|/mnt)/[^\r\n"'<>]*?\.(?:mp4|mkv|mov|avi|webm|flv|wmv|3gp|ts|m4s|mp3|m4a|aac|wav|flac|ogg|opus|wma|jpg|jpeg|png|webp|gif|bmp|svg|srt|vtt|ass|sub|txt|json|pdf|log)(?=\s|$|["'<>),;:])""")
     private val STORAGE_PATH_REGEX = Regex("""(?i)(?:/storage/[^\s"'<>]+|/data/[^\s"'<>]+|/sdcard/[^\s"'<>]+)""")
     private val QUOTED_FILE_REGEX = Regex("""(?i)(?:['"])[^'"]+?\.(?:mp4|mkv|mov|avi|webm|flv|wmv|3gp|ts|m4s|mp3|m4a|aac|wav|flac|ogg|opus|wma|jpg|jpeg|png|webp|gif|bmp|svg|srt|vtt|ass|sub|txt|json|pdf|log)(?:['"])""")
     private val UNIX_PATH_REGEX = Regex("""(?i)/(?:[^\s"'<>\/]+/)+[^\s"'<>\/]+?\.(?:mp4|mkv|mov|avi|webm|flv|wmv|3gp|ts|m4s|mp3|m4a|aac|wav|flac|ogg|opus|wma|jpg|jpeg|png|webp|gif|bmp|svg|srt|vtt|ass|sub|txt|json|pdf|log)\b""")
@@ -88,6 +92,7 @@ object LogCatcher {
         var result = message
         result = URL_REGEX.replace(result, "[REDACTED_URL]")
         result = CONTENT_URI_REGEX.replace(result, "[REDACTED_URI]")
+        result = SPACED_STORAGE_PATH_REGEX.replace(result, "[REDACTED_PATH]")
         result = STORAGE_PATH_REGEX.replace(result, "[REDACTED_PATH]")
         result = QUOTED_FILE_REGEX.replace(result, "[REDACTED_FILE]")
         result = UNIX_PATH_REGEX.replace(result, "[REDACTED_PATH]")
@@ -139,70 +144,84 @@ object LogCatcher {
             _recentLogs.value = memoryBuffer.toList()
         }
 
-        // Asynchronously persist to file & evaluate 2MB threshold
-        scope.launch {
-            try {
-                if (!::logFile.isInitialized) return@launch
-                val formattedLine = entry.formattedString + "\n"
-                val bytes = formattedLine.toByteArray(Charsets.UTF_8)
-                
-                FileOutputStream(logFile, true).use { stream ->
-                    stream.write(bytes)
-                    stream.flush()
-                }
-                
-                val currentSize = logFile.length()
-                _logSizeBytes.value = currentSize
+        // Asynchronously persist to file & evaluate 2MB threshold on serialized single-thread writer
+        diskScope.launch {
+            synchronized(fileLock) {
+                try {
+                    if (!::logFile.isInitialized) return@launch
+                    val formattedLine = entry.formattedString + "\n"
+                    val bytes = formattedLine.toByteArray(Charsets.UTF_8)
 
-                if (currentSize >= MAX_LOG_SIZE_BYTES) {
-                    triggerAutoDump()
+                    FileOutputStream(logFile, true).use { stream ->
+                        stream.write(bytes)
+                        stream.flush()
+                    }
+
+                    val currentSize = logFile.length()
+                    _logSizeBytes.value = currentSize
+
+                    if (currentSize >= MAX_LOG_SIZE_BYTES) {
+                        performAutoDumpLocked()
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed writing to active log file", e)
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed writing to active log file", e)
             }
         }
     }
 
     private fun triggerAutoDump() {
-        if (!isDumping.compareAndSet(false, true)) return
-        scope.launch {
-            try {
-                if (!::logFile.isInitialized || !logFile.exists() || logFile.length() == 0L) {
-                    isDumping.set(false)
-                    return@launch
-                }
-                
-                val timestamp = SimpleDateFormat("yyyy-MM-dd_HHmmss", Locale.US).format(Date())
-                val dumpFileName = "Vianbrplay_log_auto_$timestamp.txt"
-                val content = logFile.readText(Charsets.UTF_8)
-                
-                val success = writeToDownloads(appContext, dumpFileName, content)
-                if (success) {
-                    // Truncate active log file back to 0 bytes
-                    try {
-                        FileOutputStream(logFile, false).close()
-                        _logSizeBytes.value = 0L
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error clearing log file after auto-dump", e)
-                    }
-
-                    synchronized(memoryBuffer) {
-                        memoryBuffer.clear()
-                    }
-                    val notification = LogEntry(
-                        System.currentTimeMillis(),
-                        false,
-                        "System",
-                        "Log reached 2MB threshold. Auto-dumped to Downloads folder: $dumpFileName"
-                    )
-                    processEntry(notification)
-                    Log.d(TAG, "Auto-dump complete: $dumpFileName ($currentLogSizeFormatted)")
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error during auto-dump", e)
-            } finally {
-                isDumping.set(false)
+        diskScope.launch {
+            synchronized(fileLock) {
+                performAutoDumpLocked()
             }
+        }
+    }
+
+    private fun performAutoDumpLocked() {
+        if (!isDumping.compareAndSet(false, true)) return
+        try {
+            if (!::logFile.isInitialized || !logFile.exists() || logFile.length() < MAX_LOG_SIZE_BYTES) {
+                return
+            }
+
+            val timestamp = SimpleDateFormat("yyyy-MM-dd_HHmmss", Locale.US).format(Date())
+            val dumpFileName = "Vianbrplay_log_auto_$timestamp.txt"
+            val content = logFile.readText(Charsets.UTF_8)
+
+            val success = writeToDownloads(appContext, dumpFileName, content)
+            if (success) {
+                try {
+                    FileOutputStream(logFile, false).close()
+                    _logSizeBytes.value = 0L
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error clearing log file after auto-dump", e)
+                }
+
+                synchronized(memoryBuffer) {
+                    memoryBuffer.clear()
+                }
+                val notification = LogEntry(
+                    System.currentTimeMillis(),
+                    false,
+                    "System",
+                    "Log reached 2MB threshold. Auto-dumped to Downloads folder: $dumpFileName"
+                )
+                synchronized(memoryBuffer) {
+                    memoryBuffer.addLast(notification)
+                    _recentLogs.value = memoryBuffer.toList()
+                }
+                FileOutputStream(logFile, true).use { stream ->
+                    stream.write((notification.formattedString + "\n").toByteArray(Charsets.UTF_8))
+                    stream.flush()
+                }
+                _logSizeBytes.value = logFile.length()
+                Log.d(TAG, "Auto-dump complete: $dumpFileName ($currentLogSizeFormatted)")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error during auto-dump", e)
+        } finally {
+            isDumping.set(false)
         }
     }
 
@@ -218,39 +237,41 @@ object LogCatcher {
 
     fun getLogSizeBytes(): Long = _logSizeBytes.value
 
-    suspend fun loadAllLogs(): List<LogEntry> = withContext(Dispatchers.IO) {
-        if (!::logFile.isInitialized || !logFile.exists()) {
-            return@withContext recentLogs.value
-        }
-        try {
-            val lines = logFile.readLines(Charsets.UTF_8)
-            val parsedList = mutableListOf<LogEntry>()
-            var currentEntry: LogEntry? = null
-            var stackTraceBuilder = StringBuilder()
+    suspend fun loadAllLogs(): List<LogEntry> = withContext(diskDispatcher) {
+        synchronized(fileLock) {
+            if (!::logFile.isInitialized || !logFile.exists()) {
+                return@withContext recentLogs.value
+            }
+            try {
+                val lines = logFile.readLines(Charsets.UTF_8)
+                val parsedList = mutableListOf<LogEntry>()
+                var currentEntry: LogEntry? = null
+                val stackTraceBuilder = StringBuilder()
 
-            for (line in lines) {
-                // Check if line starts with formatted timestamp [HH:mm:ss.SSS]
-                if (line.startsWith("[") && line.length > 14 && line[13] == ']') {
-                    if (currentEntry != null) {
-                        val st = if (stackTraceBuilder.isNotEmpty()) stackTraceBuilder.toString().trimEnd() else null
-                        parsedList.add(currentEntry.copy(stackTrace = st))
-                        stackTraceBuilder.clear()
+                for (line in lines) {
+                    // Check if line starts with formatted timestamp [HH:mm:ss.SSS]
+                    if (line.startsWith("[") && line.length > 14 && line[13] == ']') {
+                        if (currentEntry != null) {
+                            val st = if (stackTraceBuilder.isNotEmpty()) stackTraceBuilder.toString().trimEnd() else null
+                            parsedList.add(currentEntry.copy(stackTrace = st))
+                            stackTraceBuilder.clear()
+                        }
+                        currentEntry = parseLogLine(line)
+                    } else if (currentEntry != null) {
+                        // Continuation of stacktrace or multiline message
+                        if (stackTraceBuilder.isNotEmpty()) stackTraceBuilder.append("\n")
+                        stackTraceBuilder.append(line)
                     }
-                    currentEntry = parseLogLine(line)
-                } else if (currentEntry != null) {
-                    // Continuation of stacktrace or multiline message
-                    if (stackTraceBuilder.isNotEmpty()) stackTraceBuilder.append("\n")
-                    stackTraceBuilder.append(line)
                 }
+                if (currentEntry != null) {
+                    val st = if (stackTraceBuilder.isNotEmpty()) stackTraceBuilder.toString().trimEnd() else null
+                    parsedList.add(currentEntry.copy(stackTrace = st))
+                }
+                if (parsedList.isNotEmpty()) parsedList else recentLogs.value
+            } catch (e: Exception) {
+                Log.e(TAG, "Error loading full log from disk, falling back to memory buffer", e)
+                recentLogs.value
             }
-            if (currentEntry != null) {
-                val st = if (stackTraceBuilder.isNotEmpty()) stackTraceBuilder.toString().trimEnd() else null
-                parsedList.add(currentEntry.copy(stackTrace = st))
-            }
-            if (parsedList.isNotEmpty()) parsedList else recentLogs.value
-        } catch (e: Exception) {
-            Log.e(TAG, "Error loading full log from disk, falling back to memory buffer", e)
-            recentLogs.value
         }
     }
 
@@ -258,6 +279,29 @@ object LogCatcher {
         try {
             val timeEnd = line.indexOf(']')
             val timeStr = if (timeEnd > 1) line.substring(1, timeEnd) else ""
+            val nowMs = System.currentTimeMillis()
+            val parsedTimestampMs = if (timeStr.isNotBlank()) {
+                try {
+                    val parsedDate = SimpleDateFormat("HH:mm:ss.SSS", Locale.US).parse(timeStr)
+                    if (parsedDate != null) {
+                        val parsedCal = java.util.Calendar.getInstance().apply { time = parsedDate }
+                        val resultCal = java.util.Calendar.getInstance().apply {
+                            timeInMillis = nowMs
+                            set(java.util.Calendar.HOUR_OF_DAY, parsedCal.get(java.util.Calendar.HOUR_OF_DAY))
+                            set(java.util.Calendar.MINUTE, parsedCal.get(java.util.Calendar.MINUTE))
+                            set(java.util.Calendar.SECOND, parsedCal.get(java.util.Calendar.SECOND))
+                            set(java.util.Calendar.MILLISECOND, parsedCal.get(java.util.Calendar.MILLISECOND))
+                        }
+                        if (resultCal.timeInMillis > nowMs + 60_000L) {
+                            resultCal.add(java.util.Calendar.DAY_OF_YEAR, -1)
+                        }
+                        resultCal.timeInMillis
+                    } else nowMs
+                } catch (_: Exception) {
+                    nowMs
+                }
+            } else nowMs
+
             val remainder = line.substring(timeEnd + 1).trimStart()
             val isError = remainder.startsWith("ERROR ")
             val tagStart = remainder.indexOf('[')
@@ -265,9 +309,9 @@ object LogCatcher {
             val tag = if (tagStart >= 0 && tagEnd > tagStart) remainder.substring(tagStart + 1, tagEnd) else "App"
             val colonIdx = remainder.indexOf(':', tagEnd.coerceAtLeast(0))
             val message = if (colonIdx >= 0 && colonIdx < remainder.length - 1) remainder.substring(colonIdx + 1).trimStart() else remainder
-            
+
             return LogEntry(
-                timestampMs = System.currentTimeMillis(),
+                timestampMs = parsedTimestampMs,
                 isError = isError,
                 tag = tag,
                 message = message
@@ -278,19 +322,21 @@ object LogCatcher {
     }
 
     fun clearLogs() {
-        scope.launch {
-            try {
-                if (::logFile.isInitialized && logFile.exists()) {
-                    FileOutputStream(logFile, false).close()
-                    _logSizeBytes.value = 0L
+        diskScope.launch {
+            synchronized(fileLock) {
+                try {
+                    if (::logFile.isInitialized && logFile.exists()) {
+                        FileOutputStream(logFile, false).close()
+                        _logSizeBytes.value = 0L
+                    }
+                    synchronized(memoryBuffer) {
+                        memoryBuffer.clear()
+                        _recentLogs.value = emptyList()
+                    }
+                    log("Log buffer cleared", "System")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed clearing logs", e)
                 }
-                synchronized(memoryBuffer) {
-                    memoryBuffer.clear()
-                    _recentLogs.value = emptyList()
-                }
-                log("Log buffer cleared", "System")
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed clearing logs", e)
             }
         }
     }
@@ -300,15 +346,17 @@ object LogCatcher {
             onComplete?.invoke(false, "Logger is disabled")
             return
         }
-        scope.launch {
+        diskScope.launch {
             try {
                 val dateStr = SimpleDateFormat("yyyy-MM-dd_HHmmss", Locale.US).format(Date())
                 val fileName = "Vianbrplay_logs_$dateStr.txt"
-                
-                val logsContent = if (::logFile.isInitialized && logFile.exists() && logFile.length() > 0) {
-                    logFile.readText(Charsets.UTF_8)
-                } else {
-                    _recentLogs.value.joinToString("\n") { it.formattedString }
+
+                val logsContent = synchronized(fileLock) {
+                    if (::logFile.isInitialized && logFile.exists() && logFile.length() > 0) {
+                        logFile.readText(Charsets.UTF_8)
+                    } else {
+                        _recentLogs.value.joinToString("\n") { it.formattedString }
+                    }
                 }
 
                 val exportHeader = """
@@ -325,37 +373,41 @@ object LogCatcher {
                 }
                 log("Manual log dump to Downloads: success=$success ($fileName)", "System")
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to write manual log dump", e)
+                Log.e(TAG, "Failed to write manual log dump: ${sanitize(e.message)}")
                 withContext(Dispatchers.Main) {
-                    onComplete?.invoke(false, e.message ?: "Unknown error")
+                    onComplete?.invoke(false, sanitize(e.message ?: "Unknown error"))
                 }
             }
         }
     }
 
     private fun dumpCrash(context: Context, throwable: Throwable) {
-        try {
-            val dateStr = SimpleDateFormat("yyyy-MM-dd_HHmmss", Locale.US).format(Date())
-            val fileName = "Vianbrplay_crash_$dateStr.txt"
-            val recent = _recentLogs.value.joinToString("\n") { it.formattedString }
-            val sanitizedMsg = sanitize(throwable.message ?: "No message")
-            val sanitizedStack = sanitize(Log.getStackTraceString(throwable))
-            val crashData = """
-                ==============================
-                Vianbrplay Crash Dump - $dateStr
-                Message: $sanitizedMsg
-                ==============================
-                Stacktrace:
-                $sanitizedStack
-                ==============================
-                Recent Logs (${_recentLogs.value.size} entries):
-                $recent
-                ==============================
-            """.trimIndent()
-            
-            writeToDownloads(context, fileName, crashData)
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to write crash dump", e)
+        synchronized(fileLock) {
+            try {
+                val dateStr = SimpleDateFormat("yyyy-MM-dd_HHmmss", Locale.US).format(Date())
+                val fileName = "Vianbrplay_crash_$dateStr.txt"
+                val recent = synchronized(memoryBuffer) {
+                    _recentLogs.value.joinToString("\n") { it.formattedString }
+                }
+                val sanitizedMsg = sanitize(throwable.message ?: "No message")
+                val sanitizedStack = sanitize(Log.getStackTraceString(throwable))
+                val crashData = """
+                    ==============================
+                    Vianbrplay Crash Dump - $dateStr
+                    Message: $sanitizedMsg
+                    ==============================
+                    Stacktrace:
+                    $sanitizedStack
+                    ==============================
+                    Recent Logs (${_recentLogs.value.size} entries):
+                    $recent
+                    ==============================
+                """.trimIndent()
+
+                writeToDownloads(context, fileName, crashData)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to write crash dump: ${sanitize(e.message)}")
+            }
         }
     }
 
@@ -376,7 +428,7 @@ object LogCatcher {
                         stream.flush()
                     }
                     success = true
-                    Log.d(TAG, "Successfully written to MediaStore.Downloads: $fileName")
+                    Log.d(TAG, "Successfully written log export: ${sanitize(fileName)}")
                 }
             } else {
                 @Suppress("DEPRECATION")
@@ -385,10 +437,10 @@ object LogCatcher {
                 val file = File(downloadsDir, fileName)
                 file.writeText(content)
                 success = true
-                Log.d(TAG, "Successfully written to external storage Downloads: ${file.absolutePath}")
+                Log.d(TAG, "Successfully written log export to Downloads: ${sanitize(file.name)}")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed writing to primary Downloads: ${e.message}", e)
+            Log.e(TAG, "Failed writing to primary Downloads: ${sanitize(e.message)}")
         }
 
         // Failsafe backup to app-specific external files dir
@@ -398,11 +450,11 @@ object LogCatcher {
                 if (!appDownloads.exists()) appDownloads.mkdirs()
                 val backupFile = File(appDownloads, fileName)
                 backupFile.writeText(content)
-                Log.d(TAG, "Backup written to app external downloads: ${backupFile.absolutePath}")
+                Log.d(TAG, "Backup log written to app downloads dir: ${sanitize(backupFile.name)}")
                 success = true
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed writing to backup app downloads: ${e.message}", e)
+            Log.e(TAG, "Failed writing to backup app downloads: ${sanitize(e.message)}")
         }
 
         return success

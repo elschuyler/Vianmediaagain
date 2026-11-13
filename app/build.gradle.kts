@@ -57,6 +57,11 @@ android {
     }
     debug {
     }
+    create("minifiedDebug") {
+      initWith(getByName("release"))
+      signingConfig = signingConfigs.getByName("debug")
+      matchingFallbacks += listOf("release", "debug")
+    }
   }
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_11

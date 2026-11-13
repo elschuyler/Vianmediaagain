@@ -109,21 +109,46 @@ fun AppNavigation(
     var batchFFmpegUris by remember { mutableStateOf<List<String>?>(null) }
     LaunchedEffect(initialUris, forceAction) {
         if (initialUris.size > 1 && forceAction != "edit") {
-            val mimeType = context.contentResolver.getType(android.net.Uri.parse(initialUris.first()))
-            val isImage = mimeType?.startsWith("image/") == true
-            val isVideo = mimeType?.startsWith("video/") == true
-            val isAudio = mimeType?.startsWith("audio/") == true
-            
-            if (isImage) {
-                batchCompressionUris = initialUris
-            } else if (isVideo || isAudio) {
+            val isVideoOrAudioOrAnimated = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                initialUris.any { rawUri ->
+                    val parsed = android.net.Uri.parse(rawUri)
+                    val mime = context.contentResolver.getType(parsed)?.lowercase() ?: ""
+                    val ext = parsed.lastPathSegment
+                        ?.substringAfterLast('.', "")
+                        ?.lowercase()
+                        ?: rawUri.substringBefore('?').substringAfterLast('.', "").lowercase()
+                    val isVideoOrAudio = mime.startsWith("video/") ||
+                        mime.startsWith("audio/") ||
+                        ext in shura.media.data.COMMON_VIDEO_EXTENSIONS ||
+                        ext in shura.media.data.COMMON_AUDIO_EXTENSIONS
+                    val isAnim = (mime == "image/gif" || mime == "image/webp" || ext == "gif" || ext == "webp") &&
+                        shura.media.data.isAnimatedMedia(context, parsed)
+                    isVideoOrAudio || isAnim
+                }
+            }
+            val isImage = if (!isVideoOrAudioOrAnimated) {
+                initialUris.any { rawUri ->
+                    val parsed = android.net.Uri.parse(rawUri)
+                    val mime = context.contentResolver.getType(parsed)?.lowercase() ?: ""
+                    val ext = parsed.lastPathSegment
+                        ?.substringAfterLast('.', "")
+                        ?.lowercase()
+                        ?: rawUri.substringBefore('?').substringAfterLast('.', "").lowercase()
+                    mime.startsWith("image/") || ext in shura.media.data.COMMON_IMAGE_EXTENSIONS
+                }
+            } else false
+
+            if (isVideoOrAudioOrAnimated) {
                 batchFFmpegUris = initialUris
+            } else if (isImage) {
+                batchCompressionUris = initialUris
             }
         }
     }
 
     LaunchedEffect(forceAction, initialUris) {
-        if (forceAction == "play" || forceAction == "shura.media.ACTION_OPEN_PLAYER" || forceAction == android.content.Intent.ACTION_VIEW) {
+        val isPlayAction = forceAction == "play" || forceAction == "shura.media.ACTION_OPEN_PLAYER" || forceAction == android.content.Intent.ACTION_VIEW
+        if (isPlayAction && !startDest.startsWith("player/")) {
             val targetUri = initialUris.firstOrNull()
                 ?: shura.media.service.PlayerManager.exoPlayer?.currentMediaItem?.mediaId
                 ?: shura.media.service.PlayerManager.playbackState.value.playlist.getOrNull(
@@ -131,9 +156,12 @@ fun AppNavigation(
                 )?.mediaId
 
             if (!targetUri.isNullOrEmpty()) {
+                val parsedUri = android.net.Uri.parse(targetUri)
                 val intent = android.content.Intent(context, shura.media.ui.PlayerActivity::class.java).apply {
                     putExtra("uri", targetUri)
-                    data = android.net.Uri.parse(targetUri)
+                    data = parsedUri
+                    clipData = android.content.ClipData.newRawUri("media", parsedUri)
+                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     action = forceAction
                 }
                 context.startActivity(intent)
@@ -171,9 +199,12 @@ fun AppNavigation(
         composable("main") {
             MainScreen(
                 onNavigateToPlayer = { uri ->
+                    val parsedUri = android.net.Uri.parse(uri)
                     val intent = android.content.Intent(context, shura.media.ui.PlayerActivity::class.java).apply {
                         putExtra("uri", uri)
-                        data = android.net.Uri.parse(uri)
+                        data = parsedUri
+                        clipData = android.content.ClipData.newRawUri("media", parsedUri)
+                        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     }
                     context.startActivity(intent)
                 },
@@ -235,9 +266,12 @@ fun AppNavigation(
                     }
                 },
                 onNavigateToPlayer = { uri ->
+                    val parsedUri = android.net.Uri.parse(uri)
                     val intent = android.content.Intent(context, shura.media.ui.PlayerActivity::class.java).apply {
                         putExtra("uri", uri)
-                        data = android.net.Uri.parse(uri)
+                        data = parsedUri
+                        clipData = android.content.ClipData.newRawUri("media", parsedUri)
+                        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     }
                     context.startActivity(intent)
                 }
@@ -253,9 +287,12 @@ fun AppNavigation(
             } catch (e: Exception) { uriString }
             LaunchedEffect(uriString) {
                 if (decodedUri.isNotEmpty()) {
+                    val parsedUri = android.net.Uri.parse(decodedUri)
                     val intent = android.content.Intent(context, shura.media.ui.PlayerActivity::class.java).apply {
                         putExtra("uri", decodedUri)
-                        data = android.net.Uri.parse(decodedUri)
+                        data = parsedUri
+                        clipData = android.content.ClipData.newRawUri("media", parsedUri)
+                        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     }
                     context.startActivity(intent)
                 }
@@ -360,15 +397,24 @@ fun AppNavigation(
             },
             onStartCompression = { urisToCompress, w, h, q, f ->
                 val intent = android.content.Intent(context, shura.media.service.CompressionService::class.java).apply {
+                    action = "START_BATCH"
                     putStringArrayListExtra("uris", java.util.ArrayList(urisToCompress))
                     putExtra("maxWidth", w)
                     putExtra("maxHeight", h)
+                    putExtra("quality", q)
+                    putExtra("format", f)
+                    if (urisToCompress.isNotEmpty()) {
+                        val firstUri = android.net.Uri.parse(urisToCompress.first())
+                        data = firstUri
+                        val clip = android.content.ClipData.newRawUri("media", firstUri)
+                        for (i in 1 until urisToCompress.size) {
+                            clip.addItem(android.content.ClipData.Item(android.net.Uri.parse(urisToCompress[i])))
+                        }
+                        clipData = clip
+                    }
+                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 }
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                    context.startForegroundService(intent)
-                } else {
-                    context.startService(intent)
-                }
+                androidx.core.content.ContextCompat.startForegroundService(context, intent)
                 batchCompressionUris = null
             }
         )
@@ -381,17 +427,23 @@ fun AppNavigation(
                 batchFFmpegUris = null
                 if (initialUris.isNotEmpty()) { (context as? android.app.Activity)?.finish() }
             },
-            onStartProcessing = { urisToProcess, commandTemplate, outputExt ->
+            onStartProcessing = { urisToProcess, commandArgs, outputExt ->
                 val intent = android.content.Intent(context, shura.media.service.FFmpegService::class.java).apply {
                     putStringArrayListExtra("uris", java.util.ArrayList(urisToProcess))
-                    putExtra("commandTemplate", commandTemplate)
+                    putStringArrayListExtra("commandArgs", java.util.ArrayList(commandArgs))
                     putExtra("outputExt", outputExt)
+                    if (urisToProcess.isNotEmpty()) {
+                        val firstUri = android.net.Uri.parse(urisToProcess.first())
+                        data = firstUri
+                        val clip = android.content.ClipData.newRawUri("media", firstUri)
+                        for (i in 1 until urisToProcess.size) {
+                            clip.addItem(android.content.ClipData.Item(android.net.Uri.parse(urisToProcess[i])))
+                        }
+                        clipData = clip
+                    }
+                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 }
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                    context.startForegroundService(intent)
-                } else {
-                    context.startService(intent)
-                }
+                androidx.core.content.ContextCompat.startForegroundService(context, intent)
                 batchFFmpegUris = null
             }
         )
@@ -485,10 +537,7 @@ fun AppNavigation(
             confirmButton = {},
             dismissButton = {
                 androidx.compose.material3.TextButton(onClick = {
-                    val intent = android.content.Intent(context, shura.media.service.FFmpegService::class.java).apply {
-                        action = "STOP"
-                    }
-                    context.startService(intent)
+                    shura.media.service.FFmpegService.requestCancel()
                 }) {
                     androidx.compose.material3.Text("Cancel")
                 }

@@ -89,8 +89,12 @@ class BatchActionActivity : ComponentActivity() {
                     isAnimatedImageState = isAnim
                 }
 
-                val isVideoOrAudio = intent?.getBooleanExtra("force_ffmpeg", false) == true || mimeType.startsWith("video/") || mimeType.startsWith("audio/") || initialUris.any { 
-                    it.lowercase().endsWith(".mp4") 
+                val isVideoOrAudio = intent?.getBooleanExtra("force_ffmpeg", false) == true || mimeType.startsWith("video/") || mimeType.startsWith("audio/") || initialUris.any { rawUri ->
+                    val ext = Uri.parse(rawUri).lastPathSegment
+                        ?.substringAfterLast('.', "")
+                        ?.lowercase()
+                        ?: rawUri.substringBefore('?').substringAfterLast('.', "").lowercase()
+                    ext in shura.media.data.COMMON_VIDEO_EXTENSIONS || ext in shura.media.data.COMMON_AUDIO_EXTENSIONS
                 } || isAnimatedImageState == true
                 
                 LaunchedEffect(CompressionStatus.isRunning, FFmpegStatus.isRunning) {
@@ -124,16 +128,8 @@ class BatchActionActivity : ComponentActivity() {
                             },
                             confirmButton = {
                                 TextButton(onClick = {
-                                    val stopIntent1 = Intent(this@BatchActionActivity, shura.media.service.CompressionService::class.java).apply {
-                                        action = "STOP"
-                                    }
-                                    try { startService(stopIntent1) } catch (e: Exception) {}
-                                    val stopIntent2 = Intent(this@BatchActionActivity, shura.media.service.FFmpegService::class.java).apply {
-                                        action = "STOP"
-                                    }
-                                    try { startService(stopIntent2) } catch (e: Exception) {}
-                                    CompressionStatus.isRunning = false
-                                    FFmpegStatus.isRunning = false
+                                    shura.media.service.CompressionStatus.stop(this@BatchActionActivity)
+                                    shura.media.service.FFmpegService.requestCancel()
                                     finish()
                                 }) {
                                     Text("Cancel")
@@ -147,12 +143,12 @@ class BatchActionActivity : ComponentActivity() {
                             FFmpegBatchDialog(
                                 uris = initialUris,
                                 onDismiss = { finish() },
-                                onStartProcessing = { uris, cmdTemplate, format ->
+                                onStartProcessing = { uris, commandArgs, format ->
                                     val serviceIntent = Intent(this@BatchActionActivity, shura.media.service.FFmpegService::class.java).apply {
                                         action = "START_BATCH"
                                         putStringArrayListExtra("uris", ArrayList(uris))
                                         putExtra("outputExt", format)
-                                        putExtra("commandTemplate", cmdTemplate)
+                                        putStringArrayListExtra("commandArgs", ArrayList(commandArgs))
                                         if (uris.isNotEmpty()) {
                                             val firstUri = Uri.parse(uris.first())
                                             data = firstUri

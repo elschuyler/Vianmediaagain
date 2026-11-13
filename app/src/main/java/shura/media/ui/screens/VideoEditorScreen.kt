@@ -487,39 +487,73 @@ fun VideoEditorScreen(
 
                     if (frameCount > 0) {
                         withContext(Dispatchers.IO) {
-                            val cmd = "-y -framerate $calculatedFps -i '${framesDir.absolutePath}/frame_%04d.png' -vf \"scale=trunc(iw/2)*2:trunc(ih/2)*2\" -vcodec libx264 -crf 23 -preset ultrafast -pix_fmt yuv420p -metadata:s:v:0 rotate=0 '${outputFile.absolutePath}'"
-                            val session = com.arthenica.ffmpegkit.FFmpegKit.execute(cmd)
+                            val session = com.arthenica.ffmpegkit.FFmpegKit.executeWithArguments(
+                                arrayOf(
+                                    "-y",
+                                    "-framerate", calculatedFps.toString(),
+                                    "-i", "${framesDir.absolutePath}/frame_%04d.png",
+                                    "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+                                    "-vcodec", "libx264",
+                                    "-crf", "23",
+                                    "-preset", "ultrafast",
+                                    "-pix_fmt", "yuv420p",
+                                    "-metadata:s:v:0", "rotate=0",
+                                    outputFile.absolutePath
+                                )
+                            )
                             if (com.arthenica.ffmpegkit.ReturnCode.isSuccess(session.returnCode) && outputFile.exists()) {
                                 convertedUri = Uri.fromFile(outputFile).toString()
                                 playerError = null
                                 LogKeeper.log("Pre-conversion complete", "VideoEditor")
                             } else {
-                                LogKeeper.logError("VideoEditor", "FFmpeg PNG→MP4 failed: ${session.returnCode}\nLogs: ${session.allLogsAsString}", Exception())
+                                val tailLogs = LogKeeper.sanitize(session.allLogsAsString.orEmpty().lines().takeLast(25).joinToString("\n"))
+                                LogKeeper.logError("VideoEditor", "FFmpeg PNG→MP4 failed: ${session.returnCode}\nLogs:\n$tailLogs", Exception())
                             }
                             framesDir.deleteRecursively()
                         }
                     } 
                 } else if (mimeType == "image/gif") {
                     withContext(Dispatchers.IO) {
-                        val cmd = "-y -i '${inputFile.absolutePath}' -vf \"scale=trunc(iw/2)*2:trunc(ih/2)*2\" -vcodec libx264 -crf 23 -preset ultrafast -pix_fmt yuv420p -metadata:s:v:0 rotate=0 '${outputFile.absolutePath}'"
-                        val session = com.arthenica.ffmpegkit.FFmpegKit.execute(cmd)
+                        val session = com.arthenica.ffmpegkit.FFmpegKit.executeWithArguments(
+                            arrayOf(
+                                "-y",
+                                "-i", inputFile.absolutePath,
+                                "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+                                "-vcodec", "libx264",
+                                "-crf", "23",
+                                "-preset", "ultrafast",
+                                "-pix_fmt", "yuv420p",
+                                "-metadata:s:v:0", "rotate=0",
+                                outputFile.absolutePath
+                            )
+                        )
                         if (com.arthenica.ffmpegkit.ReturnCode.isSuccess(session.returnCode) && outputFile.exists()) {
                             convertedUri = Uri.fromFile(outputFile).toString()
                             playerError = null
                             LogKeeper.log("Pre-conversion complete", "VideoEditor")
                         } else {
-                            LogKeeper.logError("VideoEditor", "FFmpeg GIF/WEBP→MP4 failed: ${session.returnCode}\nLogs: ${session.allLogsAsString}", Exception())
+                            val tailLogs = LogKeeper.sanitize(session.allLogsAsString.orEmpty().lines().takeLast(25).joinToString("\n"))
+                            LogKeeper.logError("VideoEditor", "FFmpeg GIF/WEBP→MP4 failed: ${session.returnCode}\nLogs:\n$tailLogs", Exception())
                         }
                     }
                 } else if (isTs || isM4s || isStreamContainer) {
                     // Two-Tier Optimization Pipeline for TS / M4S / Disguised Stream Containers
                     withContext(Dispatchers.IO) {
                         LogKeeper.log("Starting 2-Tier Stream Optimization for $containerType (input: ${inputFile.name})", "VideoEditor")
-                        
+
                         // Tier 1: Fast Lossless Remux with Timestamp & PTS Regeneration
-                        val remuxCmd = "-y -fflags +genpts+igndts -avoid_negative_ts make_zero -i '${inputFile.absolutePath}' -c copy -movflags +faststart '${outputFile.absolutePath}'"
-                        val session1 = com.arthenica.ffmpegkit.FFmpegKit.execute(remuxCmd)
-                        
+                        val session1 = com.arthenica.ffmpegkit.FFmpegKit.executeWithArguments(
+                            arrayOf(
+                                "-y",
+                                "-fflags", "+genpts+igndts",
+                                "-avoid_negative_ts", "make_zero",
+                                "-i", inputFile.absolutePath,
+                                "-c", "copy",
+                                "-movflags", "+faststart",
+                                outputFile.absolutePath
+                            )
+                        )
+
                         var tier1Valid = false
                         if (com.arthenica.ffmpegkit.ReturnCode.isSuccess(session1.returnCode) && outputFile.exists() && outputFile.length() > 2048L) {
                             val retriever = android.media.MediaMetadataRetriever()
@@ -537,7 +571,7 @@ fun VideoEditorScreen(
                                 try { retriever.release() } catch (e: Exception) {}
                             }
                         }
-                        
+
                         if (tier1Valid) {
                             convertedUri = Uri.fromFile(outputFile).toString()
                             playerError = null
@@ -548,14 +582,30 @@ fun VideoEditorScreen(
                             if (outputFile.exists()) {
                                 outputFile.delete()
                             }
-                            val transcodeCmd = "-y -fflags +genpts+igndts -avoid_negative_ts make_zero -i '${inputFile.absolutePath}' -vf \"fps=30,setpts=PTS-STARTPTS\" -af \"aresample=async=1000:first_pts=0\" -c:v libx264 -preset ultrafast -crf 22 -c:a aac -b:a 192k -movflags +faststart '${outputFile.absolutePath}'"
-                            val session2 = com.arthenica.ffmpegkit.FFmpegKit.execute(transcodeCmd)
+                            val session2 = com.arthenica.ffmpegkit.FFmpegKit.executeWithArguments(
+                                arrayOf(
+                                    "-y",
+                                    "-fflags", "+genpts+igndts",
+                                    "-avoid_negative_ts", "make_zero",
+                                    "-i", inputFile.absolutePath,
+                                    "-vf", "fps=30,setpts=PTS-STARTPTS",
+                                    "-af", "aresample=async=1000:first_pts=0",
+                                    "-c:v", "libx264",
+                                    "-preset", "ultrafast",
+                                    "-crf", "22",
+                                    "-c:a", "aac",
+                                    "-b:a", "192k",
+                                    "-movflags", "+faststart",
+                                    outputFile.absolutePath
+                                )
+                            )
                             if (com.arthenica.ffmpegkit.ReturnCode.isSuccess(session2.returnCode) && outputFile.exists() && outputFile.length() > 2048L) {
                                 convertedUri = Uri.fromFile(outputFile).toString()
                                 playerError = null
                                 LogKeeper.log("Tier 2 CFR transcode succeeded for $containerType", "VideoEditor")
                             } else {
-                                LogKeeper.logError("VideoEditor", "Both Tier 1 and Tier 2 failed for $containerType:\nLogs: ${session2.allLogsAsString}", Exception())
+                                val tailLogs = LogKeeper.sanitize(session2.allLogsAsString.orEmpty().lines().takeLast(25).joinToString("\n"))
+                                LogKeeper.logError("VideoEditor", "Both Tier 1 and Tier 2 failed for $containerType:\nLogs:\n$tailLogs", Exception())
                             }
                         }
                     }
@@ -588,14 +638,30 @@ fun VideoEditorScreen(
                 val outputFile = java.io.File(context.cacheDir, "editor_converted_${System.currentTimeMillis()}.mp4")
                 sessionTempFiles.add(outputFile)
                 withContext(Dispatchers.IO) {
-                    val cmd = "-y -fflags +genpts+igndts -avoid_negative_ts make_zero -i '${inputFile.absolutePath}' -vf \"fps=30,setpts=PTS-STARTPTS\" -af \"aresample=async=1000:first_pts=0\" -c:v libx264 -preset ultrafast -crf 22 -c:a aac -b:a 192k -metadata:s:v:0 rotate=0 '${outputFile.absolutePath}'"
-                    val session = com.arthenica.ffmpegkit.FFmpegKit.execute(cmd)
+                    val session = com.arthenica.ffmpegkit.FFmpegKit.executeWithArguments(
+                        arrayOf(
+                            "-y",
+                            "-fflags", "+genpts+igndts",
+                            "-avoid_negative_ts", "make_zero",
+                            "-i", inputFile.absolutePath,
+                            "-vf", "fps=30,setpts=PTS-STARTPTS",
+                            "-af", "aresample=async=1000:first_pts=0",
+                            "-c:v", "libx264",
+                            "-preset", "ultrafast",
+                            "-crf", "22",
+                            "-c:a", "aac",
+                            "-b:a", "192k",
+                            "-metadata:s:v:0", "rotate=0",
+                            outputFile.absolutePath
+                        )
+                    )
                     if (com.arthenica.ffmpegkit.ReturnCode.isSuccess(session.returnCode) && outputFile.exists()) {
                         convertedUri = Uri.fromFile(outputFile).toString()
                         playerError = null
                         LogKeeper.log("Repair complete", "VideoEditor")
                     } else {
-                        LogKeeper.logError("VideoEditor", "FFmpeg repair failed: ${session.returnCode}\nLogs: ${session.allLogsAsString}", Exception())
+                        val tailLogs = LogKeeper.sanitize(session.allLogsAsString.orEmpty().lines().takeLast(25).joinToString("\n"))
+                        LogKeeper.logError("VideoEditor", "FFmpeg repair failed: ${session.returnCode}\nLogs:\n$tailLogs", Exception())
                     }
                     inputFile.delete()
                 }
@@ -3312,6 +3378,11 @@ fun VideoEditorScreen(
                                 LogKeeper.logError("VideoEditor", "Failed to cache added audio for export: ${e.message}", e)
                             }
                         }
+
+                        if (format == "mp3" && !videoHasAudio && addedAudioPath == null) {
+                            android.widget.Toast.makeText(context, "Cannot export MP3: source video has no audio track", android.widget.Toast.LENGTH_LONG).show()
+                            return@Button
+                        }
                         
                         val originalW = videoWidth
                         val originalH = videoHeight
@@ -3364,10 +3435,10 @@ fun VideoEditorScreen(
                             globalTargetH = temp
                         }
 
-                        // 2. Build FFmpeg command template based on edits
+                        // 2. Build FFmpeg tokenized args based on edits
                         val filterList = mutableListOf<String>()
                         val audioFilterList = mutableListOf<String>()
-                        var trimArgs = ""
+                        val trimArgTokens = mutableListOf<String>()
 
                         if (editState.isDoubleTrim) {
                             // Double Trim (Keep 2 Parts) mode
@@ -3375,7 +3446,7 @@ fun VideoEditorScreen(
                             val de1 = editState.doubleTrimEnd1Ms.coerceIn(ds1, durationMs).takeIf { it > 0 } ?: (durationMs / 2)
                             val ds2 = editState.doubleTrimStart2Ms.coerceIn(de1, durationMs)
                             val de2 = editState.doubleTrimEnd2Ms.coerceIn(ds2, durationMs).takeIf { it > 0 } ?: durationMs
-                            
+
                             val start1S = ds1 / 1000f
                             val end1S = de1 / 1000f
                             val start2S = ds2 / 1000f
@@ -3398,7 +3469,7 @@ fun VideoEditorScreen(
                             // Trim (Keep Middle) mode
                             val start = editState.trimStartMs.coerceIn(0L, durationMs)
                             val end = editState.trimEndMs.coerceIn(start, durationMs).takeIf { it > 0 } ?: durationMs
-                            trimArgs = "-ss ${start / 1000f} -to ${end / 1000f}"
+                            trimArgTokens.addAll(listOf("-ss", "${start / 1000f}", "-to", "${end / 1000f}"))
                         }
 
                         val isSpeedCurveActive = editState.speedMode == "Curve" && editState.speedCurvePoints.any { Math.abs(it.speed - 1.0f) > 0.05f }
@@ -3479,32 +3550,30 @@ fun VideoEditorScreen(
                         }
                         if (editState.hasCaptions && editState.captionText.isNotBlank()) {
                             val safeText = editState.captionText
+                                .replace("\r", "")
+                                .replace("\n", " ")
                                 .replace("\\", "\\\\")
-                                .replace("'", "")
+                                .replace("'", "\u2019")
                                 .replace(":", "\\:")
                                 .replace("%", "\\%")
+                                .replace(",", "\\,")
+                                .replace(";", "\\;")
+                                .replace("[", "\\[")
+                                .replace("]", "\\]")
+                                .replace("=", "\\=")
                             filterList.add("drawtext=text='$safeText':fontcolor=white:fontsize=48:x=(w-text_w)/2:y=h-th-50:fontfile=/system/fonts/Roboto-Regular.ttf")
                         }
-                        
+
                         if (res != "Original") {
                             filterList.add("scale=w=$globalTargetW:h=$globalTargetH:force_original_aspect_ratio=decrease:flags=lanczos")
                         }
-                        
+
                         // Always ensure even dimensions for libx264 compatibility
                         filterList.add("scale=trunc(iw/2)*2:trunc(ih/2)*2")
-                        
-                        val videoFilterArgs = if (filterList.isNotEmpty()) {
-                            "-vf \"${filterList.joinToString(",")}\""
-                        } else {
-                            ""
-                        }
-                        
-                        val audioFilterArgs = if (audioFilterList.isNotEmpty()) {
-                            "-af \"${audioFilterList.joinToString(",")}\""
-                        } else {
-                            ""
-                        }
-                        
+
+                        val videoFilterToken = if (filterList.isNotEmpty()) filterList.joinToString(",") else null
+                        val audioFilterToken = if (audioFilterList.isNotEmpty()) audioFilterList.joinToString(",") else null
+
                         // GIF Filters
                         val gifFilters = mutableListOf<String>()
                         if (filterList.isNotEmpty()) {
@@ -3515,11 +3584,11 @@ fun VideoEditorScreen(
                         } else {
                             gifFilters.add("fps=$fps")
                         }
-                        val gifFilterArgs = "-vf \"${gifFilters.joinToString(",")}\""
+                        val gifFilterToken = gifFilters.joinToString(",")
 
                         val presetArg = if (fastExport) "ultrafast" else "medium"
+                        val commandArgs = arrayListOf<String>()
 
-                        var cmd = ""
                         if (isSpeedCurveActive && joinPaths.isEmpty()) {
                             val baseStartSec = if (!editState.isDoubleTrim && !editState.isCutMode) {
                                 (editState.trimStartMs.coerceIn(0L, durationMs) / 1000f)
@@ -3593,9 +3662,8 @@ fun VideoEditorScreen(
 
                             val curveFilterComplex = sb.toString().trimEnd(';')
 
+                            commandArgs.addAll(listOf("-y", "-i", "%INPUT%"))
                             if (addedAudioPath != null) {
-                                val loopArg = if (editState.loopAddedAudio) "-stream_loop -1 " else ""
-                                val audioInputArg = "$loopArg-i '$addedAudioPath'"
                                 val sbAudio = StringBuilder(curveFilterComplex)
                                 if (editState.isAudioReplaceMode || !hasAudio) {
                                     sbAudio.append(";[1:a]volume=${editState.addedAudioVolume},aresample=48000,aformat=channel_layouts=stereo[a_out]")
@@ -3605,34 +3673,43 @@ fun VideoEditorScreen(
                                 }
                                 val finalFilter = sbAudio.toString()
                                 val audioMapTag = if (!editState.isAudioReplaceMode && hasAudio) "[a_mixed]" else "[a_out]"
-                                cmd = when (format) {
-                                    "mp4" -> "-y -i %INPUT% $audioInputArg -filter_complex \"$finalFilter\" -map \"[v_out]\" -map \"$audioMapTag\" -shortest -r $fps -vcodec libx264 -crf $crf -preset $presetArg -acodec aac -b:a 192k -metadata:s:v:0 rotate=0 %OUTPUT%"
-                                    "mp3" -> "-y -i %INPUT% $audioInputArg -filter_complex \"$finalFilter\" -vn -map \"$audioMapTag\" -shortest -acodec libmp3lame -q:a 2 %OUTPUT%"
-                                    "gif" -> "-y -i %INPUT% -filter_complex \"$curveFilterComplex\" -map \"[v_out]\" -loop 0 %OUTPUT%"
-                                    else -> "-y -i %INPUT% %OUTPUT%"
+                                when (format) {
+                                    "mp4" -> {
+                                        if (editState.loopAddedAudio) commandArgs.addAll(listOf("-stream_loop", "-1"))
+                                        commandArgs.addAll(listOf("-i", addedAudioPath, "-filter_complex", finalFilter, "-map", "[v_out]", "-map", audioMapTag, "-shortest", "-r", "$fps", "-vcodec", "libx264", "-crf", "$crf", "-preset", presetArg, "-acodec", "aac", "-b:a", "192k", "-metadata:s:v:0", "rotate=0"))
+                                    }
+                                    "mp3" -> {
+                                        if (editState.loopAddedAudio) commandArgs.addAll(listOf("-stream_loop", "-1"))
+                                        commandArgs.addAll(listOf("-i", addedAudioPath, "-filter_complex", finalFilter, "-vn", "-map", audioMapTag, "-shortest", "-acodec", "libmp3lame", "-q:a", "2"))
+                                    }
+                                    "gif" -> {
+                                        commandArgs.addAll(listOf("-filter_complex", curveFilterComplex, "-map", "[v_out]", "-loop", "0"))
+                                    }
                                 }
                             } else {
-                                cmd = when (format) {
+                                when (format) {
                                     "mp4" -> {
+                                        commandArgs.addAll(listOf("-filter_complex", curveFilterComplex, "-map", "[v_out]"))
                                         if (hasAudio) {
-                                            "-y -i %INPUT% -filter_complex \"$curveFilterComplex\" -map \"[v_out]\" -map \"[a_out]\" -r $fps -vcodec libx264 -crf $crf -preset $presetArg -acodec aac -b:a 192k -metadata:s:v:0 rotate=0 %OUTPUT%"
+                                            commandArgs.addAll(listOf("-map", "[a_out]", "-r", "$fps", "-vcodec", "libx264", "-crf", "$crf", "-preset", presetArg, "-acodec", "aac", "-b:a", "192k", "-metadata:s:v:0", "rotate=0"))
                                         } else {
-                                            "-y -i %INPUT% -filter_complex \"$curveFilterComplex\" -map \"[v_out]\" -r $fps -vcodec libx264 -crf $crf -preset $presetArg -metadata:s:v:0 rotate=0 %OUTPUT%"
+                                            commandArgs.addAll(listOf("-r", "$fps", "-vcodec", "libx264", "-crf", "$crf", "-preset", presetArg, "-metadata:s:v:0", "rotate=0"))
                                         }
                                     }
                                     "mp3" -> {
                                         if (hasAudio) {
-                                            "-y -i %INPUT% -filter_complex \"$curveFilterComplex\" -vn -map \"[a_out]\" -acodec libmp3lame -q:a 2 %OUTPUT%"
+                                            commandArgs.addAll(listOf("-filter_complex", curveFilterComplex, "-vn", "-map", "[a_out]", "-acodec", "libmp3lame", "-q:a", "2"))
                                         } else {
-                                            "-y -i %INPUT% -vn -acodec libmp3lame -q:a 2 %OUTPUT%"
+                                            commandArgs.addAll(listOf("-vn", "-acodec", "libmp3lame", "-q:a", "2"))
                                         }
                                     }
-                                    "gif" -> "-y -i %INPUT% -filter_complex \"$curveFilterComplex\" -map \"[v_out]\" -loop 0 %OUTPUT%"
-                                    else -> "-y -i %INPUT% %OUTPUT%"
+                                    "gif" -> {
+                                        commandArgs.addAll(listOf("-filter_complex", curveFilterComplex, "-map", "[v_out]", "-loop", "0"))
+                                    }
                                 }
                             }
+                            commandArgs.add("%OUTPUT%")
                         } else if (joinPaths.isNotEmpty() && format == "mp4") {
-                            // Complex filter for multi-video joining with fit mode / dark box adjustment
                             var fw = globalTargetW
                             var fh = globalTargetH
                             if (editState.joinAspectPreset != "Match Main") {
@@ -3644,72 +3721,128 @@ fun VideoEditorScreen(
                                     "21:9" -> { val base = if (fw > fh) fw else fh; fw = base; fh = (base * 9) / 21 }
                                 }
                             }
-                            // Guarantee even dimensions for H.264
                             fw = (fw / 2) * 2
                             fh = (fh / 2) * 2
 
                             fun buildJoinClipFilter(inputTag: String, outputTag: String, fitMode: String, extraFilters: List<String> = emptyList()): String {
                                 val pre = if (extraFilters.isNotEmpty()) "${extraFilters.joinToString(",")}," else ""
                                 return when (fitMode) {
-                                    "Fill" -> {
-                                        // Zooms and crops to fill aspect ratio without dark boxes / black bars
-                                        "[$inputTag]${pre}scale=w=$fw:h=$fh:force_original_aspect_ratio=increase,crop=w=$fw:h=$fh,scale=trunc(iw/2)*2:trunc(ih/2)*2,setsar=1[$outputTag];"
-                                    }
-                                    "Stretch" -> {
-                                        // Directly scales to canvas dimensions
-                                        "[$inputTag]${pre}scale=w=$fw:h=$fh,scale=trunc(iw/2)*2:trunc(ih/2)*2,setsar=1[$outputTag];"
-                                    }
-                                    "Blur" -> {
-                                        // Blurs video behind frame to eliminate dark boxes
-                                        "[$inputTag]${pre}split[${outputTag}_b][${outputTag}_f];[${outputTag}_b]scale=w=$fw:h=$fh:force_original_aspect_ratio=increase,crop=w=$fw:h=$fh,boxblur=20:5[${outputTag}_bg];[${outputTag}_f]scale=w=$fw:h=$fh:force_original_aspect_ratio=decrease[${outputTag}_fg];[${outputTag}_bg][${outputTag}_fg]overlay=(W-w)/2:(H-h)/2,scale=trunc(iw/2)*2:trunc(ih/2)*2,setsar=1[$outputTag];"
-                                    }
-                                    else -> {
-                                        // "Fit" (Default: full frame with dark box / letterbox padding)
-                                        "[$inputTag]${pre}scale=w=$fw:h=$fh:force_original_aspect_ratio=decrease,pad=w=$fw:h=$fh:(ow-iw)/2:(oh-ih)/2:color=black,scale=trunc(iw/2)*2:trunc(ih/2)*2,setsar=1[$outputTag];"
-                                    }
+                                    "Fill" -> "[$inputTag]${pre}scale=w=$fw:h=$fh:force_original_aspect_ratio=increase,crop=w=$fw:h=$fh,scale=trunc(iw/2)*2:trunc(ih/2)*2,setsar=1[$outputTag];"
+                                    "Stretch" -> "[$inputTag]${pre}scale=w=$fw:h=$fh,scale=trunc(iw/2)*2:trunc(ih/2)*2,setsar=1[$outputTag];"
+                                    "Blur" -> "[$inputTag]${pre}split[${outputTag}_b][${outputTag}_f];[${outputTag}_b]scale=w=$fw:h=$fh:force_original_aspect_ratio=increase,crop=w=$fw:h=$fh,boxblur=20:5[${outputTag}_bg];[${outputTag}_f]scale=w=$fw:h=$fh:force_original_aspect_ratio=decrease[${outputTag}_fg];[${outputTag}_bg][${outputTag}_fg]overlay=(W-w)/2:(H-h)/2,scale=trunc(iw/2)*2:trunc(ih/2)*2,setsar=1[$outputTag];"
+                                    else -> "[$inputTag]${pre}scale=w=$fw:h=$fh:force_original_aspect_ratio=decrease,pad=w=$fw:h=$fh:(ow-iw)/2:(oh-ih)/2:color=black,scale=trunc(iw/2)*2:trunc(ih/2)*2,setsar=1[$outputTag];"
                                 }
                             }
 
+                            fun probeAudioAndDuration(path: String, fallbackDurSec: Float): Pair<Boolean, Float> {
+                                var hasAud = false
+                                var durSec = fallbackDurSec
+                                val mmr = android.media.MediaMetadataRetriever()
+                                try {
+                                    mmr.setDataSource(path)
+                                    hasAud = mmr.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO) == "yes"
+                                    val dMs = mmr.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+                                    if (dMs > 0L) durSec = (dMs / 1000f).coerceAtLeast(0.1f)
+                                } catch (_: Exception) {
+                                } finally {
+                                    try { mmr.release() } catch (_: Exception) {}
+                                }
+                                return Pair(hasAud, durSec)
+                            }
+
+                            val mainSpeedFactor = if (editState.speedMode == "Standard" && editState.speed > 0f) editState.speed else 1f
+                            val mainRawDurMs = if (editState.isDoubleTrim) {
+                                val ds1 = editState.doubleTrimStart1Ms.coerceIn(0L, durationMs)
+                                val de1 = editState.doubleTrimEnd1Ms.coerceIn(ds1, durationMs).takeIf { it > 0 } ?: (durationMs / 2)
+                                val ds2 = editState.doubleTrimStart2Ms.coerceIn(de1, durationMs)
+                                val de2 = editState.doubleTrimEnd2Ms.coerceIn(ds2, durationMs).takeIf { it > 0 } ?: durationMs
+                                ((de1 - ds1) + (de2 - ds2)).coerceAtLeast(100L)
+                            } else if (editState.isCutMode) {
+                                val start = editState.trimStartMs.coerceIn(0L, durationMs)
+                                val end = editState.trimEndMs.coerceIn(start, durationMs).takeIf { it > 0 } ?: durationMs
+                                (durationMs - (end - start)).coerceAtLeast(100L)
+                            } else {
+                                val start = editState.trimStartMs.coerceIn(0L, durationMs)
+                                val end = editState.trimEndMs.coerceIn(start, durationMs).takeIf { it > 0 } ?: durationMs
+                                (end - start).coerceAtLeast(100L)
+                            }
+                            val mainDurSec = ((mainRawDurMs / 1000f) / mainSpeedFactor).coerceAtLeast(0.1f)
+                            val joinProbes = joinPaths.map { jp -> probeAudioAndDuration(jp, 1.0f) }
+                            val anySegmentHasAudio = videoHasAudio || joinProbes.any { it.first }
+
                             val v0Fit = editState.joinClipFitModes["main"] ?: editState.joinFitMode
                             val v0Safe = buildJoinClipFilter("0:v", "v0", v0Fit, filterList)
-                            val a0 = if (audioFilterList.isNotEmpty()) "[0:a]${audioFilterList.joinToString(",")}[a0];" else "[0:a]anull[a0];"
 
                             val joinFilterDefs = StringBuilder()
                             for (i in 1..joinPaths.size) {
                                 val clipUri = if (i - 1 < urisToJoin.size) urisToJoin[i - 1] else ""
                                 val clipFit = editState.joinClipFitModes[clipUri] ?: editState.joinFitMode
                                 joinFilterDefs.append(buildJoinClipFilter("$i:v", "v$i", clipFit))
-                                joinFilterDefs.append("[$i:a]anull[a$i];")
                             }
 
                             val totalSegments = 1 + joinPaths.size
-                            val concatInputs = if (editState.joinAtEnd) {
-                                "[v0][a0]" + (1..joinPaths.size).joinToString("") { "[v$it][a$it]" }
+                            val safeFilterComplex = if (anySegmentHasAudio) {
+                                val a0 = if (videoHasAudio) {
+                                    if (audioFilterList.isNotEmpty()) {
+                                        "[0:a]${audioFilterList.joinToString(",")},aresample=48000,aformat=channel_layouts=stereo[a0];"
+                                    } else {
+                                        "[0:a]aresample=48000,aformat=channel_layouts=stereo[a0];"
+                                    }
+                                } else {
+                                    String.format(java.util.Locale.US, "anullsrc=r=48000:cl=stereo,atrim=0:%.3f,asetpts=PTS-STARTPTS[a0];", mainDurSec)
+                                }
+                                val joinAudioDefs = StringBuilder()
+                                for (i in 1..joinPaths.size) {
+                                    val (clipHasAudio, clipDurSec) = joinProbes[i - 1]
+                                    if (clipHasAudio) {
+                                        joinAudioDefs.append("[$i:a]aresample=48000,aformat=channel_layouts=stereo[a$i];")
+                                    } else {
+                                        joinAudioDefs.append(String.format(java.util.Locale.US, "anullsrc=r=48000:cl=stereo,atrim=0:%.3f,asetpts=PTS-STARTPTS[a$i];", clipDurSec))
+                                    }
+                                }
+                                val concatInputs = if (editState.joinAtEnd) {
+                                    "[v0][a0]" + (1..joinPaths.size).joinToString("") { "[v$it][a$it]" }
+                                } else {
+                                    (1..joinPaths.size).joinToString("") { "[v$it][a$it]" } + "[v0][a0]"
+                                }
+                                val concat = "${concatInputs}concat=n=$totalSegments:v=1:a=1[v][a]"
+                                "$v0Safe$a0$joinFilterDefs$joinAudioDefs$concat"
                             } else {
-                                (1..joinPaths.size).joinToString("") { "[v$it][a$it]" } + "[v0][a0]"
+                                val vConcatInputs = if (editState.joinAtEnd) {
+                                    "[v0]" + (1..joinPaths.size).joinToString("") { "[v$it]" }
+                                } else {
+                                    (1..joinPaths.size).joinToString("") { "[v$it]" } + "[v0]"
+                                }
+                                val concat = "${vConcatInputs}concat=n=$totalSegments:v=1:a=0[v]"
+                                "$v0Safe$joinFilterDefs$concat"
                             }
-                            val concat = "${concatInputs}concat=n=$totalSegments:v=1:a=1[v][a]"
-                            val safeFilterComplex = "$v0Safe$a0$joinFilterDefs$concat"
-                            val joinInputsArg = joinPaths.joinToString(" ") { "-i '$it'" }
 
+                            commandArgs.add("-y")
+                            commandArgs.addAll(trimArgTokens)
+                            commandArgs.addAll(listOf("-i", "%INPUT%"))
+                            for (jp in joinPaths) {
+                                commandArgs.addAll(listOf("-i", jp))
+                            }
                             if (addedAudioPath != null) {
                                 val audioInputIdx = 1 + joinPaths.size
-                                val loopArg = if (editState.loopAddedAudio) "-stream_loop -1 " else ""
-                                val audioInputArg = "$loopArg-i '$addedAudioPath'"
-                                if (editState.isAudioReplaceMode) {
-                                    val safeFilterWithAudio = "$safeFilterComplex;[$audioInputIdx:a]volume=${editState.addedAudioVolume},aresample=48000,aformat=channel_layouts=stereo[a_final]"
-                                    cmd = "-y $trimArgs -i %INPUT% $joinInputsArg $audioInputArg -filter_complex \"$safeFilterWithAudio\" -map \"[v]\" -map \"[a_final]\" -shortest -r $fps -vcodec libx264 -crf $crf -preset $presetArg -acodec aac -b:a 192k -metadata:s:v:0 rotate=0 %OUTPUT%"
+                                if (editState.loopAddedAudio) commandArgs.addAll(listOf("-stream_loop", "-1"))
+                                commandArgs.addAll(listOf("-i", addedAudioPath))
+                                val safeFilterWithAudio = if (editState.isAudioReplaceMode || !anySegmentHasAudio) {
+                                    "$safeFilterComplex;[$audioInputIdx:a]volume=${editState.addedAudioVolume},aresample=48000,aformat=channel_layouts=stereo[a_final]"
                                 } else {
-                                    val safeFilterWithAudio = "$safeFilterComplex;[$audioInputIdx:a]volume=${editState.addedAudioVolume},aresample=48000,aformat=channel_layouts=stereo[a_custom];[a][a_custom]amix=inputs=2:duration=first:dropout_transition=2[a_final]"
-                                    cmd = "-y $trimArgs -i %INPUT% $joinInputsArg $audioInputArg -filter_complex \"$safeFilterWithAudio\" -map \"[v]\" -map \"[a_final]\" -shortest -r $fps -vcodec libx264 -crf $crf -preset $presetArg -acodec aac -b:a 192k -metadata:s:v:0 rotate=0 %OUTPUT%"
+                                    "$safeFilterComplex;[$audioInputIdx:a]volume=${editState.addedAudioVolume},aresample=48000,aformat=channel_layouts=stereo[a_custom];[a][a_custom]amix=inputs=2:duration=first:dropout_transition=2[a_final]"
                                 }
+                                commandArgs.addAll(listOf("-filter_complex", safeFilterWithAudio, "-map", "[v]", "-map", "[a_final]", "-shortest", "-r", "$fps", "-vcodec", "libx264", "-crf", "$crf", "-preset", presetArg, "-acodec", "aac", "-b:a", "192k", "-metadata:s:v:0", "rotate=0", "%OUTPUT%"))
+                            } else if (anySegmentHasAudio) {
+                                commandArgs.addAll(listOf("-filter_complex", safeFilterComplex, "-map", "[v]", "-map", "[a]", "-r", "$fps", "-vcodec", "libx264", "-crf", "$crf", "-preset", presetArg, "-acodec", "aac", "-b:a", "192k", "-metadata:s:v:0", "rotate=0", "%OUTPUT%"))
                             } else {
-                                cmd = "-y $trimArgs -i %INPUT% $joinInputsArg -filter_complex \"$safeFilterComplex\" -map \"[v]\" -map \"[a]\" -r $fps -vcodec libx264 -crf $crf -preset $presetArg -metadata:s:v:0 rotate=0 %OUTPUT%"
+                                commandArgs.addAll(listOf("-filter_complex", safeFilterComplex, "-map", "[v]", "-r", "$fps", "-vcodec", "libx264", "-crf", "$crf", "-preset", presetArg, "-metadata:s:v:0", "rotate=0", "%OUTPUT%"))
                             }
                         } else {
+                            commandArgs.add("-y")
+                            commandArgs.addAll(trimArgTokens)
+                            commandArgs.addAll(listOf("-i", "%INPUT%"))
                             if (addedAudioPath != null) {
-                                val loopArg = if (editState.loopAddedAudio) "-stream_loop -1 " else ""
-                                val audioInputArg = "$loopArg-i '$addedAudioPath'"
                                 val vFilterStr = if (filterList.isNotEmpty()) "[0:v]${filterList.joinToString(",")}[v_out];" else "[0:v]null[v_out];"
                                 val fullFilterComplex = if (editState.isAudioReplaceMode || !videoHasAudio) {
                                     val aFilterStr = "[1:a]volume=${editState.addedAudioVolume},aresample=48000,aformat=channel_layouts=stereo[a_out]"
@@ -3720,25 +3853,42 @@ fun VideoEditorScreen(
                                     val mixStr = "[a0][a1]amix=inputs=2:duration=first:dropout_transition=2[a_out]"
                                     "$vFilterStr$a0FilterStr$a1FilterStr$mixStr"
                                 }
-                                cmd = when (format) {
-                                    "mp4" -> "-y $trimArgs -i %INPUT% $audioInputArg -filter_complex \"$fullFilterComplex\" -map \"[v_out]\" -map \"[a_out]\" -shortest -r $fps -vcodec libx264 -crf $crf -preset $presetArg -acodec aac -b:a 192k -metadata:s:v:0 rotate=0 %OUTPUT%"
-                                    "mp3" -> "-y $trimArgs -i %INPUT% $audioInputArg -filter_complex \"$fullFilterComplex\" -vn -map \"[a_out]\" -shortest -acodec libmp3lame -q:a 2 %OUTPUT%"
-                                    "gif" -> "-y $trimArgs -i %INPUT% $gifFilterArgs -loop 0 %OUTPUT%"
-                                    else -> "-y -i %INPUT% %OUTPUT%"
+                                when (format) {
+                                    "mp4" -> {
+                                        if (editState.loopAddedAudio) commandArgs.addAll(listOf("-stream_loop", "-1"))
+                                        commandArgs.addAll(listOf("-i", addedAudioPath, "-filter_complex", fullFilterComplex, "-map", "[v_out]", "-map", "[a_out]", "-shortest", "-r", "$fps", "-vcodec", "libx264", "-crf", "$crf", "-preset", presetArg, "-acodec", "aac", "-b:a", "192k", "-metadata:s:v:0", "rotate=0"))
+                                    }
+                                    "mp3" -> {
+                                        if (editState.loopAddedAudio) commandArgs.addAll(listOf("-stream_loop", "-1"))
+                                        commandArgs.addAll(listOf("-i", addedAudioPath, "-filter_complex", fullFilterComplex, "-vn", "-map", "[a_out]", "-shortest", "-acodec", "libmp3lame", "-q:a", "2"))
+                                    }
+                                    "gif" -> {
+                                        commandArgs.addAll(listOf("-vf", gifFilterToken, "-loop", "0"))
+                                    }
                                 }
                             } else {
-                                cmd = when (format) {
-                                    "mp4" -> "-y $trimArgs -i %INPUT% $videoFilterArgs $audioFilterArgs -r $fps -vcodec libx264 -crf $crf -preset $presetArg -metadata:s:v:0 rotate=0 %OUTPUT%"
-                                    "mp3" -> "-y $trimArgs -i %INPUT% -vn $audioFilterArgs -acodec libmp3lame -q:a 2 %OUTPUT%"
-                                    "gif" -> "-y $trimArgs -i %INPUT% $gifFilterArgs -loop 0 %OUTPUT%"
-                                    else -> "-y -i %INPUT% %OUTPUT%"
+                                when (format) {
+                                    "mp4" -> {
+                                        if (videoFilterToken != null) commandArgs.addAll(listOf("-vf", videoFilterToken))
+                                        if (audioFilterToken != null) commandArgs.addAll(listOf("-af", audioFilterToken))
+                                        commandArgs.addAll(listOf("-r", "$fps", "-vcodec", "libx264", "-crf", "$crf", "-preset", presetArg, "-metadata:s:v:0", "rotate=0"))
+                                    }
+                                    "mp3" -> {
+                                        commandArgs.add("-vn")
+                                        if (audioFilterToken != null) commandArgs.addAll(listOf("-af", audioFilterToken))
+                                        commandArgs.addAll(listOf("-acodec", "libmp3lame", "-q:a", "2"))
+                                    }
+                                    "gif" -> {
+                                        commandArgs.addAll(listOf("-vf", gifFilterToken, "-loop", "0"))
+                                    }
                                 }
                             }
+                            commandArgs.add("%OUTPUT%")
                         }
-                        
+
                         LogKeeper.log("Starting Render job for video file. Output Format: $format, Resolution: $res, FPS: $fps, Preset: $presetArg, Quality level: $quality (CRF $crf)", "VideoEditor")
-                        LogKeeper.log("Constructed FFmpeg Command: ${LogKeeper.sanitize(cmd)}", "VideoEditor")
-                        
+                        LogKeeper.log("Constructed FFmpeg Command (${commandArgs.size} args): ${LogKeeper.sanitize(commandArgs.joinToString(" "))}", "VideoEditor")
+
                         // Resource Exclusivity: Pause editor preview player while FFmpeg is encoding
                         try {
                             exoPlayer?.pause()
@@ -3755,7 +3905,7 @@ fun VideoEditorScreen(
                             val intent = android.content.Intent(context, shura.media.service.FFmpegService::class.java).apply {
                                 putStringArrayListExtra("uris", arrayListOf(exportTargetUri))
                                 putStringArrayListExtra("original_names", arrayListOf(shura.media.ui.screens.getDisplayNameFromUri(context, initialUri)))
-                                putExtra("commandTemplate", cmd)
+                                putStringArrayListExtra("commandArgs", commandArgs)
                                 putExtra("outputExt", format)
                                 data = parsedTarget
                                 addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -3768,11 +3918,7 @@ fun VideoEditorScreen(
                             }
                             isEditorExporting = true
                             showExportPanel = false
-                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                                context.startForegroundService(intent)
-                            } else {
-                                context.startService(intent)
-                            }
+                            androidx.core.content.ContextCompat.startForegroundService(context, intent)
                         } catch (e: Exception) {
                             isEditorExporting = false
                             shura.media.LogKeeper.logError("VideoEditor", "Failed to start FFmpegService for export: ${e.message}", e)
@@ -3842,14 +3988,8 @@ fun VideoEditorScreen(
                         ) {
                             TextButton(
                                 onClick = {
-                                    try {
-                                        val stopIntent = android.content.Intent(context, shura.media.service.FFmpegService::class.java).apply {
-                                            action = "STOP"
-                                        }
-                                        context.startService(stopIntent)
-                                    } catch (e: Exception) {}
+                                    shura.media.service.FFmpegService.requestCancel()
                                     isEditorExporting = false
-                                    shura.media.service.FFmpegStatus.isRunning = false
                                 }
                             ) {
                                 Text("Cancel", color = MaterialTheme.colorScheme.error)

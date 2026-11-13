@@ -180,39 +180,43 @@ object MediaUriResolver {
             }
         } catch (e: Exception) {}
 
-        // 2. Query MediaStore.Files by DISPLAY_NAME
+        // 2. Query MediaStore.Files by DISPLAY_NAME (refuse ambiguous multi-matches without exact path match)
         try {
             val proj = arrayOf(MediaStore.Files.FileColumns._ID, MediaStore.Files.FileColumns.MEDIA_TYPE, MediaStore.Files.FileColumns.DATA)
             val sel = "${MediaStore.Files.FileColumns.DISPLAY_NAME} = ?"
             val selArgs = arrayOf(fileName)
             context.contentResolver.query(MediaStore.Files.getContentUri("external"), proj, sel, selArgs, null)?.use { cursor ->
+                val matches = mutableListOf<Pair<Long, Int>>()
                 while (cursor.moveToNext()) {
                     val id = cursor.getLong(0)
                     val mediaType = cursor.getInt(1)
                     val data = cursor.getString(2)
-                    // If multiple files with same name exist, prefer matching path or return first
-                    if (data.isNullOrBlank() || data.equals(directPath, ignoreCase = true)) {
+                    if (!data.isNullOrBlank() && data.equals(directPath, ignoreCase = true)) {
                         return buildMediaStoreUri(id, mediaType)
                     }
+                    matches.add(id to mediaType)
                 }
-                if (cursor.moveToFirst()) {
-                    val id = cursor.getLong(0)
-                    val mediaType = cursor.getInt(1)
+                if (matches.size == 1) {
+                    val (id, mediaType) = matches[0]
                     return buildMediaStoreUri(id, mediaType)
+                } else if (matches.size > 1) {
+                    LogKeeper.logWarn("MediaUriResolver", "Ambiguous MediaStore DISPLAY_NAME lookup (${matches.size} matches); refusing guess.")
                 }
             }
         } catch (e: Exception) {}
 
-        // 3. Query MediaStore.Downloads on Android 10+ (API 29+)
+        // 3. Query MediaStore.Downloads on Android 10+ (API 29+) (only if unique)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             try {
                 val proj = arrayOf(MediaStore.MediaColumns._ID)
                 val sel = "${MediaStore.MediaColumns.DISPLAY_NAME} = ?"
                 val selArgs = arrayOf(fileName)
                 context.contentResolver.query(MediaStore.Downloads.EXTERNAL_CONTENT_URI, proj, sel, selArgs, null)?.use { cursor ->
-                    if (cursor.moveToFirst()) {
+                    if (cursor.count == 1 && cursor.moveToFirst()) {
                         val id = cursor.getLong(0)
                         return ContentUris.withAppendedId(MediaStore.Downloads.EXTERNAL_CONTENT_URI, id)
+                    } else if (cursor.count > 1) {
+                        LogKeeper.logWarn("MediaUriResolver", "Ambiguous MediaStore.Downloads lookup (${cursor.count} matches); refusing guess.")
                     }
                 }
             } catch (e: Exception) {}
@@ -240,10 +244,12 @@ object MediaUriResolver {
             val sel = "${MediaStore.Files.FileColumns.DISPLAY_NAME} = ?"
             val selArgs = arrayOf(displayName)
             context.contentResolver.query(MediaStore.Files.getContentUri("external"), proj, sel, selArgs, null)?.use { cursor ->
-                if (cursor.moveToFirst()) {
+                if (cursor.count == 1 && cursor.moveToFirst()) {
                     val id = cursor.getLong(0)
                     val mediaType = cursor.getInt(1)
                     return buildMediaStoreUri(id, mediaType)
+                } else if (cursor.count > 1) {
+                    LogKeeper.logWarn("MediaUriResolver", "Ambiguous fallback MediaStore lookup (${cursor.count} matches); refusing guess.")
                 }
             }
         } catch (e: Exception) {}

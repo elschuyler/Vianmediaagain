@@ -158,10 +158,13 @@ class MediaWidgetProvider : AppWidgetProvider() {
         val serviceIntent = Intent(context, MediaWidgetService::class.java)
         views.setRemoteAdapter(R.id.widget_list, serviceIntent)
         
+        val token = getWidgetToken(context)
         val clickPendingIntent = PendingIntent.getBroadcast(
             context,
             1,
-            Intent(context, MediaWidgetProvider::class.java).setAction("ACTION_PLAY_ITEM"),
+            Intent(context, MediaWidgetProvider::class.java)
+                .setAction("ACTION_PLAY_ITEM")
+                .putExtra(EXTRA_WIDGET_TOKEN, token),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
         )
         views.setPendingIntentTemplate(R.id.widget_list, clickPendingIntent)
@@ -174,22 +177,60 @@ class MediaWidgetProvider : AppWidgetProvider() {
     }
 
     private fun getPendingIntent(context: Context, action: String): PendingIntent {
-        val intent = Intent(context, MediaWidgetProvider::class.java).setAction(action)
+        val intent = Intent(context, MediaWidgetProvider::class.java)
+            .setAction(action)
+            .putExtra(EXTRA_WIDGET_TOKEN, getWidgetToken(context))
         return PendingIntent.getBroadcast(context, action.hashCode(), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+    }
+
+    companion object {
+        private const val EXTRA_WIDGET_TOKEN = "EXTRA_WIDGET_TOKEN"
+        private const val KEY_WIDGET_TOKEN = "widget_ipc_token"
+        private val tokenLock = Any()
+
+        private fun getWidgetToken(context: Context): String {
+            val prefs = context.getSharedPreferences("widget_prefs", Context.MODE_PRIVATE)
+            return prefs.getString(KEY_WIDGET_TOKEN, null) ?: synchronized(tokenLock) {
+                prefs.getString(KEY_WIDGET_TOKEN, null) ?: run {
+                    val bytes = ByteArray(16)
+                    java.security.SecureRandom().nextBytes(bytes)
+                    val generated = bytes.joinToString("") { "%02x".format(it) }
+                    prefs.edit().putString(KEY_WIDGET_TOKEN, generated).apply()
+                    generated
+                }
+            }
+        }
     }
 
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action
         shura.media.LogKeeper.log("onReceive action: $action", "MediaWidgetProvider")
-        
-        if (action == "ACTION_REFRESH" || action == "android.appwidget.action.APPWIDGET_UPDATE" || action == "android.appwidget.action.APPWIDGET_UPDATE_OPTIONS" || action == "android.appwidget.action.APPWIDGET_ENABLED" || action == "android.appwidget.action.APPWIDGET_DISABLED" || action == "android.appwidget.action.APPWIDGET_DELETED") {
+
+        val isSystemWidgetAction = action == "android.appwidget.action.APPWIDGET_UPDATE" ||
+            action == "android.appwidget.action.APPWIDGET_UPDATE_OPTIONS" ||
+            action == "android.appwidget.action.APPWIDGET_ENABLED" ||
+            action == "android.appwidget.action.APPWIDGET_DISABLED" ||
+            action == "android.appwidget.action.APPWIDGET_DELETED"
+
+        if (isSystemWidgetAction) {
             try {
                 super.onReceive(context, intent)
-                if (action == "ACTION_REFRESH") {
-                    updateWidgets(context)
-                }
             } catch (e: Exception) {
                 shura.media.LogKeeper.logError("MediaWidgetProvider", "Error in onReceive standard action", e)
+            }
+            return
+        }
+
+        if (intent.getStringExtra(EXTRA_WIDGET_TOKEN) != getWidgetToken(context)) {
+            shura.media.LogKeeper.logWarn("MediaWidgetProvider", "Rejected unauthorized widget action: $action")
+            return
+        }
+
+        if (action == "ACTION_REFRESH") {
+            try {
+                updateWidgets(context)
+            } catch (e: Exception) {
+                shura.media.LogKeeper.logError("MediaWidgetProvider", "Error in ACTION_REFRESH", e)
             }
             return
         }
@@ -210,7 +251,15 @@ class MediaWidgetProvider : AppWidgetProvider() {
         }
         if (action == "ACTION_FFWD") {
             val player = shura.media.service.PlayerManager.exoPlayer
-            player?.seekTo((player.currentPosition + 5000).coerceAtMost(player.duration ?: 0))
+            if (player != null) {
+                val rawDur = player.duration
+                val targetPos = if (rawDur != androidx.media3.common.C.TIME_UNSET && rawDur > 0L) {
+                    (player.currentPosition + 5000L).coerceAtMost(rawDur)
+                } else {
+                    (player.currentPosition + 5000L).coerceAtLeast(0L)
+                }
+                player.seekTo(targetPos)
+            }
             return
         }
         if (action == "ACTION_STOP") {
@@ -311,6 +360,11 @@ class MediaWidgetProvider : AppWidgetProvider() {
                         serviceIntent.setPackage(context.packageName)
                         serviceIntent.putExtra("command", action)
                         context.sendBroadcast(serviceIntent)
+                    } else if (action == "ACTION_MINIPLAYER") {
+                        val serviceIntent = Intent("shura.media.ACTION_WIDGET_COMMAND")
+                        serviceIntent.setPackage(context.packageName)
+                        serviceIntent.putExtra("command", "ACTION_MINIPLAYER")
+                        context.sendBroadcast(serviceIntent)
                     } else if (action == "ACTION_PIP") {
                         val serviceIntent = Intent("shura.media.ACTION_WIDGET_COMMAND")
                         serviceIntent.setPackage(context.packageName)
@@ -340,11 +394,12 @@ class MediaWidgetProvider : AppWidgetProvider() {
                     }
                     
                     updateWidgets(context)
-                    
-                    androidx.media3.session.MediaController.releaseFuture(controllerFuture)
                 } catch (e: Exception) {
                     shura.media.LogKeeper.logError("MediaWidgetProvider", "Error in MediaController logic", e)
                 } finally {
+                    try {
+                        androidx.media3.session.MediaController.releaseFuture(controllerFuture)
+                    } catch (_: Exception) {}
                     pendingResult.finish()
                 }
             }, androidx.core.content.ContextCompat.getMainExecutor(context))

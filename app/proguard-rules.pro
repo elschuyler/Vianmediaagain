@@ -12,21 +12,28 @@
 #   public *;
 #}
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
-
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Preserve line numbers for LogKeeper/LogCatcher while hiding source filenames
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
 
 # FFmpeg Kit
--keep class com.arthenica.ffmpegkit.** { *; }
--dontwarn com.arthenica.ffmpegkit.**
+-keep class com.arthenica.** { *; }
+-dontwarn com.arthenica.**
 
-# ExoPlayer / Media3
+# Fresco / SoLoader reflection (VideoEditorScreen / FFmpegService animated WebP decode)
+-keep class com.facebook.soloader.** { *; }
+-keep class com.facebook.animated.webp.** { *; }
+-keep class com.facebook.imagepipeline.animated.** { *; }
+-keep class com.facebook.common.references.** { *; }
+-dontwarn com.facebook.soloader.**
+-dontwarn com.facebook.infer.annotation.**
+-dontwarn javax.annotation.**
+
+# ExoPlayer / Media3 & Jellyfin FFmpeg Audio Decoder
 -keep class androidx.media3.** { *; }
+-keep class org.jellyfin.media3.** { *; }
 -dontwarn androidx.media3.**
+-dontwarn org.jellyfin.media3.**
 
 # Kotlin coroutines
 -keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}

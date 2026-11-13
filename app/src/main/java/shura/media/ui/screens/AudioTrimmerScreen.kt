@@ -641,7 +641,7 @@ private fun exportTrimmedAudio(context: Context, inputUri: Uri, startMs: Long, e
         val tempOutput = java.io.File(context.cacheDir, "Temp_Trim_${System.currentTimeMillis()}.m4a")
         var success = false
         try {
-            context.contentResolver.openInputStream(inputUri)?.use { input ->
+            shura.media.data.MediaUriResolver.openInputStreamSafely(context, inputUri.toString()).use { input ->
                 java.io.FileOutputStream(tempInput).use { output ->
                     input.copyTo(output)
                 }
@@ -649,8 +649,18 @@ private fun exportTrimmedAudio(context: Context, inputUri: Uri, startMs: Long, e
             if (tempInput.exists() && tempInput.length() > 0) {
                 val startS = startMs / 1000f
                 val endS = endMs / 1000f
-                val cmd = "-y -ss $startS -to $endS -i \"${tempInput.absolutePath}\" -af \"$denoiseFilter\" -c:a aac -b:a 192k \"${tempOutput.absolutePath}\""
-                val session = FFmpegKit.execute(cmd)
+                val session = FFmpegKit.executeWithArguments(
+                    arrayOf(
+                        "-y",
+                        "-ss", startS.toString(),
+                        "-to", endS.toString(),
+                        "-i", tempInput.absolutePath,
+                        "-af", denoiseFilter,
+                        "-c:a", "aac",
+                        "-b:a", "192k",
+                        tempOutput.absolutePath
+                    )
+                )
                 val returnCode = session.returnCode
                 if (returnCode != null && ReturnCode.isSuccess(returnCode) && tempOutput.exists() && tempOutput.length() > 0) {
                     val settingsManager = shura.media.data.SettingsManager.getInstance(context)
@@ -664,7 +674,10 @@ private fun exportTrimmedAudio(context: Context, inputUri: Uri, startMs: Long, e
                         success = copyFileToStream(tempOutput, outStream)
                     }
                 } else {
-                    shura.media.LogKeeper.logError("AudioTrimmerScreen", "FFmpeg denoise failed: ${session.allLogsAsString}", null)
+                    val tailLogs = shura.media.LogKeeper.sanitize(
+                        session.allLogsAsString.orEmpty().lines().takeLast(25).joinToString("\n")
+                    )
+                    shura.media.LogKeeper.logError("AudioTrimmerScreen", "FFmpeg denoise failed (${returnCode?.value ?: "null"}):\n$tailLogs", null)
                 }
             }
         } catch (e: Exception) {

@@ -24,17 +24,31 @@ jobs:
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v3
 
-    - name: Build Debug APK
+    - name: Build Debug & Minified Debug APKs
       run: |
         if [ -f "./gradlew" ]; then
           chmod +x ./gradlew
-          ./gradlew assembleDebug --stacktrace
+          ./gradlew assembleDebug assembleMinifiedDebug --stacktrace
         else
-          gradle assembleDebug --stacktrace
+          gradle assembleDebug assembleMinifiedDebug --stacktrace
         fi
 
-    - name: Upload APK
+    - name: Upload Debug APK
       uses: actions/upload-artifact@v4
       with:
         name: app-debug.apk
         path: app/build/outputs/apk/debug/*.apk
+
+    - name: Upload Minified Debug APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-minified-debug.apk
+        path: app/build/outputs/apk/minifiedDebug/*.apk
+
+    - name: Upload R8 Mapping
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: minified-debug-mapping
+        path: app/build/outputs/mapping/minifiedDebug/mapping.txt
+        if-no-files-found: ignore

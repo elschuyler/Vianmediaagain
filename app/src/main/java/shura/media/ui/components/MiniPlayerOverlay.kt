@@ -350,7 +350,7 @@ fun MiniPlayerOverlay(
                                         Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
                                         else -> Player.REPEAT_MODE_OFF
                                     }
-                                    shura.media.service.PlayerManager.exoPlayer?.pauseAtEndOfMediaItems = (it.repeatMode == Player.REPEAT_MODE_OFF)
+                                    shura.media.service.PlayerManager.exoPlayer?.pauseAtEndOfMediaItems = false
                                 }
                             },
                             modifier = Modifier.size(30.dp)
@@ -545,7 +545,7 @@ fun MiniPlayerOverlay(
                                                 val startPos = if (lastPos > 0 && !settings.isFinished(targetItem.uri.toString(), targetItem.name)) lastPos else 0L
                                                 shura.media.service.PlayerManager.exoPlayer?.let { p ->
                                                     p.setMediaItems(mediaItems, index, startPos)
-                                                    p.pauseAtEndOfMediaItems = (p.repeatMode == Player.REPEAT_MODE_OFF)
+                                                    p.pauseAtEndOfMediaItems = false
                                                     p.prepare()
                                                     p.play()
                                                 }
@@ -637,7 +637,7 @@ fun MiniPlayerOverlay(
                                                 val startPos = if (lastPos > 0 && !settings.isFinished(targetItem.mediaUri, targetName)) lastPos else 0L
                                                 shura.media.service.PlayerManager.exoPlayer?.let { p ->
                                                     p.setMediaItems(mediaItems, index, startPos)
-                                                    p.pauseAtEndOfMediaItems = (p.repeatMode == Player.REPEAT_MODE_OFF)
+                                                    p.pauseAtEndOfMediaItems = false
                                                     p.prepare()
                                                     p.play()
                                                 }

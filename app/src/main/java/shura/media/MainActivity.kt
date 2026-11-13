@@ -28,26 +28,6 @@ import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
-  override fun onUserLeaveHint() {
-      super.onUserLeaveHint()
-      if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-          val player = shura.media.service.PlayerManager.exoPlayer
-          if (player != null && player.isPlaying) {
-              val vs = player.videoSize
-              val rot = vs.unappliedRotationDegrees
-              @Suppress("DEPRECATION")
-              val width = if (rot % 180 == 0) vs.width else vs.height
-              @Suppress("DEPRECATION")
-              val height = if (rot % 180 == 0) vs.height else vs.width
-              try {
-                  enterPictureInPictureMode(shura.media.ui.screens.PipHelper.buildPipParams(this, player, width, height))
-              } catch (e: Exception) {
-                  LogKeeper.logError("MainActivity", "Error entering PiP on user leave hint: ${e.message}", e)
-              }
-          }
-      }
-  }
-
   override fun onDestroy() {
       super.onDestroy()
       try {
@@ -224,12 +204,6 @@ class MainActivity : ComponentActivity() {
                   startService(serviceIntent)
               }
 
-              val overlayIntent = android.content.Intent("shura.media.ACTION_WIDGET_COMMAND").apply {
-                  putExtra("command", "ACTION_MINIPLAYER")
-                  setPackage(packageName)
-              }
-              sendBroadcast(overlayIntent)
-
               finish()
               return true
           } else {
@@ -285,12 +259,6 @@ class MainActivity : ComponentActivity() {
                   startService(serviceIntent)
               }
 
-              val overlayIntent = android.content.Intent("shura.media.ACTION_WIDGET_COMMAND").apply {
-                  putExtra("command", "ACTION_VIDEO_OVERLAY")
-                  setPackage(packageName)
-              }
-              sendBroadcast(overlayIntent)
-
               finish()
               return true
           } else {
@@ -343,7 +311,8 @@ class MainActivity : ComponentActivity() {
               action = intent.action
               data = intent.data
               intent.extras?.let { putExtras(it) }
-              addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP)
+              intent.clipData?.let { clipData = it }
+              addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP)
           }
           startActivity(playerIntent)
           return
@@ -383,7 +352,8 @@ class MainActivity : ComponentActivity() {
                 action = intent?.action
                 data = intent?.data
                 intent?.extras?.let { putExtras(it) }
-                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                intent?.clipData?.let { clipData = it }
+                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP)
             }
             startActivity(playerIntent)
             finish()
@@ -394,37 +364,14 @@ class MainActivity : ComponentActivity() {
     }
     val filter = android.content.IntentFilter("shura.media.ACTION_ENTER_PIP")
     try {
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(pipReceiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            registerReceiver(pipReceiver, filter)
-        }
-    } catch (e: Exception) {
-        LogKeeper.logError("MainActivity", "Error registering pipReceiver", e)
-    }
-    
-    try {
-        coil.Coil.setImageLoader(
-            coil.ImageLoader.Builder(this)
-                .components {
-                    add(shura.media.VideoThumbnailFetcher.Factory())
-                }
-                .memoryCache {
-                    coil.memory.MemoryCache.Builder(this)
-                        .maxSizePercent(0.25)
-                        .build()
-                }
-                .diskCache {
-                    coil.disk.DiskCache.Builder()
-                        .directory(cacheDir.resolve("thumbnail_cache"))
-                        .maxSizeBytes(100L * 1024 * 1024)
-                        .build()
-                }
-                .crossfade(false)
-                .build()
+        androidx.core.content.ContextCompat.registerReceiver(
+            this,
+            pipReceiver,
+            filter,
+            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
         )
     } catch (e: Exception) {
-        LogKeeper.logError("MainActivity", "Error initializing Coil ImageLoader", e)
+        LogKeeper.logError("MainActivity", "Error registering pipReceiver", e)
     }
 
     shura.media.data.CacheManager.purgeOrphanedTempFiles(this)

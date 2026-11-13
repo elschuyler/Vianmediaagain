@@ -585,3 +585,41 @@
      - Verified zero `com.example` symbols or legacy `com/example` paths remain under `app/`.
      - Documented GitHub remote sync prerequisite: stale `app/src/main/java/com/example/` files remaining on GitHub must be deleted alongside pushing updated `shura/media/` sources.
 
+- **Phase 137: Application Coil Init, Data-Integrity Crash Remediation & Security/Privacy Hardening**
+  1. Application-Level Coil `ImageLoaderFactory` & Early `LogKeeper` Coverage:
+     - Created `ShuraApplication.kt` implementing `Application` + `coil.ImageLoaderFactory`, registering `ShuraApplication` in `AndroidManifest.xml` (`android:name=".ShuraApplication"`).
+     - Initializes `LogKeeper.init(this)` on process start so `PlaybackService`, `FFmpegService`, `CompressionService`, `BatchActionActivity`, and `EditorActivity` capture crashes even when `MainActivity` was not launched first.
+     - Configures lazy on-demand Coil `ImageLoader` (`VideoThumbnailFetcher.Factory()`, 25% memory cache, 100 MB `thumbnail_cache` disk cache, `crossfade(false)`) and removes redundant `Coil.setImageLoader` setup from `MainActivity.kt`.
+  2. Data-Integrity, Concurrency & Crash Remediation:
+     - `CacheManager.kt`: Clears Coil `memoryCache`/`diskCache` via API before removing app cache files while preserving the active `thumbnail_cache` journal directory; removes `thumbnail_cache` from startup temp-file purge and includes orphaned `Temp_Input_*` files.
+     - Unified `pauseAtEndOfMediaItems = false` across `PlayerManager.kt`, `PlaybackService.kt`, `PlayerActivity.kt`, `PlayerScreen.kt`, and `MiniPlayerOverlay.kt`; removed destructive `player.stop(); player.clearMediaItems()` in `PlaybackService.onPlayWhenReadyChanged` and guarded `STATE_ENDED` shutdown when floating overlay is active.
+     - `PlaybackService.kt`: Added `safeUpdateViewLayout` (`isAttachedToWindow` + `try/catch`), moved `hideOverlay()` before `ON_DESTROY`, hoisted `isOverlayVideoMode` to service level so switching between audio miniplayer and floating video overlay works reliably, prevented background `startService()` on `hideOverlay(context)`, and ensured safe foreground fallback on empty/blocked starts.
+     - `MainActivity.kt` & `AppNavigation.kt`: Removed redundant `ACTION_MINIPLAYER` broadcast after `startForegroundService`, forwarded `clipData` + `FLAG_GRANT_READ_URI_PERMISSION` on `PlayerActivity` handoffs, prevented duplicate `PlayerActivity` launches, and replaced background `startService("STOP")` with in-process `FFmpegService.requestCancel()`.
+     - `CompressionService.kt` & `BatchActionActivity.kt`: Prevented sibling coroutine scope cancellation on `STOP`, added `finally` cleanup + `stopSelfResult`, routed compression reads through `MediaUriResolver.openInputStreamSafely()`, fixed `COMMON_AUDIO_EXTENSIONS` detection in `BatchActionActivity`, and migrated batch cancel buttons to in-process cancellation.
+     - `PlayerManager.kt`, `LogCatcher.kt`, `MediaWidgetService.kt`, `BackupManager.kt`: Dispatched `PlayerManager.release()` onto the Main Looper; serialized `LogCatcher` file I/O using single-thread `limitedParallelism(1)` + `fileLock`; eliminated `MediaWidgetService` Binder `runBlocking` deadlock & `folderId!!` NPE; wrapped `BackupManager.restoreBackup()` inside `db.withTransaction` with pre-parsed JSON validation before clearing playlists.
+  3. Security & Privacy Hardening:
+     - Disabled OS cloud/ADB auto-backup (`android:allowBackup="false"`) and excluded `vianbr_settings.xml` + `logs/` in `backup_rules.xml` and `data_extraction_rules.xml`.
+     - Hardened `PlaybackService.MediaSession.Callback` with caller trust verification and URI scheme allowlisting (`content`, `file`, `http`, `https`, `rtsp`, `rtmp`, `rtmpe`, `rtmps`, `rtp` for media; `content`, `file` for subtitles).
+     - Added per-install `SecureRandom` IPC token validation to `MediaWidgetProvider` custom actions.
+     - Standardized receiver registration via `ContextCompat.registerReceiver(..., ContextCompat.RECEIVER_NOT_EXPORTED)` in `MainActivity.kt`, `PlaybackService.kt`, and `PlayerScreen.kt`.
+     - Migrated `FFmpegService`, `FFmpegBatchDialog`, `VideoEditorScreen`, and `AudioTrimmerScreen` from shell-string `FFmpegKit.execute` to tokenized `FFmpegKit.executeWithArguments`, strengthened `drawtext` escaping, capped/sanitized FFmpeg error logs, and blocked ambiguous `DISPLAY_NAME` multi-match fallback in `MediaUriResolver.kt`.
+
+- [x] **Phase 138: R8 Minified Verification Pipeline (Option A), ProGuard Hardening & Phase 137 Gap Remediations**
+  1. Option A R8 Minification Test Pipeline & ProGuard Hardening:
+     - `app/build.gradle.kts`: Add `minifiedDebug` buildType inheriting `release` (`isMinifyEnabled = true`, `isShrinkResources = true`, ProGuard files) with debug signing for safe CI & on-device R8 verification.
+     - `app/proguard-rules.pro`: Enable `SourceFile,LineNumberTable` + `-renamesourcefileattribute SourceFile` for readable `LogKeeper` stack traces, and add explicit keep/dontwarn rules for Fresco/SoLoader reflection (`NativeLoader`, `SystemDelegate`, `NativeLoaderDelegate`), `animated-webp` / `imagepipeline`, `media3-decoder-ffmpeg`, and `FFmpegKit` / `smartexception`.
+     - `.github/workflows/build.yml`: Add `assembleMinifiedDebug` build job step and upload `app-minified-debug.apk` + `mapping.txt` artifacts alongside debug APK.
+  2. Batch Service Concurrency, Intent Parity & Cancel Safety:
+     - `AppNavigation.kt`: Pass `quality`, `format`, `data`, `clipData`, and `FLAG_GRANT_READ_URI_PERMISSION` to `CompressionService`; add extension fallback + animated GIF/WebP probing on multi-URI routing matching `BatchActionActivity`.
+     - `FFmpegService.kt` & `CompressionService.kt`: Guard `finally` cleanup with monotonic run IDs so superseded jobs never clear active `isRunning` state or strip foreground notifications; migrate `FFmpegService` Cancel notification action from `PendingIntent.getService(..., "STOP")` to an in-process non-exported broadcast receiver calling `requestCancel()`.
+  3. Overlay Foreground Promotion, Video Switch Resize & Player Lifecycle Hardening:
+     - `PlaybackService.kt`: Post `ensureFallbackForegroundNotification()` on `ACTION_VIDEO_OVERLAY` / `ACTION_MINIPLAYER` / `ACTION_OVERLAY` whenever playback is not actively playing (including paused non-empty queues); fix `onSwitchToVideo` resize by reading live `isOverlayVideoMode` / `!isMinimized` inside `updateWindowForAspectRatio`; harden `ACTION_PLAY_FILE` URI validation and remove video `setArtworkUri`.
+     - `PlayerManager.kt`: Execute `flushProgressToStorage(player)` on the Main Looper inside `release()`'s `releaseBlock` before `player.stop()` / `player.release()`.
+     - `MainActivity.kt` & `PlayerScreen.kt`: Remove unsolicited `MainActivity.onUserLeaveHint()` PiP trigger; guard TopBar back `clearMediaItems()` behind `playerError == null`; deduplicate `STATE_ENDED` / `END_OF_MEDIA_ITEM` `onNavigateBack()`.
+  4. Backup Restore Off-Main-Thread Hardening, Widget Safety, Video Join Audio Fallback & Log Privacy:
+     - `BackupManager.kt` & `SettingsScreen.kt`: Run backup stream reads, JSON parsing, and SAF `contentResolver.query` lookups on `Dispatchers.IO`; validate restored URI schemes.
+     - `backup_rules.xml` & `data_extraction_rules.xml`: Exclude `widget_prefs.xml`, `log_catcher_prefs.xml`, and `media_database`.
+     - `MediaWidgetProvider.kt`: Fix `ACTION_FFWD` `C.TIME_UNSET` clamp bug, handle `"ACTION_MINIPLAYER"` command, and move `MediaController.releaseFuture` into `finally`.
+     - `VideoEditorScreen.kt`: Probe per-clip audio presence for joined MP4s and inject duration-matched silent `anullsrc` (or video-only concat when all segments are silent) to prevent `Stream specifier ':a' matches no streams`; block silent-video MP3 export before spawning `FFmpegService`.
+     - `LogCatcher.kt`: Tighten path regexes to redact full space-containing storage paths, parse `timeStr` timestamps accurately in `parseLogLine()`, and record accurate receipt clarifications in `RECEIPTS_031.md`.
+

@@ -301,7 +301,12 @@ fun PlayerScreen(
             }
         }
         val filter = android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED)
-        context.registerReceiver(receiver, filter)
+        androidx.core.content.ContextCompat.registerReceiver(
+            context,
+            receiver,
+            filter,
+            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
+        )
         onDispose {
             try {
                 context.unregisterReceiver(receiver)
@@ -656,7 +661,7 @@ fun PlayerScreen(
     LaunchedEffect(mediaController) {
         mediaController?.let {
             repeatMode = it.repeatMode
-            it.pauseAtEndOfMediaItems = (it.repeatMode == androidx.media3.common.Player.REPEAT_MODE_OFF)
+            it.pauseAtEndOfMediaItems = false
         }
     }
 
@@ -750,7 +755,7 @@ fun PlayerScreen(
                 val startPos = if (lastPos > 0 && !settingsManager.isFinished(decodedUriString, fileName)) lastPos else 0L
 
                 controller.setMediaItem(initialMediaItem, startPos)
-                controller.pauseAtEndOfMediaItems = (controller.repeatMode == androidx.media3.common.Player.REPEAT_MODE_OFF)
+                controller.pauseAtEndOfMediaItems = false
                 controller.prepare()
                 controller.play()
                 shura.media.service.PlayerManager.isImplicitFolderQueue = true
@@ -916,6 +921,7 @@ fun PlayerScreen(
         }
 
         // updateOrientation(controller.videoSize) removed to prevent old video size from forcing incorrect orientation
+        var didTriggerCompletionBack = false
         val mainListener = object : androidx.media3.common.Player.Listener {
             override fun onIsPlayingChanged(playing: Boolean) {
                 shura.media.LogKeeper.log("PlayerScreen: onIsPlayingChanged = $playing", "PlayerScreen")
@@ -923,6 +929,7 @@ fun PlayerScreen(
             }
 
             override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
+                didTriggerCompletionBack = false
                 val reasonStr = when (reason) {
                     androidx.media3.common.Player.MEDIA_ITEM_TRANSITION_REASON_AUTO -> "AUTO"
                     androidx.media3.common.Player.MEDIA_ITEM_TRANSITION_REASON_SEEK -> "SEEK"
@@ -1038,8 +1045,11 @@ fun PlayerScreen(
                         controller.prepare()
                         controller.play()
                     } else if (currentMode == androidx.media3.common.Player.REPEAT_MODE_OFF) {
-                        shura.media.LogKeeper.log("Player reached STATE_ENDED with no loop/next -> navigating back", "PlayerScreen")
-                        onNavigateBack()
+                        if (!didTriggerCompletionBack) {
+                            didTriggerCompletionBack = true
+                            shura.media.LogKeeper.log("Player reached STATE_ENDED with no loop/next -> navigating back", "PlayerScreen")
+                            onNavigateBack()
+                        }
                     }
                 }
             }
@@ -1070,8 +1080,11 @@ fun PlayerScreen(
                         controller.prepare()
                         controller.play()
                     } else if (controller.repeatMode == androidx.media3.common.Player.REPEAT_MODE_OFF) {
-                        shura.media.LogKeeper.log("End of media item reached with repeatMode OFF and no next item -> navigating back", "PlayerScreen")
-                        onNavigateBack()
+                        if (!didTriggerCompletionBack) {
+                            didTriggerCompletionBack = true
+                            shura.media.LogKeeper.log("End of media item reached with repeatMode OFF and no next item -> navigating back", "PlayerScreen")
+                            onNavigateBack()
+                        }
                     }
                 }
             }
@@ -1724,9 +1737,12 @@ fun PlayerScreen(
                                 }
                                 if (!backgroundPlayEnabledRef.value && !forceBackgroundPlay.get()) {
                                     mediaController?.let { controller ->
+                                        val hasError = controller.playerError != null
                                         controller.pause()
                                         controller.stop()
-                                        controller.clearMediaItems()
+                                        if (!hasError) {
+                                            controller.clearMediaItems()
+                                        }
                                     }
                                     try {
                                         val stopIntent = android.content.Intent(context, shura.media.service.PlaybackService::class.java)
@@ -1888,7 +1904,7 @@ fun PlayerScreen(
                         shura.media.LogKeeper.log("Repeat mode toggled from $repeatMode to $nextMode", "PlayerScreen")
                         repeatMode = nextMode
                         mediaController?.repeatMode = nextMode
-                        mediaController?.pauseAtEndOfMediaItems = (nextMode == androidx.media3.common.Player.REPEAT_MODE_OFF)
+                        mediaController?.pauseAtEndOfMediaItems = false
                     },
                     backgroundPlayEnabled = backgroundPlayEnabled,
                     onBackgroundPlayClick = {

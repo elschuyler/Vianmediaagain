@@ -10,14 +10,20 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.content.pm.ServiceInfo
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import shura.media.LogKeeper
+import shura.media.data.MediaUriResolver
 import shura.media.data.SettingsManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.OutputStream
@@ -31,45 +37,81 @@ object CompressionStatus {
     var currentFile by mutableStateOf(0)
 
     fun stop(context: Context) {
-        isRunning = false
-        val intent = Intent(context, CompressionService::class.java).apply {
-            action = "STOP"
-        }
-        try {
-            context.startService(intent)
-        } catch (e: Exception) {}
+        CompressionService.requestCancel()
     }
 }
 
 class CompressionService : Service() {
 
-    private val serviceJob = Job()
+    companion object {
+        @Volatile
+        private var activeInstance: CompressionService? = null
+
+        fun requestCancel() {
+            activeInstance?.let { svc ->
+                svc.batchRunId.incrementAndGet()
+                svc.isCancelled = true
+                svc.activeBatchJob?.cancel()
+            }
+            Handler(Looper.getMainLooper()).post {
+                CompressionStatus.isRunning = false
+            }
+        }
+    }
+
+    private val serviceJob = SupervisorJob()
     private val serviceScope = CoroutineScope(Dispatchers.IO + serviceJob)
+    @Volatile private var activeBatchJob: Job? = null
+    private val batchRunId = java.util.concurrent.atomic.AtomicLong(0L)
+    private val mainHandler = Handler(Looper.getMainLooper())
     private val CHANNEL_ID = "CompressionServiceChannel"
     @Volatile private var isCancelled = false
 
     override fun onCreate() {
         super.onCreate()
+        activeInstance = this
         createNotificationChannel()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val action = intent?.action
         if (action == "STOP") {
+            batchRunId.incrementAndGet()
             isCancelled = true
-            serviceJob.cancel()
+            activeBatchJob?.cancel()
             CompressionStatus.isRunning = false
             try {
                 ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
                 val nm = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
                 nm?.cancel(1)
             } catch (e: Exception) {}
-            stopSelf()
+            stopSelfResult(startId)
             return START_NOT_STICKY
         }
-        
-        val uris = intent?.getStringArrayListExtra("uris") ?: return START_NOT_STICKY
-        isCancelled = false
+
+        val uris = intent?.getStringArrayListExtra("uris")
+        if (uris.isNullOrEmpty()) {
+            val emptyNotif = NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle("Compressing Images")
+                .setContentText("No files to process")
+                .setSmallIcon(android.R.drawable.stat_sys_upload)
+                .build()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(1, emptyNotif, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+            } else {
+                startForeground(1, emptyNotif)
+            }
+            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+            stopSelfResult(startId)
+            return START_NOT_STICKY
+        }
+
+        val previousJob = activeBatchJob
+        if (previousJob != null && previousJob.isActive) {
+            isCancelled = true
+            previousJob.cancel()
+        }
+
         val maxWidth = intent.getIntExtra("maxWidth", -1)
         val maxHeight = intent.getIntExtra("maxHeight", -1)
         val quality = intent.getIntExtra("quality", 80)
@@ -94,17 +136,32 @@ class CompressionService : Service() {
             LogKeeper.logError("Compressor", "Could not pause player: ${e.message}", e)
         }
 
+        val myRunId = batchRunId.incrementAndGet()
         CompressionStatus.isRunning = true
         CompressionStatus.totalFiles = uris.size
         CompressionStatus.currentFile = 0
 
-        serviceScope.launch {
-            LogKeeper.log("Starting batch compression for ${uris.size} images...", "Compressor")
-            processImages(uris, maxWidth, maxHeight, quality, formatStr)
-            LogKeeper.log("Completed batch compression for ${uris.size} images.", "Compressor")
-            CompressionStatus.isRunning = false
-            ServiceCompat.stopForeground(this@CompressionService, ServiceCompat.STOP_FOREGROUND_REMOVE)
-            stopSelfResult(startId)
+        activeBatchJob = serviceScope.launch {
+            try {
+                previousJob?.join()
+                if (batchRunId.get() != myRunId) return@launch
+                isCancelled = false
+                LogKeeper.log("Starting batch compression for ${uris.size} images...", "Compressor")
+                processImages(uris, maxWidth, maxHeight, quality, formatStr)
+                LogKeeper.log("Completed batch compression for ${uris.size} images.", "Compressor")
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                LogKeeper.log("Batch compression job cancelled.", "Compressor")
+            } catch (e: Exception) {
+                LogKeeper.logError("Compressor", "Unexpected error in batch compression", e)
+            } finally {
+                if (batchRunId.get() == myRunId) {
+                    withContext(Dispatchers.Main.immediate) {
+                        CompressionStatus.isRunning = false
+                    }
+                    ServiceCompat.stopForeground(this@CompressionService, ServiceCompat.STOP_FOREGROUND_REMOVE)
+                    stopSelfResult(startId)
+                }
+            }
         }
 
         return START_NOT_STICKY
@@ -139,7 +196,7 @@ class CompressionService : Service() {
 
         var count = 0
         for (uriStr in uris) {
-            if (isCancelled || !serviceJob.isActive) {
+            if (isCancelled || !currentCoroutineContext().isActive) {
                 LogKeeper.log("Batch compression cancelled/interrupted - halting loop.", "Compressor")
                 break
             }
@@ -147,12 +204,11 @@ class CompressionService : Service() {
             var sourceBitmap: Bitmap? = null
             var outBitmap: Bitmap? = null
             try {
-                
                 // Safely calculate sample size if downscaling is requested
                 val options = BitmapFactory.Options()
                 if (maxWidth > 0 && maxHeight > 0) {
                     options.inJustDecodeBounds = true
-                    contentResolver.openInputStream(uri)?.use { stream ->
+                    MediaUriResolver.openInputStreamSafely(this@CompressionService, uriStr).use { stream ->
                         BitmapFactory.decodeStream(stream, null, options)
                     }
                     val maxTargetDim = maxOf(maxWidth, maxHeight)
@@ -165,13 +221,13 @@ class CompressionService : Service() {
                     options.inJustDecodeBounds = false
                 }
 
-                if (isCancelled || !serviceJob.isActive) break
+                if (isCancelled || !currentCoroutineContext().isActive) break
 
-                contentResolver.openInputStream(uri)?.use { stream ->
+                MediaUriResolver.openInputStreamSafely(this@CompressionService, uriStr).use { stream ->
                     sourceBitmap = BitmapFactory.decodeStream(stream, null, options)
                 }
 
-                if (isCancelled || !serviceJob.isActive) break
+                if (isCancelled || !currentCoroutineContext().isActive) break
 
                 if (sourceBitmap != null) {
                     val bitmap = sourceBitmap!!
@@ -179,26 +235,26 @@ class CompressionService : Service() {
                     if (maxWidth > 0 && maxHeight > 0) {
                         val maxDim = maxOf(maxWidth, maxHeight).toFloat()
                         val minDim = minOf(maxWidth, maxHeight).toFloat()
-                        
+
                         val targetW = if (bitmap.width > bitmap.height) maxDim else minDim
                         val targetH = if (bitmap.width > bitmap.height) minDim else maxDim
-                        
+
                         val ratio = minOf(targetW / bitmap.width, targetH / bitmap.height)
-                        
+
                         if (ratio < 1f) {
                             val newW = (bitmap.width * ratio).toInt().coerceAtLeast(1)
                             val newH = (bitmap.height * ratio).toInt().coerceAtLeast(1)
                             outBitmap = Bitmap.createScaledBitmap(bitmap, newW, newH, true)
                         }
                     }
-                    
+
                     val compressFormat = when (formatStr) {
                         "PNG" -> Bitmap.CompressFormat.PNG
                         "WEBP" -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) Bitmap.CompressFormat.WEBP_LOSSY else Bitmap.CompressFormat.WEBP
                         else -> Bitmap.CompressFormat.JPEG
                     }
                     val ext = formatStr.lowercase()
-                    
+
                     val origName = getOriginalFileName(uri)
                     val fileName = "${origName}_compressed.${ext}"
                     getOutputStream(outputUriStr, fileName, ext)?.use { s ->
@@ -230,7 +286,7 @@ class CompressionService : Service() {
                     } catch (e: Exception) {}
                 }
             }
-            if (isCancelled || !serviceJob.isActive) break
+            if (isCancelled || !currentCoroutineContext().isActive) break
             count++
             val notification = NotificationCompat.Builder(this@CompressionService, CHANNEL_ID)
                 .setContentTitle("Compressing Images")
@@ -239,8 +295,11 @@ class CompressionService : Service() {
                 .setProgress(uris.size, count, false)
                 .build()
             notificationManager.notify(1, notification)
-            CompressionStatus.currentFile = count
-            
+            val updatedCount = count
+            mainHandler.post {
+                CompressionStatus.currentFile = updatedCount
+            }
+
             if (count % 5 == 0 || count == uris.size) {
                 LogKeeper.log("Progress: $count / ${uris.size} processed.", "Compressor")
             }
@@ -302,8 +361,10 @@ class CompressionService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        if (activeInstance === this) activeInstance = null
         isCancelled = true
         CompressionStatus.isRunning = false
+        activeBatchJob?.cancel()
         serviceJob.cancel()
     }
 }

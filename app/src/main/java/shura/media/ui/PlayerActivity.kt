@@ -144,7 +144,7 @@ class PlayerActivity : ComponentActivity() {
                 val lastPos = settings.getPlaybackPosition(decodedStr, activeName)
                 val startPos = if (lastPos > 0 && !settings.isFinished(decodedStr, activeName)) lastPos else 0L
                 player.setMediaItems(queueItems, queueIndex, startPos)
-                player.pauseAtEndOfMediaItems = (player.repeatMode == androidx.media3.common.Player.REPEAT_MODE_OFF)
+                player.pauseAtEndOfMediaItems = false
                 player.prepare()
                 player.play()
                 PlayerManager.isImplicitFolderQueue = true
@@ -164,7 +164,7 @@ class PlayerActivity : ComponentActivity() {
                 val lastPos = settings.getPlaybackPosition(decodedStr, fastName)
                 val startPos = if (lastPos > 0 && !settings.isFinished(decodedStr, fastName)) lastPos else 0L
                 player.setMediaItem(mediaItem, startPos)
-                player.pauseAtEndOfMediaItems = (player.repeatMode == androidx.media3.common.Player.REPEAT_MODE_OFF)
+                player.pauseAtEndOfMediaItems = false
                 player.prepare()
                 player.play()
                 PlayerManager.isImplicitFolderQueue = true

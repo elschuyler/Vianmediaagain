@@ -189,11 +189,11 @@ object PlayerManager {
             .setSkipSilenceEnabled(skipSilence)
             .build()
         
-        exoPlayer?.pauseAtEndOfMediaItems = (exoPlayer?.repeatMode == Player.REPEAT_MODE_OFF)
+        exoPlayer?.pauseAtEndOfMediaItems = false
         
         exoPlayer?.addListener(object : androidx.media3.common.Player.Listener {
             override fun onRepeatModeChanged(repeatMode: Int) {
-                exoPlayer?.pauseAtEndOfMediaItems = (repeatMode == Player.REPEAT_MODE_OFF)
+                exoPlayer?.pauseAtEndOfMediaItems = false
                 updateSnapshot()
             }
             override fun onPlaybackStateChanged(playbackState: Int) {
@@ -532,9 +532,9 @@ object PlayerManager {
         progressTickerJob = null
     }
 
-    fun flushProgressToStorage() {
+    fun flushProgressToStorage(targetPlayer: ExoPlayer? = exoPlayer) {
         try {
-            val player = exoPlayer ?: return
+            val player = targetPlayer ?: return
             val currentItem = player.currentMediaItem ?: return
             val uri = currentItem.localConfiguration?.uri ?: currentItem.mediaId.let { android.net.Uri.parse(it) } ?: return
             val uriStr = uri.toString()
@@ -562,32 +562,31 @@ object PlayerManager {
     fun release() {
         pendingQueueItems = null
         pendingQueueIndex = 0
-        flushProgressToStorage()
         progressTickerJob?.cancel()
         progressTickerJob = null
         _playbackState.value = PlayerSnapshot()
         val player = exoPlayer
         exoPlayer = null
-        playerScope.launch {
-            try {
-                player?.let { p ->
-                    val hasError = (p.playerError != null)
-                    try { p.stop() } catch (e: Exception) {}
+        if (player != null) {
+            val releaseBlock = {
+                try {
+                    flushProgressToStorage(player)
+                    val hasError = (player.playerError != null)
+                    try { player.stop() } catch (e: Exception) {}
                     if (!hasError) {
-                        try { p.clearVideoSurface() } catch (e: Exception) {}
-                        try { p.clearMediaItems() } catch (e: Exception) {}
+                        try { player.clearVideoSurface() } catch (e: Exception) {}
+                        try { player.clearMediaItems() } catch (e: Exception) {}
                     }
-                    val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
-                    mainHandler.post {
-                        try { 
-                            p.release() 
-                        } catch (e: Exception) {
-                            shura.media.LogKeeper.log("PlayerManager: Handled player release (${e.message})", "PlayerManager")
-                        }
-                    }
+                    player.release()
+                } catch (e: Exception) {
+                    shura.media.LogKeeper.log("PlayerManager: Handled ExoPlayer release (${e.message})", "PlayerManager")
                 }
-            } catch (e: Exception) {
-                shura.media.LogKeeper.log("PlayerManager: Handled ExoPlayer release background job", "PlayerManager")
+                Unit
+            }
+            if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+                releaseBlock()
+            } else {
+                android.os.Handler(android.os.Looper.getMainLooper()).post { releaseBlock() }
             }
         }
         try {

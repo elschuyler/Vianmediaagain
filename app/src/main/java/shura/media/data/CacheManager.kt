@@ -48,19 +48,24 @@ object CacheManager {
      */
     suspend fun clearUnusedCache(context: Context): Long = withContext(Dispatchers.IO) {
         var freedBytes = 0L
+        // Clear Coil in-memory and disk caches via API first so its active DiskCache journal stays consistent
+        try {
+            val imageLoader = coil.Coil.imageLoader(context)
+            val diskCacheSizeBefore = imageLoader.diskCache?.size ?: 0L
+            imageLoader.memoryCache?.clear()
+            imageLoader.diskCache?.clear()
+            val diskCacheSizeAfter = imageLoader.diskCache?.size ?: 0L
+            freedBytes += (diskCacheSizeBefore - diskCacheSizeAfter).coerceAtLeast(0L)
+        } catch (e: Exception) {
+            LogKeeper.logError("CacheManager", "Error clearing image loader cache", e)
+        }
         val dirsToClean = listOfNotNull(context.cacheDir, context.externalCacheDir)
         for (dir in dirsToClean) {
             val files = dir.listFiles() ?: continue
             for (file in files) {
+                if (file.name == "thumbnail_cache") continue
                 freedBytes += deleteRecursiveWithCount(file)
             }
-        }
-        // Clear Coil in-memory and disk caches if active
-        try {
-            coil.Coil.imageLoader(context).memoryCache?.clear()
-            coil.Coil.imageLoader(context).diskCache?.clear()
-        } catch (e: Exception) {
-            LogKeeper.logError("CacheManager", "Error clearing image loader cache", e)
         }
         LogKeeper.log("CacheManager: Cleared unused cache, freed ${formatBytes(freedBytes)}", "CacheManager")
         freedBytes
@@ -99,7 +104,7 @@ object CacheManager {
                         name.startsWith("ffmpeg_") ||
                         name.startsWith("preconverted_") ||
                         name.startsWith("Temp_Trim_") ||
-                        name == "thumbnail_cache"
+                        name.startsWith("Temp_Input_")
                     ) {
                         deleteRecursiveWithCount(file)
                     }

@@ -636,8 +636,10 @@ private fun DataManagementPage(onNavigateBack: () -> Unit) {
             coroutineScope.launch {
                 try {
                     val backupStr = shura.media.data.BackupManager.createBackup(context)
-                    context.contentResolver.openOutputStream(it)?.use { os ->
-                        os.write(backupStr.toByteArray())
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        context.contentResolver.openOutputStream(it)?.use { os ->
+                            os.write(backupStr.toByteArray())
+                        }
                     }
                     android.widget.Toast.makeText(context, "Backup saved successfully!", android.widget.Toast.LENGTH_LONG).show()
                 } catch (e: Exception) {
@@ -654,8 +656,10 @@ private fun DataManagementPage(onNavigateBack: () -> Unit) {
         uri?.let {
             coroutineScope.launch {
                 try {
-                    val backupStr = context.contentResolver.openInputStream(it)?.bufferedReader()?.use { reader ->
-                        reader.readText()
+                    val backupStr = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        context.contentResolver.openInputStream(it)?.bufferedReader()?.use { reader ->
+                            reader.readText()
+                        }
                     }
                     if (backupStr != null) {
                         val success = shura.media.data.BackupManager.restoreBackup(context, backupStr)
