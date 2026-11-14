@@ -35,7 +35,6 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.*
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -66,7 +65,9 @@ import shura.media.data.AppDatabase
 import shura.media.data.Playlist
 import shura.media.data.PlaylistItem
 import shura.media.data.PlaylistRepository
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.distinctUntilChanged
 import shura.media.data.MediaFolder
 import shura.media.data.MediaItem
@@ -83,18 +84,22 @@ fun MainScreen(
     onNavigateToAudioTrimmer: (String) -> Unit = {},
     onNavigateToVideoEditor: (String) -> Unit = {},
     onNavigateToVideoEditorWithJoin: (String, List<String>) -> Unit = { _, _ -> },
+    onNavigateToSettings: () -> Unit = {},
     initialSearchActive: Boolean = false
 ) {
-    val viewModel: MediaViewModel = viewModel()
-    val mediaFolders by viewModel.mediaFolders.collectAsState()
-    val allVideos by viewModel.allVideos.collectAsState()
-    val playlists by viewModel.playlists.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-    val selectedTab by viewModel.selectedTab.collectAsState()
-    val selectedFolderId by viewModel.selectedFolderId.collectAsState()
-    val sortOrder by viewModel.sortOrder.collectAsState()
+    val context = LocalContext.current
+    val settingsManager = remember(context) { SettingsManager.getInstance(context) }
+    val activityOwner = (context as? androidx.activity.ComponentActivity)
+        ?: androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner.current!!
+    val viewModel: MediaViewModel = viewModel(viewModelStoreOwner = activityOwner)
+    val mediaFolders by viewModel.mediaFolders.collectAsStateWithLifecycle()
+    val allVideos by viewModel.allVideos.collectAsStateWithLifecycle()
+    val playlists by viewModel.playlists.collectAsStateWithLifecycle()
+    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val selectedTab by viewModel.selectedTab.collectAsStateWithLifecycle()
+    val selectedFolderId by viewModel.selectedFolderId.collectAsStateWithLifecycle()
+    val sortOrder by viewModel.sortOrder.collectAsStateWithLifecycle()
 
-    var showSettingsDialog by rememberSaveable { mutableStateOf(false) }
     var showNetworkStreamDialog by rememberSaveable { mutableStateOf(false) }
 
     val selectedFolder = remember(mediaFolders, selectedFolderId) { mediaFolders.find { it.id == selectedFolderId } }
@@ -115,40 +120,10 @@ fun MainScreen(
         initialFirstVisibleItemScrollOffset = viewModel.playlistsScrollOffset
     )
 
-    LaunchedEffect(folderListState) {
-        snapshotFlow { folderListState.firstVisibleItemIndex }
-            .distinctUntilChanged()
-            .collect { idx ->
-                viewModel.foldersScrollIndex = idx
-                viewModel.foldersScrollOffset = folderListState.firstVisibleItemScrollOffset
-            }
-    }
-    LaunchedEffect(videoListState) {
-        snapshotFlow { videoListState.firstVisibleItemIndex }
-            .distinctUntilChanged()
-            .collect { idx ->
-                viewModel.videosScrollIndex = idx
-                viewModel.videosScrollOffset = videoListState.firstVisibleItemScrollOffset
-            }
-    }
-    LaunchedEffect(mediaListState) {
-        snapshotFlow { mediaListState.firstVisibleItemIndex }
-            .distinctUntilChanged()
-            .collect { idx ->
-                viewModel.folderDetailScrollIndex = idx
-                viewModel.folderDetailScrollOffset = mediaListState.firstVisibleItemScrollOffset
-            }
-    }
-    LaunchedEffect(playlistListState) {
-        snapshotFlow { playlistListState.firstVisibleItemIndex }
-            .distinctUntilChanged()
-            .collect { idx ->
-                viewModel.playlistsScrollIndex = idx
-                viewModel.playlistsScrollOffset = playlistListState.firstVisibleItemScrollOffset
-            }
-    }
-
     val selectedMediaItems = remember { mutableStateListOf<MediaItem>() }
+    val selectedMediaIds by remember {
+        derivedStateOf { selectedMediaItems.mapTo(HashSet()) { it.id } }
+    }
     var lastSelectedIndex by rememberSaveable { mutableStateOf<Int?>(null) }
     val isMultiSelectMode = selectedMediaItems.isNotEmpty()
 
@@ -157,7 +132,6 @@ fun MainScreen(
             lastSelectedIndex = null
         }
     }
-    val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
     val coroutineScope = rememberCoroutineScope()
@@ -177,17 +151,57 @@ fun MainScreen(
     var isSearchActive by rememberSaveable { mutableStateOf(initialSearchActive) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
 
+    LaunchedEffect(folderListState, selectedFolderId, isSearchActive, selectedTab) {
+        if (selectedFolderId == null && !isSearchActive && selectedTab == LibraryTab.FOLDERS) {
+            snapshotFlow { folderListState.firstVisibleItemIndex }
+                .distinctUntilChanged()
+                .collect { idx ->
+                    viewModel.foldersScrollIndex = idx
+                    viewModel.foldersScrollOffset = folderListState.firstVisibleItemScrollOffset
+                }
+        }
+    }
+    LaunchedEffect(videoListState, selectedFolderId, isSearchActive, selectedTab) {
+        if (selectedFolderId == null && (selectedTab == LibraryTab.VIDEOS || isSearchActive)) {
+            snapshotFlow { videoListState.firstVisibleItemIndex }
+                .distinctUntilChanged()
+                .collect { idx ->
+                    viewModel.videosScrollIndex = idx
+                    viewModel.videosScrollOffset = videoListState.firstVisibleItemScrollOffset
+                }
+        }
+    }
+    LaunchedEffect(mediaListState, selectedFolderId) {
+        if (selectedFolderId != null) {
+            snapshotFlow { mediaListState.firstVisibleItemIndex }
+                .distinctUntilChanged()
+                .collect { idx ->
+                    viewModel.folderDetailScrollIndex = idx
+                    viewModel.folderDetailScrollOffset = mediaListState.firstVisibleItemScrollOffset
+                }
+        }
+    }
+    LaunchedEffect(playlistListState, selectedFolderId, isSearchActive, selectedTab) {
+        if (selectedFolderId == null && !isSearchActive && selectedTab == LibraryTab.PLAYLISTS) {
+            snapshotFlow { playlistListState.firstVisibleItemIndex }
+                .distinctUntilChanged()
+                .collect { idx ->
+                    viewModel.playlistsScrollIndex = idx
+                    viewModel.playlistsScrollOffset = playlistListState.firstVisibleItemScrollOffset
+                }
+        }
+    }
+
     val deleteLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
         if (result.resultCode == android.app.Activity.RESULT_OK) {
             val imageLoader = context.imageLoader
-            val settings = shura.media.data.SettingsManager.getInstance(context)
             selectedMediaItems.forEach { media ->
                 val uriStr = media.uri.toString()
                 imageLoader.diskCache?.remove(uriStr)
                 imageLoader.memoryCache?.remove(coil.memory.MemoryCache.Key(uriStr))
-                settings.removePlaybackState(uriStr)
+                settingsManager.removePlaybackState(uriStr)
             }
             selectedFolderId?.let { viewModel.scanFolder(it) } ?: viewModel.refreshMedia()
             selectedMediaItems.clear()
@@ -240,7 +254,7 @@ fun MainScreen(
         viewModel.selectTab(LibraryTab.FOLDERS)
     }
 
-    var lastPlayedUri by remember { mutableStateOf(shura.media.data.SettingsManager.getInstance(context).getLastPlayedUri()) }
+    var lastPlayedUri by remember { mutableStateOf(settingsManager.getLastPlayedUri()) }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -250,12 +264,8 @@ fun MainScreen(
                 }
                 Lifecycle.Event.ON_START -> {
                     viewModel.resumeOperations()
-                    lastPlayedUri = shura.media.data.SettingsManager.getInstance(context).getLastPlayedUri()
-                    if (selectedFolderId != null) {
-                        viewModel.scanFolder(selectedFolderId!!)
-                    } else if (selectedTab == LibraryTab.VIDEOS) {
-                        viewModel.loadMedia(forceRefresh = true, silent = true)
-                    }
+                    lastPlayedUri = settingsManager.getLastPlayedUri()
+                    viewModel.syncPlaybackTags()
                 }
                 else -> {}
             }
@@ -325,14 +335,40 @@ fun MainScreen(
                     } else if (isMultiSelectMode) {
                         IconButton(onClick = { 
                             if (selectedMediaItems.isNotEmpty()) {
-                                val firstMedia = selectedMediaItems.first()
-                                val isAnim = firstMedia.mediaType == shura.media.data.MediaType.IMAGE && shura.media.data.isAnimatedMedia(context, firstMedia.uri)
-                                if (firstMedia.mediaType == shura.media.data.MediaType.IMAGE && !isAnim) {
-                                    onNavigateToPhotoEditor(firstMedia.uri.toString())
-                                } else {
-                                    onNavigateToPlayer(firstMedia.uri.toString())
-                                }
+                                val selectedSnapshot = selectedMediaItems.toList()
                                 selectedMediaItems.clear()
+                                val firstMedia = selectedSnapshot.first()
+                                coroutineScope.launch {
+                                    val playableItems = withContext(Dispatchers.IO) {
+                                        selectedSnapshot.filter { item ->
+                                            item.mediaType != shura.media.data.MediaType.IMAGE ||
+                                                item.name.endsWith(".gif", true) ||
+                                                (item.name.endsWith(".webp", true) && shura.media.data.isAnimatedMedia(context, item.uri))
+                                        }
+                                    }
+                                    if (playableItems.isEmpty()) {
+                                        onNavigateToPhotoEditor(firstMedia.uri.toString())
+                                    } else {
+                                        if (playableItems.size > 1) {
+                                            val queue = withContext(Dispatchers.Default) {
+                                                playableItems.map { m ->
+                                                    val meta = androidx.media3.common.MediaMetadata.Builder()
+                                                        .setTitle(m.name)
+                                                        .setDisplayTitle(m.name)
+                                                        .setArtworkUri(m.uri)
+                                                        .build()
+                                                    androidx.media3.common.MediaItem.Builder()
+                                                        .setUri(m.uri)
+                                                        .setMediaId(m.uri.toString())
+                                                        .setMediaMetadata(meta)
+                                                        .build()
+                                                }
+                                            }
+                                            shura.media.service.PlayerManager.setPendingQueue(queue, 0, isImplicit = false)
+                                        }
+                                        onNavigateToPlayer(playableItems.first().uri.toString())
+                                    }
+                                }
                             }
                         }) {
                             Icon(Icons.Filled.PlayArrow, contentDescription = "Play")
@@ -365,7 +401,7 @@ fun MainScreen(
                                     DropdownMenuItem(text = { Text("Sort by Date") }, onClick = { viewModel.setSortOrder(SortOrder.DATE); showOverflowMenu = false })
                                 }
                                 DropdownMenuItem(text = { Text("Network Stream") }, onClick = { showNetworkStreamDialog = true; showOverflowMenu = false })
-                                DropdownMenuItem(text = { Text("Settings") }, onClick = { showSettingsDialog = true; showOverflowMenu = false })
+                                DropdownMenuItem(text = { Text("Settings") }, onClick = { showOverflowMenu = false; onNavigateToSettings() })
                             }
                         }
                     }
@@ -389,11 +425,21 @@ fun MainScreen(
                             Spacer(modifier = Modifier.weight(1f))
                         }
                         IconButton(onClick = {
+                            val uris = selectedMediaItems.map { it.uri }
                             val intent = android.content.Intent(context, shura.media.BatchActionActivity::class.java).apply {
                                 action = android.content.Intent.ACTION_SEND_MULTIPLE
                                 type = "*/*"
                                 putExtra("force_ffmpeg", true)
-                                putParcelableArrayListExtra(android.content.Intent.EXTRA_STREAM, ArrayList(selectedMediaItems.map { it.uri }))
+                                putParcelableArrayListExtra(android.content.Intent.EXTRA_STREAM, ArrayList(uris))
+                                if (uris.isNotEmpty()) {
+                                    data = uris.first()
+                                    val clip = android.content.ClipData.newRawUri("media", uris.first())
+                                    for (i in 1 until uris.size) {
+                                        clip.addItem(android.content.ClipData.Item(uris[i]))
+                                    }
+                                    clipData = clip
+                                }
+                                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                             }
                             context.startActivity(intent)
                         }) {
@@ -461,16 +507,29 @@ fun MainScreen(
                 } else if (mediaFolders.isNotEmpty()) {
                     FloatingActionButton(
                         onClick = {
-                            val settings = shura.media.data.SettingsManager.getInstance(context)
                             val itemsToConsider = if (selectedFolder != null) selectedFolder.mediaItems else allVideos
                             
                             // Find the one with the most recent Play time, or just the first if none
-                            val sorted = itemsToConsider.sortedByDescending { settings.getLastPlayedTime(it.uri.toString(), it.name) }
+                            val sorted = itemsToConsider.sortedByDescending { settingsManager.getLastPlayedTime(it.uri.toString(), it.name) }
                             val toPlay = sorted.firstOrNull()
                             if (toPlay != null) {
-                                val isAnim = toPlay.mediaType == shura.media.data.MediaType.IMAGE && shura.media.data.isAnimatedMedia(context, toPlay.uri)
-                                if (toPlay.mediaType == shura.media.data.MediaType.IMAGE && !isAnim) {
-                                    onNavigateToPhotoEditor(toPlay.uri.toString())
+                                if (toPlay.mediaType == shura.media.data.MediaType.IMAGE) {
+                                    if (toPlay.name.endsWith(".gif", true)) {
+                                        onNavigateToPlayer(toPlay.uri.toString())
+                                    } else if (toPlay.name.endsWith(".webp", true)) {
+                                        coroutineScope.launch {
+                                            val isAnim = withContext(Dispatchers.IO) {
+                                                shura.media.data.isAnimatedMedia(context, toPlay.uri)
+                                            }
+                                            if (isAnim) {
+                                                onNavigateToPlayer(toPlay.uri.toString())
+                                            } else {
+                                                onNavigateToPhotoEditor(toPlay.uri.toString())
+                                            }
+                                        }
+                                    } else {
+                                        onNavigateToPhotoEditor(toPlay.uri.toString())
+                                    }
                                 } else {
                                     onNavigateToPlayer(toPlay.uri.toString())
                                 }
@@ -646,7 +705,6 @@ fun MainScreen(
                                     SortOrder.DATE -> mediaFolders.sortedByDescending { it.dateModified }
                                 }
                             }
-                            val settingsManager = remember { SettingsManager.getInstance(context) }
                             var folderForOptionsMenu by remember { mutableStateOf<MediaFolder?>(null) }
 
                             LazyColumn(
@@ -714,7 +772,7 @@ fun MainScreen(
                                     key = { _, media -> media.id },
                                     contentType = { _, _ -> "media_item" }
                                 ) { index, media ->
-                                    val isSelected = selectedMediaItems.contains(media)
+                                    val isSelected = media.id in selectedMediaIds
                                     val isSeen = media.tag == PlaybackTag.SEEN
                                     val isPlaying = media.tag == PlaybackTag.PLAYING
                                     val isLastPlayed = isPlaying && (lastPlayedUri != null && (lastPlayedUri == media.uri.toString() || lastPlayedUri == media.name))
@@ -735,36 +793,72 @@ fun MainScreen(
                                                 lastSelectedIndex = index
                                             } else {
                                                 viewModel.markAsStarted(media.id)
-                                                val isAnim = media.mediaType == shura.media.data.MediaType.IMAGE && shura.media.data.isAnimatedMedia(context, media.uri)
-                                                if (media.mediaType == shura.media.data.MediaType.IMAGE && !isAnim) {
-                                                    onNavigateToPhotoEditor(media.uri.toString())
-                                                } else {
-                                                    try {
-                                                        val isTargetAudio = media.mediaType == shura.media.data.MediaType.AUDIO
-                                                        val queue = sortedMediaItems.filter {
-                                                            if (isTargetAudio) {
-                                                                it.mediaType == shura.media.data.MediaType.AUDIO
-                                                            } else {
-                                                                it.mediaType == shura.media.data.MediaType.VIDEO ||
-                                                                (it.mediaType == shura.media.data.MediaType.IMAGE && (it.name.endsWith(".gif", true) || it.name.endsWith(".webp", true)))
+                                                val launchPlayerWithAsyncQueue = {
+                                                    val targetUriStr = media.uri.toString()
+                                                    val isTargetAudio = media.mediaType == shura.media.data.MediaType.AUDIO
+                                                    val folderItemsSnapshot = sortedMediaItems.toList()
+                                                    shura.media.service.PlayerManager.isQueuePopulationInProgress = true
+                                                    onNavigateToPlayer(targetUriStr)
+                                                    coroutineScope.launch {
+                                                        try {
+                                                            val (queue, targetIdx) = withContext(Dispatchers.Default) {
+                                                                val built = folderItemsSnapshot.filter {
+                                                                    if (isTargetAudio) {
+                                                                        it.mediaType == shura.media.data.MediaType.AUDIO
+                                                                    } else {
+                                                                        it.mediaType == shura.media.data.MediaType.VIDEO ||
+                                                                        (it.mediaType == shura.media.data.MediaType.IMAGE && (it.name.endsWith(".gif", true) || it.name.endsWith(".webp", true)))
+                                                                    }
+                                                                }.map { m ->
+                                                                    val meta = androidx.media3.common.MediaMetadata.Builder()
+                                                                        .setTitle(m.name)
+                                                                        .setDisplayTitle(m.name)
+                                                                        .setArtworkUri(m.uri)
+                                                                        .build()
+                                                                    androidx.media3.common.MediaItem.Builder()
+                                                                        .setUri(m.uri)
+                                                                        .setMediaId(m.uri.toString())
+                                                                        .setMediaMetadata(meta)
+                                                                        .build()
+                                                                }
+                                                                val idx = built.indexOfFirst { it.mediaId == targetUriStr }.coerceAtLeast(0)
+                                                                built to idx
                                                             }
-                                                        }.map { m ->
-                                                            val meta = androidx.media3.common.MediaMetadata.Builder()
-                                                                .setTitle(m.name)
-                                                                .setDisplayTitle(m.name)
-                                                                .build()
-                                                            androidx.media3.common.MediaItem.Builder()
-                                                                .setUri(m.uri)
-                                                                .setMediaId(m.uri.toString())
-                                                                .setMediaMetadata(meta)
-                                                                .build()
+                                                            shura.media.service.PlayerManager.applyFolderQueueAroundCurrent(
+                                                                activeMediaId = targetUriStr,
+                                                                fullQueue = queue,
+                                                                startIndex = targetIdx,
+                                                                isImplicit = true
+                                                            )
+                                                        } catch (e: kotlinx.coroutines.CancellationException) {
+                                                            shura.media.service.PlayerManager.isQueuePopulationInProgress = false
+                                                            throw e
+                                                        } catch (e: Exception) {
+                                                            shura.media.service.PlayerManager.isQueuePopulationInProgress = false
+                                                            shura.media.LogKeeper.logError("MainScreen", "Failed to build pending folder queue", e)
                                                         }
-                                                        val targetIdx = queue.indexOfFirst { it.mediaId == media.uri.toString() }.coerceAtLeast(0)
-                                                        shura.media.service.PlayerManager.setPendingQueue(queue, targetIdx)
-                                                    } catch (e: Exception) {
-                                                        shura.media.LogKeeper.logError("MainScreen", "Failed to build pending folder queue", e)
                                                     }
-                                                    onNavigateToPlayer(media.uri.toString())
+                                                }
+
+                                                if (media.mediaType == shura.media.data.MediaType.IMAGE) {
+                                                    if (media.name.endsWith(".gif", true)) {
+                                                        launchPlayerWithAsyncQueue()
+                                                    } else if (media.name.endsWith(".webp", true)) {
+                                                        coroutineScope.launch {
+                                                            val isAnim = withContext(Dispatchers.IO) {
+                                                                shura.media.data.isAnimatedMedia(context, media.uri)
+                                                            }
+                                                            if (isAnim) {
+                                                                launchPlayerWithAsyncQueue()
+                                                            } else {
+                                                                onNavigateToPhotoEditor(media.uri.toString())
+                                                            }
+                                                        }
+                                                    } else {
+                                                        onNavigateToPhotoEditor(media.uri.toString())
+                                                    }
+                                                } else {
+                                                    launchPlayerWithAsyncQueue()
                                                 }
                                             }
                                         },
@@ -778,7 +872,7 @@ fun MainScreen(
                                                 val range = if (start < end) start..end else end..start
                                                 for (i in range) {
                                                     val item = sortedMediaItems[i]
-                                                    if (!selectedMediaItems.contains(item)) {
+                                                    if (item.id !in selectedMediaIds) {
                                                         selectedMediaItems.add(item)
                                                     }
                                                 }
@@ -1016,24 +1110,30 @@ fun MainScreen(
         var singleItemPath by remember(selectedMediaItems) { mutableStateOf("Unknown") }
         
         LaunchedEffect(selectedMediaItems) {
-            var calcSize = 0L
-            val contextResolver = context.contentResolver
-            for (item in selectedMediaItems) {
-                try {
-                    contextResolver.query(item.uri, arrayOf(android.provider.MediaStore.MediaColumns.SIZE, android.provider.MediaStore.MediaColumns.DATA), null, null, null)?.use { cursor ->
-                        if (cursor.moveToFirst()) {
-                            calcSize += cursor.getLong(0)
-                            if (selectedMediaItems.size == 1) {
-                                singleItemPath = cursor.getString(1) ?: item.uri.toString()
+            val itemsSnapshot = selectedMediaItems.toList()
+            val (calcSize, resolvedPath) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                var sizeAcc = 0L
+                var pathAcc = "Unknown"
+                val contextResolver = context.contentResolver
+                for (item in itemsSnapshot) {
+                    try {
+                        contextResolver.query(item.uri, arrayOf(android.provider.MediaStore.MediaColumns.SIZE, android.provider.MediaStore.MediaColumns.DATA), null, null, null)?.use { cursor ->
+                            if (cursor.moveToFirst()) {
+                                sizeAcc += cursor.getLong(0)
+                                if (itemsSnapshot.size == 1) {
+                                    pathAcc = cursor.getString(1) ?: item.uri.toString()
+                                }
                             }
                         }
-                    }
-                } catch (e: Exception) {}
+                    } catch (e: Exception) {}
+                }
+                if (itemsSnapshot.size == 1 && pathAcc == "Unknown") {
+                    pathAcc = itemsSnapshot.first().uri.toString()
+                }
+                Pair(sizeAcc, pathAcc)
             }
             totalSize = calcSize
-            if (selectedMediaItems.size == 1 && singleItemPath == "Unknown") {
-               singleItemPath = selectedMediaItems.first().uri.toString()
-            }
+            singleItemPath = resolvedPath
         }
         val sizeInMB = totalSize / (1024 * 1024)
         
@@ -1106,7 +1206,7 @@ fun MainScreen(
                                         val imageLoader = context.imageLoader
                                         imageLoader.diskCache?.remove(uri.toString())
                                         imageLoader.memoryCache?.remove(coil.memory.MemoryCache.Key(uri.toString()))
-                                        shura.media.data.SettingsManager.getInstance(context).removePlaybackState(uri.toString())
+                                        settingsManager.removePlaybackState(uri.toString())
                                     } catch (e: Exception) {
                                         shura.media.LogKeeper.logError("MainScreen", "Error deleting file", e)
                                     }
@@ -1129,7 +1229,7 @@ fun MainScreen(
                                         val imageLoader = context.imageLoader
                                         imageLoader.diskCache?.remove(media.uri.toString())
                                         imageLoader.memoryCache?.remove(coil.memory.MemoryCache.Key(media.uri.toString()))
-                                        shura.media.data.SettingsManager.getInstance(context).removePlaybackState(media.uri.toString())
+                                        settingsManager.removePlaybackState(media.uri.toString())
                                     } catch (se: SecurityException) {
                                         if (android.os.Build.VERSION.SDK_INT == android.os.Build.VERSION_CODES.Q) {
                                             val recoverable = se as? android.app.RecoverableSecurityException
@@ -1269,17 +1369,6 @@ fun MainScreen(
                 }
             }
         )
-    }
-
-    if (showSettingsDialog) {
-        androidx.compose.ui.window.Dialog(
-            onDismissRequest = { showSettingsDialog = false },
-            properties = androidx.compose.ui.window.DialogProperties(
-                usePlatformDefaultWidth = false
-            )
-        ) {
-            SettingsScreen(onNavigateBack = { showSettingsDialog = false })
-        }
     }
 }
 

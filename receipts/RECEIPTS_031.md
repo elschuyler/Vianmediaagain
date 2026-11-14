@@ -82,3 +82,74 @@
 * Any deviation from what was requested: None (Option A + all 10 audit items implemented as finalized).
 * Any known issue or follow-up needed: Push to GitHub to run `assembleDebug` and `assembleMinifiedDebug` in CI; inspect R8 build output (`mapping.txt` / any new third-party `-dontwarn` needs from `ffmpeg-kit` or `media3-ffmpeg-decoder`) and run on-device verification on `app-minified-debug.apk`.
 
+## Phase 139: UI & Architecture Hardening (Single Engine, Zero-Video Audio Mode, Loop OFF Fix, PiP Cleanup, 120Hz Library & Settings Navigation)
+* Timestamp: 2026-11-13T12:12:00Z
+* One-line summary: Implemented all 7 Phase 139 architecture, playback, UX, and 120Hz library smoothness items while leaving All Videos tab and Home Screen Widget untouched.
+* Files touched:
+  - BLUEPRINT.md
+  - app/src/main/java/shura/media/ui/screens/PipHelper.kt (deleted)
+  - app/src/main/java/shura/media/ui/screens/PipActionReceiver.kt (deleted)
+  - app/src/main/AndroidManifest.xml
+  - app/src/main/java/shura/media/MainActivity.kt
+  - app/src/main/java/shura/media/service/PlayerManager.kt
+  - app/src/main/java/shura/media/service/PlaybackService.kt
+  - app/src/main/java/shura/media/ui/PlayerActivity.kt
+  - app/src/main/java/shura/media/ui/components/MiniPlayerOverlay.kt
+  - app/src/main/java/shura/media/ui/components/FloatingVideoPlayerOverlay.kt
+  - app/src/main/java/shura/media/ui/screens/PlayerScreen.kt
+  - app/src/main/java/shura/media/ui/EditorActivity.kt
+  - app/src/main/java/shura/media/ui/screens/AudioTrimmerScreen.kt
+  - app/src/main/java/shura/media/ui/screens/PhotoEditorScreen.kt
+  - app/src/main/java/shura/media/ui/screens/VideoEditorScreen.kt
+  - app/src/main/java/shura/media/ui/navigation/AppNavigation.kt
+  - app/src/main/java/shura/media/data/SettingsManager.kt
+  - app/src/main/java/shura/media/data/MediaRepository.kt
+  - app/src/main/java/shura/media/ui/screens/MediaViewModel.kt
+  - app/src/main/java/shura/media/ui/screens/MainScreen.kt
+  - app/src/main/java/shura/media/ui/screens/SettingsScreen.kt
+  - app/compose_compiler_config.conf (created)
+  - app/src/main/baseline-prof.txt (created)
+  - app/build.gradle.kts
+  - receipts/RECEIPTS_031.md
+* What was actually done:
+  - **1. Native Android PiP Plumbing Removal**: Deleted `PipHelper.kt` and `PipActionReceiver.kt`; removed `android:supportsPictureInPicture="true"` from `MainActivity` and `.ui.PlayerActivity` in `AndroidManifest.xml`; removed `MainActivity.pipReceiver`, `ACTION_ENTER_PIP`, and `ACTION_START_PIP`; stripped `PictureInPictureParams`, `isInPipMode`, `isPip`, and `PipActionReceiver` hooks from `PlayerScreen.kt` while keeping custom `WindowManager` overlays (`.PipMediaActivity`, `ACTION_VIDEO_OVERLAY`, `ACTION_MINIPLAYER`).
+  - **2. Loop OFF (`REPEAT_MODE_OFF`) & Notification Next/Prev Replay Fix**: Replaced hardcoded `pauseAtEndOfMediaItems = false` across `PlayerManager.kt`, `PlaybackService.kt`, `PlayerActivity.kt`, `PlayerScreen.kt`, `MiniPlayerOverlay.kt`, and `FloatingVideoPlayerOverlay.kt` with `(repeatMode == Player.REPEAT_MODE_OFF)`. Removed forced `seekToNextMediaItem()` and `onNavigateBack()` on `STATE_ENDED` / `PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM` in `PlayerScreen.kt` (pausing cleanly at end with controls available for Replay/Next/Prev). Guarded `PlaybackService` `STATE_ENDED` stop with `!PlayerManager.isPlayerScreenVisible` and updated Notification Prev/Next, Widget Prev/Next, and Floating Overlay Prev/Next to wrap and call `prepare()` + `play()` from `STATE_ENDED`/`STATE_IDLE`.
+  - **3. True Single Engine Across Players & Editors**: Added `PlaybackService.stopPlaybackAndRelease(context)` and invoked it before navigating to or initializing `EditorActivity`, `AppNavigation` editor routes, `VideoEditorScreen`, `AudioTrimmerScreen`, and `PhotoEditorScreen`. Isolated `VideoEditorScreen` export preview dialog (`isExportPreviewOpen`) so main `exoPlayer` and `bgAudioPlayer` save position and release before `previewPlayer` builds, restoring playback position upon dismissal.
+  - **4. Zero Video Resources When No Video Is Active**: Added `PlayerManager.isPlayerScreenVisible`, `isAudioOnlyHint()`, and `hasSupportedVideoTrack()`. Updated `PlaybackService.onTracksChanged`, `showOverlay`, `handleMinimizeToggle`, and `onSwitchToVideo` to detach video surface and disable video tracks when audio-only or when neither `PlayerScreen` nor floating video overlay is visible. Updated `PlayerScreen.kt` and `FloatingVideoPlayerOverlay.kt` to skip composing `AndroidView(PlayerView)` and render audio UI when `isAudioOnly == true`, guarded `ON_RESUME` video track enabling (`!isAudioOnly`), and guarded screenshot capture against audio-only mode.
+  - **5. Batch-Only External Panels**: Removed duplicate multi-URI batch dialogs (`batchCompressionUris`, `batchFFmpegUris`) and global `CompressionStatus` / `FFmpegStatus` dialogs from `AppNavigation.kt`, keeping `BatchActionActivity` (upgraded `MainScreen.kt` launch Intent with `data`, `ClipData`, and `FLAG_GRANT_READ_URI_PERMISSION`) + short-lived foreground services.
+  - **6. 120Hz Library Smoothness**: Added `SettingsManager.PlaybackStateLookup` for O(1) snapshot reads inside `MediaRepository` cursor loops; removed redundant disk JSON reads in `getMediaFolder()` via optional `cachedFolder`; debounced `MediaViewModel` `scheduleCacheSave()` (1500ms); added fast in-memory `syncPlaybackTags()` replacing forced `ON_START` ContentResolver rescans in `MainScreen.kt`; migrated `MainScreen.kt` to `collectAsStateWithLifecycle()`, single hoisted `SettingsManager`, gated `snapshotFlow` scroll trackers, `HashSet<Long>` `selectedMediaIds`, and `Dispatchers.IO` info dialog query; created `app/compose_compiler_config.conf` (`android.net.Uri`), `app/src/main/baseline-prof.txt`, and `composeCompiler { stabilityConfigurationFiles }` in `app/build.gradle.kts`.
+  - **7. Android UX Hardening (NavHost Settings)**: Promoted `SettingsScreen` out of `Dialog()` into `AppNavigation.kt` `composable("settings")` and shared Activity-scoped `MediaViewModel` across `MainScreen.kt` and `SettingsScreen.kt` (`StorageSettingsPage`) so folder exclusions immediately synchronize.
+* How it was verified: Local static checks passed (`AndroidManifest.xml` parsed cleanly via Python `ElementTree`, balanced brackets/delimiters verified across all 18 modified `.kt`/`.kts` files, codebase grep checks confirmed removal of `PipHelper`/`PipActionReceiver`/`ACTION_ENTER_PIP`/`ACTION_START_PIP`/`isInPictureInPictureMode`/`pauseAtEndOfMediaItems = false`/duplicate batch dialogs, and workspace security scan was clean); `compile_applet` and `lint_applet` executed for workspace toolchain verification. Local `./gradlew` / Android SDK is absent, so Android Gradle build (`assembleDebug` / `assembleMinifiedDebug`) and runtime verification occur on GitHub Actions CI and on-device after export.
+* Any deviation from what was requested: None (All Videos tab and Home Screen Widget preserved untouched; custom floating overlay `.PipMediaActivity` preserved).
+* Any known issue or follow-up needed: Push to GitHub to run CI Gradle compilation (`assembleDebug` and `assembleMinifiedDebug`) and verify all flows in the On-Device Verification Guide.
+
+## Phase 140: Fast Playback Startup, Explicit Queue Propagation & Active-Player Isolation (LogKeeper Preserved)
+* Timestamp: 2026-11-14T18:24:00Z
+* One-line summary: Eliminated startup UI/Binder/thumbnail stalls and unnecessary background DSP/tickers/scans during Main, Mini, Floating, and Background playback while preserving explicit multi-select/playlist queues and keeping LogKeeper/LogCatcher active and untouched.
+* Files touched:
+  - BLUEPRINT.md
+  - app/src/main/java/shura/media/data/SettingsManager.kt
+  - app/src/main/java/shura/media/service/CenterChannelAudioProcessor.kt
+  - app/src/main/java/shura/media/MyBitmapLoader.kt
+  - app/src/main/java/shura/media/service/PlayerManager.kt
+  - app/src/main/java/shura/media/widget/MediaWidgetProvider.kt
+  - app/src/main/java/shura/media/service/PlaybackService.kt
+  - app/src/main/java/shura/media/ui/PlayerActivity.kt
+  - app/src/main/java/shura/media/MainActivity.kt
+  - app/src/main/java/shura/media/ui/components/MiniPlayerOverlay.kt
+  - app/src/main/java/shura/media/ui/components/FloatingVideoPlayerOverlay.kt
+  - app/src/main/java/shura/media/ui/screens/MainScreen.kt
+  - app/src/main/java/shura/media/ui/screens/PlaylistDetailScreen.kt
+  - app/src/main/java/shura/media/ui/screens/PlayerScreen.kt
+  - receipts/RECEIPTS_031.md
+* What was actually done:
+  - **DSP & Settings Isolation**: Changed `centerChannelEnabled` and `nightModeEnabled` defaults to `false` in `SettingsManager.kt`; added `@Volatile enabled` and `releaseScratchBuffer()` in `CenterChannelAudioProcessor.kt` so disabled center-channel mode returns `AudioFormat.NOT_SET` and skips stereo DSP buffer allocation (`isActive() == false`).
+  - **Thumbnail & Notification Metadata Startup**: Reordered `MyBitmapLoader.loadBitmap()` to query Coil `context.imageLoader` (`thumbnail_cache`) before `loadThumbnail` and `MediaMetadataRetriever`. Removed `PlaybackService.ensureArtworkLoaded()` and `PlayerActivity.extractThumbnailBytes()` / `ACTION_UPDATE_NOTIFICATION` and `replaceMediaItem()` thumbnail churn, using lazy `artworkUri` injection in `PlaybackService.ForwardingPlayer.getMediaMetadata()`.
+  - **Startup Main-Thread & Queue Fixes**: Added `PlayerActivity.resolveFastUriOnce()` skipping Binder IPC for `MediaStore.AUTHORITY` and reused `preResolvedUri`; removed duplicate `MediaUriResolver` and `getType`/`grantUriPermission` Main-thread calls in `PlayerScreen.kt` (moving to `Dispatchers.IO`). Added `pendingQueueIsImplicit`, `consumePendingQueueWithImplicitFlag()`, `isQueuePopulationInProgress`, and `applyFolderQueueAroundCurrent()` in `PlayerManager.kt`. Updated `MainScreen.kt` to offload WebP animation checks and folder queue building (`Dispatchers.Default`) while navigating to player immediately on tap, and updated `MainScreen.kt` multi-select Play + `PlaylistDetailScreen.kt` FAB/item clicks to build explicit queues off the Main thread with `isImplicit = false`. Deferred `PlayerScreen.kt` sibling scan until `Player.STATE_READY` (skipping network streams, explicit queues, and active `isQueuePopulationInProgress`), and updated `resolveSiblingPlaylistItems()` to handle audio files via `isAudioOnlyHint` + `COMMON_AUDIO_EXTENSIONS` + `MediaColumns`.
+  - **Background & Player Ticker Isolation**: Removed eager `PlayerManager.initialize()` from `MainActivity.kt` and replaced synchronous `getDisplayNameFromUri()` in `handleFloatingOrMiniIntent()` with fast decoded segments. Consolidated `PlayerManager.updateSnapshot()` onto `Player.Listener.onEvents()` reusing unchanged `playlist` references and deduplicating `"Temp Current"` deletion; gated `PlayerManager` progress ticker to expanded `MiniPlayerOverlay` (`setOverlayProgressTickerActive`); widened `PlayerScreen.kt` periodic save interval from `500ms/3s` to `10s` when A-B repeat and sleep timer are inactive. Deferred `MiniPlayerOverlay.kt` `getMediaFolders()` and `getAllPlaylists()` collection until `explorerMode` switches to `"folders"`/`"playlists"`. Removed unused playlist mirror list/loop from `FloatingVideoPlayerOverlay.kt`. Cached `hasInstalledWidgets` in `MediaWidgetProvider.kt` (`onEnabled`/`onDisabled`/`onDeleted`) and guarded `PlaybackService.updateWidgetUI()`.
+  - **LogKeeper Preserved**: Left `LogKeeper` / `LogCatcher` enabled and untouched per user instruction.
+* How it was verified: Local static verification only — security scan reported clean; brace and parenthesis balance tokenizer reported `OK` across all 13 modified `.kt` files; targeted `grep` confirmed expected symbol updates and preserved `isLogKeeperEnabled`; `compile_applet` and `lint_applet` executed for workspace toolchain verification. Local `./gradlew` / Android SDK is not present here; Kotlin/Android compilation runs on GitHub Actions CI after export, and runtime behavior is not tested on device.
+* Any deviation from what was requested: None (`LogKeeper` / `LogCatcher` retained active as explicitly requested).
+* Any known issue or follow-up needed: Export/push to GitHub Actions to run `assembleDebug` and `assembleMinifiedDebug` and execute the On-Device Verification Guide.
+
+

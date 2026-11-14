@@ -33,9 +33,6 @@ class MainActivity : ComponentActivity() {
       try {
           requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
       } catch (e: Exception) {}
-      try {
-          unregisterReceiver(pipReceiver)
-      } catch (e: Exception) {}
   }
 
   override fun finish() {
@@ -43,16 +40,6 @@ class MainActivity : ComponentActivity() {
           requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
       } catch (e: Exception) {}
       super.finish()
-  }
-
-  private val pipReceiver = object : android.content.BroadcastReceiver() {
-      override fun onReceive(context: android.content.Context?, intent: android.content.Intent?) {
-          if (intent?.action == "shura.media.ACTION_ENTER_PIP") {
-              if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                  enterPictureInPictureMode(shura.media.ui.screens.PipHelper.buildPipParams(this@MainActivity, shura.media.service.PlayerManager.exoPlayer))
-              }
-          }
-      }
   }
 
   private val _currentIntent = kotlinx.coroutines.flow.MutableStateFlow<android.content.Intent?>(null)
@@ -140,14 +127,17 @@ class MainActivity : ComponentActivity() {
       if (isMini) {
           val mediaItems = uris.map { uriStr ->
               val uri = android.net.Uri.parse(uriStr)
-              val name = shura.media.ui.screens.getDisplayNameFromUri(this, uri)
+              val fastName = try {
+                  val seg = uri.lastPathSegment?.let { android.net.Uri.decode(it) }
+                  seg?.substringBeforeLast('.')?.ifBlank { null } ?: "Media"
+              } catch (_: Exception) { "Media" }
               androidx.media3.common.MediaItem.Builder()
                   .setUri(uri)
                   .setMediaId(uriStr)
                   .setMediaMetadata(
                       androidx.media3.common.MediaMetadata.Builder()
-                          .setTitle(name)
-                          .setDisplayTitle(name)
+                          .setTitle(fastName)
+                          .setDisplayTitle(fastName)
                           .setArtworkUri(uri)
                           .build()
                   )
@@ -165,9 +155,9 @@ class MainActivity : ComponentActivity() {
               } else {
                   val settings = shura.media.data.SettingsManager.getInstance(applicationContext)
                   val firstUriStr = uris.first()
-                  val firstName = shura.media.ui.screens.getDisplayNameFromUri(this, android.net.Uri.parse(firstUriStr))
-                  val lastPos = settings.getPlaybackPosition(firstUriStr, firstName)
-                  val startPos = if (lastPos > 0 && !settings.isFinished(firstUriStr, firstName)) lastPos else 0L
+                  val firstFastName = mediaItems.first().mediaMetadata.title?.toString() ?: "Media"
+                  val lastPos = settings.getPlaybackPosition(firstUriStr, firstFastName)
+                  val startPos = if (lastPos > 0 && !settings.isFinished(firstUriStr, firstFastName)) lastPos else 0L
                   player.setMediaItems(mediaItems, 0, startPos)
                   player.prepare()
                   player.play()
@@ -225,7 +215,10 @@ class MainActivity : ComponentActivity() {
       } else if (isPip) {
           val targetUriStr = uris.first()
           val targetUri = android.net.Uri.parse(targetUriStr)
-          val displayName = shura.media.ui.screens.getDisplayNameFromUri(this, targetUri)
+          val displayName = try {
+              val seg = targetUri.lastPathSegment?.let { android.net.Uri.decode(it) }
+              seg?.substringBeforeLast('.')?.ifBlank { null } ?: "Video"
+          } catch (_: Exception) { "Video" }
 
           if (android.provider.Settings.canDrawOverlays(this)) {
               val mediaItem = androidx.media3.common.MediaItem.Builder()
@@ -362,17 +355,6 @@ class MainActivity : ComponentActivity() {
     } catch (e: Exception) {
         LogKeeper.logError("MainActivity", "Error handling startup intent", e)
     }
-    val filter = android.content.IntentFilter("shura.media.ACTION_ENTER_PIP")
-    try {
-        androidx.core.content.ContextCompat.registerReceiver(
-            this,
-            pipReceiver,
-            filter,
-            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
-        )
-    } catch (e: Exception) {
-        LogKeeper.logError("MainActivity", "Error registering pipReceiver", e)
-    }
 
     shura.media.data.CacheManager.purgeOrphanedTempFiles(this)
 
@@ -398,18 +380,12 @@ class MainActivity : ComponentActivity() {
         )
     )
     _currentIntent.value = intent
-    if (intent?.action == "shura.media.ACTION_START_PIP") {
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            enterPictureInPictureMode(shura.media.ui.screens.PipHelper.buildPipParams(this@MainActivity, shura.media.service.PlayerManager.exoPlayer))
-        }
-    }
     
     setContent {
       val currentIntent by _currentIntent.collectAsState()
       val settings = shura.media.data.SettingsManager.getInstance(this)
       val themePref by settings.themePreference.collectAsState()
       val fontPref by settings.fontPreference.collectAsState()
-      shura.media.service.PlayerManager.initialize(this, false)
       MyApplicationTheme(themePreference = themePref, fontPreference = fontPref) {
         var isLoggerOpen by remember { mutableStateOf(false) }
 

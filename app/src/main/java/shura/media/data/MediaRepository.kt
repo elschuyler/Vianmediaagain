@@ -402,12 +402,13 @@ class MediaRepository(private val context: Context) {
         }
     }
 
-    fun getMediaFolder(bucketId: String): MediaFolder? {
-        val cached = getCachedMediaFolders()?.find { it.id == bucketId }
+    fun getMediaFolder(bucketId: String, cachedFolder: MediaFolder? = null): MediaFolder? {
+        val cached = cachedFolder ?: getCachedMediaFolders()?.find { it.id == bucketId }
         
         // Targeted single-folder query targeting strictly BUCKET_ID = ?
         try {
             val settings = SettingsManager.getInstance(context)
+            val playbackLookup = settings.createPlaybackLookup()
             val exts = settings.extensions.value
             val projection = arrayOf(
                 android.provider.MediaStore.MediaColumns._ID,
@@ -483,9 +484,9 @@ class MediaRepository(private val context: Context) {
                     val uri = android.content.ContentUris.withAppendedId(baseUri, id)
                     val uriStr = uri.toString()
 
-                    val isFinished = settings.isFinished(uriStr, name)
-                    val playbackPos = settings.getPlaybackPosition(uriStr, name)
-                    val lastPlayedTime = settings.getLastPlayedTime(uriStr, name)
+                    val isFinished = playbackLookup.isFinished(uriStr, name)
+                    val playbackPos = playbackLookup.getPlaybackPosition(uriStr, name)
+                    val lastPlayedTime = playbackLookup.getLastPlayedTime(uriStr, name)
 
                     val tag = if (isFinished) {
                         PlaybackTag.SEEN
@@ -543,6 +544,7 @@ class MediaRepository(private val context: Context) {
         val folderSizes = mutableMapOf<String, Long>()
 
         val settings = SettingsManager.getInstance(context)
+        val playbackLookup = settings.createPlaybackLookup()
         val excludedFolders = settings.excludedFolders.value
         val exts = settings.extensions.value
 
@@ -656,9 +658,9 @@ class MediaRepository(private val context: Context) {
                     val uri = android.content.ContentUris.withAppendedId(baseUri, id)
                     val uriStr = uri.toString()
                     
-                    val isFinished = settings.isFinished(uriStr, name)
-                    val playbackPos = settings.getPlaybackPosition(uriStr, name)
-                    val lastPlayedTime = settings.getLastPlayedTime(uriStr, name)
+                    val isFinished = playbackLookup.isFinished(uriStr, name)
+                    val playbackPos = playbackLookup.getPlaybackPosition(uriStr, name)
+                    val lastPlayedTime = playbackLookup.getLastPlayedTime(uriStr, name)
                     
                     val tag = if (isFinished) {
                         PlaybackTag.SEEN
@@ -796,7 +798,7 @@ class MediaRepository(private val context: Context) {
         if (mediaItems.isNotEmpty()) {
             val currentTime = System.currentTimeMillis()
             val fifteenDaysMs = 15L * 24 * 60 * 60 * 1000
-            val settingsManager = SettingsManager.getInstance(context)
+            val playbackLookup = settingsManager.createPlaybackLookup()
             
             val updatedItems = mediaItems.map { item ->
                 val baseName = item.name.substringBeforeLast('.').lowercase()
@@ -806,9 +808,9 @@ class MediaRepository(private val context: Context) {
                 val duration = durationMap[item.name] ?: 0L
                 
                 val uriStr = item.uri.toString()
-                val isFinished = settingsManager.isFinished(uriStr, item.name)
-                val playbackPos = settingsManager.getPlaybackPosition(uriStr, item.name)
-                val lastPlayedTime = settingsManager.getLastPlayedTime(uriStr, item.name)
+                val isFinished = playbackLookup.isFinished(uriStr, item.name)
+                val playbackPos = playbackLookup.getPlaybackPosition(uriStr, item.name)
+                val lastPlayedTime = playbackLookup.getLastPlayedTime(uriStr, item.name)
                 
                 val tag = if (isFinished) {
                     PlaybackTag.SEEN

@@ -65,10 +65,25 @@ fun MiniPlayerOverlay(
     
     LaunchedEffect(Unit) {
         shura.media.service.PlayerManager.detachVideoSurface()
-        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            folders = mediaRepo.getMediaFolders()
-            playlistDao.getAllPlaylists().collect {
-                playlistsList = it
+    }
+
+    DisposableEffect(isMinimizedExternal) {
+        shura.media.service.PlayerManager.setOverlayProgressTickerActive(!isMinimizedExternal)
+        onDispose {
+            shura.media.service.PlayerManager.setOverlayProgressTickerActive(false)
+        }
+    }
+
+    LaunchedEffect(explorerMode) {
+        if (explorerMode == "folders" && folders.isEmpty()) {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                folders = mediaRepo.getMediaFolders()
+            }
+        } else if (explorerMode == "playlists") {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                playlistDao.getAllPlaylists().collect {
+                    playlistsList = it
+                }
             }
         }
     }
@@ -350,7 +365,9 @@ fun MiniPlayerOverlay(
                                         Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
                                         else -> Player.REPEAT_MODE_OFF
                                     }
-                                    shura.media.service.PlayerManager.exoPlayer?.pauseAtEndOfMediaItems = false
+                                    shura.media.service.PlayerManager.exoPlayer?.let { ep ->
+                                        ep.pauseAtEndOfMediaItems = (ep.repeatMode == Player.REPEAT_MODE_OFF)
+                                    }
                                 }
                             },
                             modifier = Modifier.size(30.dp)
@@ -545,7 +562,7 @@ fun MiniPlayerOverlay(
                                                 val startPos = if (lastPos > 0 && !settings.isFinished(targetItem.uri.toString(), targetItem.name)) lastPos else 0L
                                                 shura.media.service.PlayerManager.exoPlayer?.let { p ->
                                                     p.setMediaItems(mediaItems, index, startPos)
-                                                    p.pauseAtEndOfMediaItems = false
+                                                    p.pauseAtEndOfMediaItems = (p.repeatMode == Player.REPEAT_MODE_OFF)
                                                     p.prepare()
                                                     p.play()
                                                 }
@@ -637,7 +654,7 @@ fun MiniPlayerOverlay(
                                                 val startPos = if (lastPos > 0 && !settings.isFinished(targetItem.mediaUri, targetName)) lastPos else 0L
                                                 shura.media.service.PlayerManager.exoPlayer?.let { p ->
                                                     p.setMediaItems(mediaItems, index, startPos)
-                                                    p.pauseAtEndOfMediaItems = false
+                                                    p.pauseAtEndOfMediaItems = (p.repeatMode == Player.REPEAT_MODE_OFF)
                                                     p.prepare()
                                                     p.play()
                                                 }

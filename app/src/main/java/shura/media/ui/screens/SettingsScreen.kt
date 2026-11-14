@@ -213,7 +213,9 @@ private fun StorageSettingsPage(onNavigateBack: () -> Unit) {
     val excludedFolders by settingsManager.excludedFolders.collectAsState()
     val outputFolderUri by settingsManager.outputFolderUri.collectAsState()
     var showExcludeDialog by remember { mutableStateOf(false) }
-    val viewModel: MediaViewModel = viewModel()
+    val activityOwner = (context as? androidx.activity.ComponentActivity)
+        ?: androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner.current!!
+    val viewModel: MediaViewModel = viewModel(viewModelStoreOwner = activityOwner)
     val mediaFolders by viewModel.mediaFolders.collectAsState()
 
     val dirPickerLauncher = rememberLauncherForActivityResult(
@@ -297,7 +299,10 @@ private fun StorageSettingsPage(onNavigateBack: () -> Unit) {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.weight(1f)
                             )
-                            IconButton(onClick = { settingsManager.removeExcludedFolder(bucketId) }) {
+                            IconButton(onClick = {
+                                settingsManager.removeExcludedFolder(bucketId)
+                                viewModel.loadMedia(forceRefresh = true, silent = true)
+                            }) {
                                 Icon(Icons.Filled.Delete, contentDescription = "Restore Folder", tint = MaterialTheme.colorScheme.error)
                             }
                         }
@@ -414,6 +419,7 @@ private fun StorageSettingsPage(onNavigateBack: () -> Unit) {
                             TextButton(
                                 onClick = { 
                                     settingsManager.addExcludedFolder(folder.id)
+                                    viewModel.loadMedia(forceRefresh = true, silent = true)
                                     showExcludeDialog = false 
                                 },
                                 modifier = Modifier.fillMaxWidth()

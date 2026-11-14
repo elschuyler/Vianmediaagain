@@ -70,7 +70,31 @@ object PlayerManager {
     val floatingSession = FloatingPlayerSessionState()
     var isImplicitFolderQueue: Boolean = false
     @Volatile
+    var isQueuePopulationInProgress: Boolean = false
+    @Volatile
     var isFloatingVideoActive: Boolean = false
+    @Volatile
+    var isPlayerScreenVisible: Boolean = false
+    @Volatile
+    var isOverlayProgressTickerActive: Boolean = false
+
+    fun isAudioOnlyHint(context: Context, uri: android.net.Uri?): Boolean {
+        if (uri == null) return false
+        val mime = try { context.contentResolver.getType(uri)?.lowercase() } catch (_: Exception) { null }
+        if (mime != null) {
+            if (mime.startsWith("audio/")) return true
+            if (mime.startsWith("video/")) return false
+        }
+        val ext = uri.toString().substringBefore('?').substringAfterLast('.', "").lowercase()
+        return ext.isNotEmpty() && ext != "ogg" && ext in shura.media.data.COMMON_AUDIO_EXTENSIONS
+    }
+
+    fun hasSupportedVideoTrack(tracks: androidx.media3.common.Tracks?): Boolean {
+        if (tracks == null) return false
+        return tracks.groups.any { group ->
+            group.type == C.TRACK_TYPE_VIDEO && group.length > 0 && group.isSupported
+        }
+    }
 
     private val blacklistedDecoders = java.util.Collections.synchronizedSet(mutableSetOf<String>())
 
@@ -189,41 +213,26 @@ object PlayerManager {
             .setSkipSilenceEnabled(skipSilence)
             .build()
         
-        exoPlayer?.pauseAtEndOfMediaItems = false
+        exoPlayer?.let { p ->
+            p.pauseAtEndOfMediaItems = (p.repeatMode == Player.REPEAT_MODE_OFF)
+        }
         
         exoPlayer?.addListener(object : androidx.media3.common.Player.Listener {
             override fun onRepeatModeChanged(repeatMode: Int) {
-                exoPlayer?.pauseAtEndOfMediaItems = false
-                updateSnapshot()
+                exoPlayer?.pauseAtEndOfMediaItems = (repeatMode == Player.REPEAT_MODE_OFF)
             }
+
             override fun onPlaybackStateChanged(playbackState: Int) {
-                updateSnapshot()
                 if (playbackState == Player.STATE_BUFFERING) {
-                    startProgressTicker()
+                    if (isOverlayProgressTickerActive) startProgressTicker()
                 } else if (playbackState == Player.STATE_IDLE || playbackState == Player.STATE_ENDED) {
                     stopProgressTicker()
-                }
-                if (playbackState == androidx.media3.common.Player.STATE_ENDED || playbackState == androidx.media3.common.Player.STATE_IDLE) {
-                    val count = exoPlayer?.mediaItemCount ?: 0
-                    if (playbackState == androidx.media3.common.Player.STATE_ENDED || count == 0) {
-                        playerScope.launch {
-                            try {
-                                val db = shura.media.data.AppDatabase.getDatabase(context)
-                                val dao = db.playlistDao()
-                                val temp = dao.getAllPlaylistsSync().find { it.name == "Temp Current" }
-                                if (temp != null) {
-                                    dao.deletePlaylistById(temp.id)
-                                }
-                            } catch (e: Exception) {}
-                        }
-                    }
                 }
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
-                updateSnapshot()
                 if (isPlaying) {
-                    startProgressTicker()
+                    if (isOverlayProgressTickerActive) startProgressTicker()
                 } else {
                     stopProgressTicker()
                     flushProgressToStorage()
@@ -233,42 +242,25 @@ object PlayerManager {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 // When transitioning between items, persist the previous item's progress first
                 flushProgressToStorage()
-                updateSnapshot()
-            }
-
-            override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
-                updateSnapshot()
-            }
-
-            override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
-                updateSnapshot()
-            }
-
-            override fun onPositionDiscontinuity(
-                oldPosition: androidx.media3.common.Player.PositionInfo,
-                newPosition: androidx.media3.common.Player.PositionInfo,
-                reason: Int
-            ) {
-                updateSnapshot()
             }
 
             override fun onEvents(player: androidx.media3.common.Player, events: androidx.media3.common.Player.Events) {
-                updateSnapshot()
-                if (events.contains(androidx.media3.common.Player.EVENT_TIMELINE_CHANGED)) {
-                    if (player.mediaItemCount == 0) {
-                        playerScope.launch {
-                            try {
-                                val db = shura.media.data.AppDatabase.getDatabase(context)
-                                val dao = db.playlistDao()
-                                val temp = dao.getAllPlaylistsSync().find { it.name == "Temp Current" }
-                                if (temp != null) {
-                                    dao.deletePlaylistById(temp.id)
-                                }
-                            } catch (e: Exception) {}
-                        }
+                val timelineChanged = events.contains(androidx.media3.common.Player.EVENT_TIMELINE_CHANGED)
+                updateSnapshot(rebuildPlaylist = timelineChanged)
+                if (timelineChanged && player.mediaItemCount == 0) {
+                    playerScope.launch {
+                        try {
+                            val db = shura.media.data.AppDatabase.getDatabase(appCtx)
+                            val dao = db.playlistDao()
+                            val temp = dao.getAllPlaylistsSync().find { it.name == "Temp Current" }
+                            if (temp != null) {
+                                dao.deletePlaylistById(temp.id)
+                            }
+                        } catch (_: Exception) {}
                     }
                 }
             }
+
             override fun onAudioSessionIdChanged(audioSessionId: Int) {
                 if (audioSessionId != C.AUDIO_SESSION_ID_UNSET) {
                     try {
@@ -280,8 +272,8 @@ object PlayerManager {
                             dynamicsProcessing?.release()
                             dynamicsProcessing = null
                         }
-                        
-                        val settings = shura.media.data.SettingsManager.getInstance(context.applicationContext)
+
+                        val settings = shura.media.data.SettingsManager.getInstance(appCtx)
                         applyAudioEffects(settings)
                     } catch (e: Exception) {
                         shura.media.LogKeeper.logError("PlayerManager", "Failed to update AudioEffects on session change", e)
@@ -290,7 +282,7 @@ object PlayerManager {
             }
         })
 
-        updateSnapshot()
+        updateSnapshot(rebuildPlaylist = true)
         val initialSettings = shura.media.data.SettingsManager.getInstance(context.applicationContext)
         applyAudioEffects(initialSettings)
     }
@@ -298,6 +290,9 @@ object PlayerManager {
     
     fun applyAudioEffects(settings: shura.media.data.SettingsManager) {
         centerChannelProcessor.enabled = settings.centerChannelEnabled
+        if (!settings.centerChannelEnabled) {
+            centerChannelProcessor.releaseScratchBuffer()
+        }
         
         try {
             val sessionId = exoPlayer?.audioSessionId ?: C.AUDIO_SESSION_ID_UNSET
@@ -466,7 +461,7 @@ object PlayerManager {
         }
     }
 
-    fun updateSnapshot() {
+    fun updateSnapshot(rebuildPlaylist: Boolean = true) {
         val player = exoPlayer ?: run {
             _playbackState.value = PlayerSnapshot()
             return
@@ -478,9 +473,15 @@ object PlayerManager {
             ?: uri?.lastPathSegment
             ?: ""
 
-        val playlist = mutableListOf<MediaItem>()
-        for (i in 0 until player.mediaItemCount) {
-            playlist.add(player.getMediaItemAt(i))
+        val previous = _playbackState.value
+        val playlist = if (rebuildPlaylist || previous.playlist.size != player.mediaItemCount) {
+            val built = ArrayList<MediaItem>(player.mediaItemCount)
+            for (i in 0 until player.mediaItemCount) {
+                built.add(player.getMediaItemAt(i))
+            }
+            built
+        } else {
+            previous.playlist
         }
 
         val dur = if (player.duration < 0L) 0L else player.duration
@@ -502,10 +503,25 @@ object PlayerManager {
         )
     }
 
+    fun setOverlayProgressTickerActive(active: Boolean) {
+        isOverlayProgressTickerActive = active
+        if (active) {
+            val player = exoPlayer
+            if (player != null && (player.isPlaying || player.playbackState == Player.STATE_BUFFERING)) {
+                startProgressTicker()
+            } else {
+                updateSnapshot(rebuildPlaylist = false)
+            }
+        } else {
+            stopProgressTicker()
+        }
+    }
+
     fun startProgressTicker() {
+        if (!isOverlayProgressTickerActive) return
         if (progressTickerJob?.isActive == true) return
         progressTickerJob = playerScope.launch(kotlinx.coroutines.Dispatchers.Main) {
-            while (true) {
+            while (isOverlayProgressTickerActive) {
                 val player = exoPlayer
                 if (player != null && (player.isPlaying || player.playbackState == Player.STATE_BUFFERING)) {
                     val pos = if (player.currentPosition < 0L) 0L else player.currentPosition
@@ -604,17 +620,25 @@ object PlayerManager {
         }
         dynamicsProcessing = null
         isImplicitFolderQueue = false
+        isQueuePopulationInProgress = false
+        isFloatingVideoActive = false
+        isPlayerScreenVisible = false
+        isOverlayProgressTickerActive = false
         pendingQueueItems = null
         pendingQueueIndex = 0
+        pendingQueueIsImplicit = true
     }
 
     private var pendingQueueItems: List<MediaItem>? = null
     private var pendingQueueIndex: Int = 0
+    private var pendingQueueIsImplicit: Boolean = true
 
-    fun setPendingQueue(items: List<MediaItem>, startIndex: Int) {
+    fun setPendingQueue(items: List<MediaItem>, startIndex: Int, isImplicit: Boolean = true) {
         pendingQueueItems = items
         pendingQueueIndex = startIndex.coerceIn(0, (items.size - 1).coerceAtLeast(0))
-        shura.media.LogKeeper.log("PlayerManager: setPendingQueue with ${items.size} items at index $pendingQueueIndex", "PlayerManager")
+        pendingQueueIsImplicit = isImplicit
+        isQueuePopulationInProgress = false
+        shura.media.LogKeeper.log("PlayerManager: setPendingQueue with ${items.size} items at index $pendingQueueIndex (implicit=$isImplicit)", "PlayerManager")
     }
 
     fun hasPendingQueue(): Boolean = !pendingQueueItems.isNullOrEmpty()
@@ -625,6 +649,52 @@ object PlayerManager {
         pendingQueueItems = null
         pendingQueueIndex = 0
         return Pair(items, idx)
+    }
+
+    fun consumePendingQueueWithImplicitFlag(): Triple<List<MediaItem>, Int, Boolean>? {
+        val items = pendingQueueItems ?: return null
+        val idx = pendingQueueIndex
+        val implicit = pendingQueueIsImplicit
+        pendingQueueItems = null
+        pendingQueueIndex = 0
+        pendingQueueIsImplicit = true
+        return Triple(items, idx, implicit)
+    }
+
+    fun applyFolderQueueAroundCurrent(
+        activeMediaId: String,
+        fullQueue: List<MediaItem>,
+        startIndex: Int,
+        isImplicit: Boolean = true
+    ) {
+        val attachBlock = {
+            try {
+                val player = exoPlayer
+                if (player != null && fullQueue.size > 1 && startIndex in fullQueue.indices) {
+                    val currentId = player.currentMediaItem?.mediaId
+                    if (currentId == activeMediaId && player.mediaItemCount <= 1) {
+                        val preceding = fullQueue.subList(0, startIndex)
+                        val succeeding = fullQueue.subList(startIndex + 1, fullQueue.size)
+                        if (preceding.isNotEmpty()) {
+                            player.addMediaItems(0, preceding)
+                        }
+                        if (succeeding.isNotEmpty()) {
+                            player.addMediaItems(player.mediaItemCount, succeeding)
+                        }
+                        isImplicitFolderQueue = isImplicit
+                    }
+                } else if (player == null && fullQueue.isNotEmpty()) {
+                    setPendingQueue(fullQueue, startIndex, isImplicit)
+                }
+            } finally {
+                isQueuePopulationInProgress = false
+            }
+        }
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+            attachBlock()
+        } else {
+            android.os.Handler(android.os.Looper.getMainLooper()).post(attachBlock)
+        }
     }
 
     fun appendOrTransitionQueue(context: Context, newMediaItems: List<MediaItem>) {

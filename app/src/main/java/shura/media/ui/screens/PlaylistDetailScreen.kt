@@ -37,7 +37,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import shura.media.data.AppDatabase
 import shura.media.data.PlaylistItem
 import shura.media.data.PlaylistRepository
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -73,6 +75,20 @@ fun PlaylistDetailScreen(
 
     val selectedItems = remember { mutableStateListOf<PlaylistItem>() }
     val isMultiSelectMode = selectedItems.isNotEmpty()
+    var activeBgControllerFuture by remember {
+        mutableStateOf<com.google.common.util.concurrent.ListenableFuture<androidx.media3.session.MediaController>?>(null)
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            activeBgControllerFuture?.let {
+                try {
+                    androidx.media3.session.MediaController.releaseFuture(it)
+                } catch (_: Exception) {}
+            }
+            activeBgControllerFuture = null
+        }
+    }
 
     BackHandler(enabled = isMultiSelectMode) {
         selectedItems.clear()
@@ -158,28 +174,43 @@ fun PlaylistDetailScreen(
                         .background(MaterialTheme.colorScheme.primaryContainer)
                         .combinedClickable(
                             onClick = {
-                                val first = localPlaylistItems.first()
-                                onNavigateToPlayer(first.mediaUri)
+                                val snapshot = localPlaylistItems.toList()
+                                if (snapshot.isNotEmpty()) {
+                                    coroutineScope.launch {
+                                        val items = withContext(Dispatchers.IO) {
+                                            buildPlaylistMediaItems(context, snapshot)
+                                        }
+                                        shura.media.service.PlayerManager.setPendingQueue(items, 0, isImplicit = false)
+                                        onNavigateToPlayer(snapshot.first().mediaUri)
+                                    }
+                                }
                             },
                             onLongClick = {
+                                val snapshot = localPlaylistItems.toList()
+                                if (snapshot.isEmpty()) return@combinedClickable
                                 android.widget.Toast.makeText(context, "Playing all in background...", android.widget.Toast.LENGTH_SHORT).show()
-                                val sessionToken = androidx.media3.session.SessionToken(context, android.content.ComponentName(context, shura.media.service.PlaybackService::class.java))
-                                val controllerFuture = androidx.media3.session.MediaController.Builder(context, sessionToken).buildAsync()
-                                controllerFuture.addListener({
-                                    val controller = controllerFuture.get()
-                                    val items = localPlaylistItems.map { 
-                                        val name = getDisplayNameFromUri(context, Uri.parse(it.mediaUri))
-                                        val meta = androidx.media3.common.MediaMetadata.Builder().setTitle(name).build()
-                                        androidx.media3.common.MediaItem.Builder()
-                                            .setMediaId(it.mediaUri)
-                                            .setUri(it.mediaUri)
-                                            .setMediaMetadata(meta)
-                                            .build() 
+                                coroutineScope.launch {
+                                    val items = withContext(Dispatchers.IO) {
+                                        buildPlaylistMediaItems(context, snapshot)
                                     }
-                                    controller.setMediaItems(items)
-                                    controller.prepare()
-                                    controller.play()
-                                }, androidx.core.content.ContextCompat.getMainExecutor(context))
+                                    activeBgControllerFuture?.let {
+                                        try {
+                                            androidx.media3.session.MediaController.releaseFuture(it)
+                                        } catch (_: Exception) {}
+                                    }
+                                    val sessionToken = androidx.media3.session.SessionToken(context, android.content.ComponentName(context, shura.media.service.PlaybackService::class.java))
+                                    val controllerFuture = androidx.media3.session.MediaController.Builder(context, sessionToken).buildAsync()
+                                    activeBgControllerFuture = controllerFuture
+                                    controllerFuture.addListener({
+                                        try {
+                                            val controller = controllerFuture.get()
+                                            shura.media.service.PlayerManager.isImplicitFolderQueue = false
+                                            controller.setMediaItems(items)
+                                            controller.prepare()
+                                            controller.play()
+                                        } catch (_: Exception) {}
+                                    }, androidx.core.content.ContextCompat.getMainExecutor(context))
+                                }
                             }
                         ),
                     contentAlignment = Alignment.Center
@@ -296,7 +327,15 @@ fun PlaylistDetailScreen(
                                     if (isMultiSelectMode) {
                                         if (isSelected) selectedItems.remove(item) else selectedItems.add(item)
                                     } else {
-                                        onNavigateToPlayer(item.mediaUri)
+                                        val snapshot = localPlaylistItems.toList()
+                                        val startIdx = snapshot.indexOfFirst { it.id == item.id }.coerceAtLeast(0)
+                                        coroutineScope.launch {
+                                            val items = withContext(Dispatchers.IO) {
+                                                buildPlaylistMediaItems(context, snapshot)
+                                            }
+                                            shura.media.service.PlayerManager.setPendingQueue(items, startIdx, isImplicit = false)
+                                            onNavigateToPlayer(item.mediaUri)
+                                        }
                                     }
                                 },
                                 onLongClick = {
@@ -391,5 +430,25 @@ fun PlaylistDetailScreen(
                 }
             }
         }
+    }
+}
+
+private fun buildPlaylistMediaItems(
+    context: android.content.Context,
+    items: List<PlaylistItem>
+): List<androidx.media3.common.MediaItem> {
+    return items.map { pi ->
+        val parsedUri = Uri.parse(pi.mediaUri)
+        val name = getDisplayNameFromUri(context, parsedUri)
+        val meta = androidx.media3.common.MediaMetadata.Builder()
+            .setTitle(name)
+            .setDisplayTitle(name)
+            .setArtworkUri(parsedUri)
+            .build()
+        androidx.media3.common.MediaItem.Builder()
+            .setMediaId(pi.mediaUri)
+            .setUri(parsedUri)
+            .setMediaMetadata(meta)
+            .build()
     }
 }

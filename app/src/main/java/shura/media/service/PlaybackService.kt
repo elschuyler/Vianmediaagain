@@ -271,13 +271,24 @@ override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?,
     shura.media.LogKeeper.log("PlaybackService: onMediaItemTransition (reason: $reasonStr)", "PlaybackService")
     decoderServiceRetryCount = 0
     updateWidgetUI()
-
-    ensureArtworkLoaded(mediaItem)
 }
 override fun onRepeatModeChanged(repeatMode: Int) {
     shura.media.LogKeeper.log("PlaybackService: onRepeatModeChanged = $repeatMode", "PlaybackService")
-    PlayerManager.exoPlayer?.pauseAtEndOfMediaItems = false
+    PlayerManager.exoPlayer?.pauseAtEndOfMediaItems = (repeatMode == Player.REPEAT_MODE_OFF)
     updateWidgetUI()
+}
+override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+    val player = PlayerManager.exoPlayer ?: return
+    val hasVideo = PlayerManager.hasSupportedVideoTrack(tracks)
+    val shouldDisableVideo = (!tracks.isEmpty && !hasVideo) ||
+        (!PlayerManager.isPlayerScreenVisible && !PlayerManager.isFloatingVideoActive)
+    if (shouldDisableVideo) {
+        if (!hasVideo && !tracks.isEmpty) {
+            PlayerManager.isFloatingVideoActive = false
+        }
+        PlayerManager.detachVideoSurface()
+        PlayerManager.setVideoTrackEnabled(false)
+    }
 }
 override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
     shura.media.LogKeeper.log("PlaybackService: onShuffleModeEnabledChanged = $shuffleModeEnabled", "PlaybackService")
@@ -366,7 +377,7 @@ override fun onPlaybackStateChanged(playbackState: Int) {
             player.seekTo(0, 0L)
             player.play()
         } else if (player?.repeatMode == Player.REPEAT_MODE_OFF) {
-            if (!PlayerManager.isFloatingVideoActive && composeView == null) {
+            if (!PlayerManager.isFloatingVideoActive && composeView == null && !PlayerManager.isPlayerScreenVisible) {
                 shura.media.LogKeeper.log("Playback ended with repeatMode OFF and no overlay -> stopping service & removing notification", "PlaybackService")
                 try {
                     androidx.core.app.ServiceCompat.stopForeground(this@PlaybackService, androidx.core.app.ServiceCompat.STOP_FOREGROUND_REMOVE)
@@ -437,19 +448,28 @@ val forwardingPlayer = object : androidx.media3.common.ForwardingPlayer(rawPlaye
 
     override fun getMediaMetadata(): androidx.media3.common.MediaMetadata {
         val base = super.getMediaMetadata()
-        if (!base.title.isNullOrBlank()) {
+        val currentItem = currentMediaItem
+        val needsTitle = base.title.isNullOrBlank()
+        val needsArtwork = base.artworkUri == null && base.artworkData == null
+        if (!needsTitle && !needsArtwork) {
             return base
         }
-        val currentItem = currentMediaItem
-        val itemTitle = currentItem?.mediaMetadata?.title?.takeIf { !it.isNullOrBlank() }
-            ?: currentItem?.mediaMetadata?.displayTitle?.takeIf { !it.isNullOrBlank() }
-            ?: currentItem?.mediaId?.substringAfterLast('/')?.takeIf { it.isNotBlank() }
-            ?: "Vian Media"
-        return base.buildUpon()
-            .setTitle(itemTitle)
-            .setDisplayTitle(itemTitle)
-            .setArtist("Vian Media")
-            .build()
+        val fallbackUri = currentItem?.localConfiguration?.uri
+            ?: currentItem?.mediaId?.let { id -> try { android.net.Uri.parse(id) } catch (_: Exception) { null } }
+        val builder = base.buildUpon()
+        if (needsTitle) {
+            val itemTitle = currentItem?.mediaMetadata?.title?.takeIf { !it.isNullOrBlank() }
+                ?: currentItem?.mediaMetadata?.displayTitle?.takeIf { !it.isNullOrBlank() }
+                ?: currentItem?.mediaId?.substringAfterLast('/')?.takeIf { it.isNotBlank() }
+                ?: "Vian Media"
+            builder.setTitle(itemTitle)
+                .setDisplayTitle(itemTitle)
+                .setArtist("Vian Media")
+        }
+        if (needsArtwork && fallbackUri != null) {
+            builder.setArtworkUri(fallbackUri)
+        }
+        return builder.build()
     }
 }
 
@@ -498,6 +518,8 @@ if (!isTrustedController(controller)) {
 if (playerCommand == androidx.media3.common.Player.COMMAND_SEEK_TO_NEXT ||
     playerCommand == androidx.media3.common.Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM) {
     val player = session.player
+    val wasEndedOrIdle = player.playbackState == androidx.media3.common.Player.STATE_ENDED ||
+        player.playbackState == androidx.media3.common.Player.STATE_IDLE
     if (player.hasNextMediaItem()) {
         player.seekToNextMediaItem()
     } else if (player.mediaItemCount > 1) {
@@ -505,12 +527,18 @@ if (playerCommand == androidx.media3.common.Player.COMMAND_SEEK_TO_NEXT ||
     } else {
         player.seekTo(0)
     }
+    if (wasEndedOrIdle || player.playWhenReady) {
+        player.prepare()
+        player.play()
+    }
     return androidx.media3.session.SessionResult.RESULT_SUCCESS
 }
 if (playerCommand == androidx.media3.common.Player.COMMAND_SEEK_TO_PREVIOUS ||
     playerCommand == androidx.media3.common.Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM) {
     val player = session.player
-    if (player.currentPosition > 3000L) {
+    val wasEndedOrIdle = player.playbackState == androidx.media3.common.Player.STATE_ENDED ||
+        player.playbackState == androidx.media3.common.Player.STATE_IDLE
+    if (player.currentPosition > 3000L && !wasEndedOrIdle) {
         player.seekTo(0)
     } else if (player.hasPreviousMediaItem()) {
         player.seekToPreviousMediaItem()
@@ -518,6 +546,10 @@ if (playerCommand == androidx.media3.common.Player.COMMAND_SEEK_TO_PREVIOUS ||
         player.seekTo(player.mediaItemCount - 1, 0)
     } else {
         player.seekTo(0)
+    }
+    if (wasEndedOrIdle || player.playWhenReady) {
+        player.prepare()
+        player.play()
     }
     return androidx.media3.session.SessionResult.RESULT_SUCCESS
 }
@@ -560,6 +592,7 @@ if (customCommand.customAction == "ACTION_LOOP") {
         androidx.media3.common.Player.REPEAT_MODE_ALL -> androidx.media3.common.Player.REPEAT_MODE_ONE
         else -> androidx.media3.common.Player.REPEAT_MODE_OFF
     }
+    player.pauseAtEndOfMediaItems = (player.repeatMode == androidx.media3.common.Player.REPEAT_MODE_OFF)
     updateCustomLayout()
     return Futures.immediateFuture(androidx.media3.session.SessionResult(androidx.media3.session.SessionResult.RESULT_SUCCESS))
 }
@@ -665,9 +698,6 @@ return Futures.immediateFuture(updatedMediaItems)
 updateCustomLayout()
 
 addSession(mediaSession!!)
-PlayerManager.exoPlayer?.currentMediaItem?.let { currentItem ->
-    ensureArtworkLoaded(currentItem)
-}
 }
 
 override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
@@ -699,16 +729,21 @@ return mediaSession
 private fun showOverlay(startInVideoMode: Boolean = false) {
 shura.media.service.PlayerManager.flushProgressToStorage()
 isOverlayVideoMode = startInVideoMode
-if (startInVideoMode) {
+val activePlayer = PlayerManager.exoPlayer
+val activeUri = activePlayer?.currentMediaItem?.localConfiguration?.uri
+val activeTracks = activePlayer?.currentTracks
+val isAudioOnly = if (activeTracks != null && !activeTracks.isEmpty) {
+    !PlayerManager.hasSupportedVideoTrack(activeTracks)
+} else {
+    PlayerManager.isAudioOnlyHint(this, activeUri)
+}
+if (startInVideoMode && !isAudioOnly) {
     shura.media.service.PlayerManager.isFloatingVideoActive = true
     shura.media.service.PlayerManager.setVideoTrackEnabled(true)
 } else {
     shura.media.service.PlayerManager.isFloatingVideoActive = false
     shura.media.service.PlayerManager.detachVideoSurface()
     shura.media.service.PlayerManager.setVideoTrackEnabled(false)
-}
-PlayerManager.exoPlayer?.currentMediaItem?.let { currentItem ->
-    ensureArtworkLoaded(currentItem)
 }
 val existingCv = composeView
 val existingLp = layoutParams
@@ -755,11 +790,24 @@ val handleMinimizeToggle: (Boolean) -> Unit = { minimized ->
         isMinimized = minimized
         sessionIsMinimized = minimized
         if (minimized) {
+            shura.media.service.PlayerManager.isFloatingVideoActive = false
+            shura.media.service.PlayerManager.detachVideoSurface()
             shura.media.service.PlayerManager.setVideoTrackEnabled(false)
         } else {
-            if (isVideoMode) {
+            val activePlayer = shura.media.service.PlayerManager.exoPlayer
+            val activeUri = activePlayer?.currentMediaItem?.localConfiguration?.uri
+            val activeTracks = activePlayer?.currentTracks
+            val isAudioOnly = if (activeTracks != null && !activeTracks.isEmpty) {
+                !shura.media.service.PlayerManager.hasSupportedVideoTrack(activeTracks)
+            } else {
+                shura.media.service.PlayerManager.isAudioOnlyHint(this@PlaybackService, activeUri)
+            }
+            if (isVideoMode && !isAudioOnly) {
+                shura.media.service.PlayerManager.isFloatingVideoActive = true
                 shura.media.service.PlayerManager.setVideoTrackEnabled(true)
             } else {
+                shura.media.service.PlayerManager.isFloatingVideoActive = false
+                shura.media.service.PlayerManager.detachVideoSurface()
                 shura.media.service.PlayerManager.setVideoTrackEnabled(false)
             }
         }
@@ -1067,9 +1115,22 @@ onMinimizeChange = { minimized ->
 onSwitchToVideo = {
     shura.media.service.PlayerManager.flushProgressToStorage()
     isOverlayVideoMode = true
-    shura.media.service.PlayerManager.isFloatingVideoActive = true
-    shura.media.service.PlayerManager.setVideoTrackEnabled(true)
     val player = shura.media.service.PlayerManager.exoPlayer
+    val activeTracks = player?.currentTracks
+    val activeUri = player?.currentMediaItem?.localConfiguration?.uri
+    val isAudioOnly = if (activeTracks != null && !activeTracks.isEmpty) {
+        !shura.media.service.PlayerManager.hasSupportedVideoTrack(activeTracks)
+    } else {
+        shura.media.service.PlayerManager.isAudioOnlyHint(this@PlaybackService, activeUri)
+    }
+    if (!isAudioOnly) {
+        shura.media.service.PlayerManager.isFloatingVideoActive = true
+        shura.media.service.PlayerManager.setVideoTrackEnabled(true)
+    } else {
+        shura.media.service.PlayerManager.isFloatingVideoActive = false
+        shura.media.service.PlayerManager.detachVideoSurface()
+        shura.media.service.PlayerManager.setVideoTrackEnabled(false)
+    }
     val vs = player?.videoSize
     val aspect = if (vs != null && vs.width > 0 && vs.height > 0) {
         vs.width.toFloat() / vs.height.toFloat()
@@ -1147,6 +1208,7 @@ lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
 fun hideOverlay() {
 isOverlayVideoMode = false
 shura.media.service.PlayerManager.isFloatingVideoActive = false
+shura.media.service.PlayerManager.setOverlayProgressTickerActive(false)
 composeView?.let {
 try {
 lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
@@ -1175,59 +1237,9 @@ composeView = null
         mediaSession?.setCustomLayout(listOf(miniPlayerAction, closeAction))
     }
 
-    private var loadingArtworkMediaId: String? = null
-
-    private fun ensureArtworkLoaded(mediaItem: androidx.media3.common.MediaItem?) {
-        if (mediaItem == null) return
-        if (mediaItem.mediaMetadata.artworkData != null) return
-        val currentMediaId = mediaItem.mediaId
-        if (currentMediaId.isEmpty() || loadingArtworkMediaId == currentMediaId) return
-
-        val targetUri = mediaItem.requestMetadata.mediaUri 
-            ?: mediaItem.localConfiguration?.uri 
-            ?: mediaItem.mediaMetadata.artworkUri
-            ?: currentMediaId.let { try { android.net.Uri.parse(it) } catch (e: Exception) { null } }
-
-        if (targetUri != null) {
-            loadingArtworkMediaId = currentMediaId
-            serviceScope.launch(Dispatchers.IO) {
-                try {
-                    val thumbBytes = shura.media.data.extractMediaThumbnailBytes(applicationContext, targetUri)
-                    if (thumbBytes != null) {
-                        kotlinx.coroutines.withContext(Dispatchers.Main) {
-                            val player = PlayerManager.exoPlayer
-                            if (player != null && player.currentMediaItem?.mediaId == currentMediaId) {
-                                val activeItem = player.currentMediaItem
-                                val baseMeta = activeItem?.mediaMetadata ?: player.mediaMetadata
-                                val updatedMeta = baseMeta.buildUpon()
-                                    .setArtworkData(thumbBytes, androidx.media3.common.MediaMetadata.PICTURE_TYPE_FRONT_COVER)
-                                    .setArtworkUri(targetUri)
-                                    .build()
-                                val updatedItem = activeItem?.buildUpon()?.setMediaMetadata(updatedMeta)?.build()
-                                if (updatedItem != null) {
-                                    val currentIndex = player.currentMediaItemIndex
-                                    player.replaceMediaItem(currentIndex, updatedItem)
-                                    updateCustomLayout()
-                                    try { updateWidgetUI() } catch (e: Exception) {}
-                                }
-                            }
-                        }
-                    }
-                } catch (e: Exception) {
-                    shura.media.LogKeeper.logError("PlaybackService", "Error extracting artwork in ensureArtworkLoaded", e)
-                } finally {
-                    loadingArtworkMediaId = null
-                }
-            }
-        }
-    }
-
     override fun onStartCommand(intent: android.content.Intent?, flags: Int, startId: Int): Int {
         val cmd = intent?.getStringExtra("command")
         shura.media.LogKeeper.log("PlaybackService onStartCommand with command: $cmd", "PlaybackService")
-        PlayerManager.exoPlayer?.currentMediaItem?.let { currentItem ->
-            ensureArtworkLoaded(currentItem)
-        }
         val isActivelyPlaying = PlayerManager.exoPlayer?.let { it.mediaItemCount > 0 && it.isPlaying } == true
         if (cmd == "ACTION_VIDEO_OVERLAY") {
             if (android.provider.Settings.canDrawOverlays(this)) {
@@ -1268,10 +1280,10 @@ composeView = null
             shura.media.LogKeeper.logError("PlaybackService", "Error stopping foreground on onDestroy", e)
         }
         mediaSession?.run {
-            PlayerManager.release()
             release()
             mediaSession = null
         }
+        PlayerManager.release()
         lifecycleRegistry.handleLifecycleEvent(androidx.lifecycle.Lifecycle.Event.ON_DESTROY)
         try {
             serviceScope.cancel()
@@ -1283,6 +1295,7 @@ composeView = null
     }
 
     private fun updateWidgetUI() {
+        if (!shura.media.widget.MediaWidgetProvider.hasInstalledWidgets(this)) return
         val appWidgetManager = android.appwidget.AppWidgetManager.getInstance(this)
         val componentName = android.content.ComponentName(this, shura.media.widget.MediaWidgetProvider::class.java)
         val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
@@ -1296,7 +1309,6 @@ composeView = null
                 val position = player.currentPosition
                 val progress = if (duration > 0) ((position.toFloat() / duration.toFloat()) * 100).toInt() else 0
                 views.setProgressBar(shura.media.R.id.widget_progress, 100, progress, false)
-                
 
                 appWidgetManager.partiallyUpdateAppWidget(appWidgetId, views)
                 appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetId, shura.media.R.id.widget_list)
@@ -1307,9 +1319,6 @@ composeView = null
     private val widgetCommandReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: android.content.Context, intent: android.content.Intent) {
             if (intent.action == "shura.media.ACTION_UPDATE_NOTIFICATION") {
-                PlayerManager.exoPlayer?.currentMediaItem?.let { currentItem ->
-                    ensureArtworkLoaded(currentItem)
-                }
                 updateCustomLayout()
                 return
             }
@@ -1336,8 +1345,38 @@ composeView = null
                     stopSelf()
                 }
                 "ACTION_PLAY_PAUSE" -> if (player.isPlaying) player.pause() else player.play()
-                "ACTION_PREV" -> player.seekToPreviousMediaItem()
-                "ACTION_NEXT" -> player.seekToNextMediaItem()
+                "ACTION_PREV" -> {
+                    val wasEndedOrIdle = player.playbackState == androidx.media3.common.Player.STATE_ENDED ||
+                        player.playbackState == androidx.media3.common.Player.STATE_IDLE
+                    if (player.currentPosition > 3000L && !wasEndedOrIdle) {
+                        player.seekTo(0)
+                    } else if (player.hasPreviousMediaItem()) {
+                        player.seekToPreviousMediaItem()
+                    } else if (player.mediaItemCount > 1) {
+                        player.seekTo(player.mediaItemCount - 1, 0)
+                    } else {
+                        player.seekTo(0)
+                    }
+                    if (wasEndedOrIdle || player.playWhenReady) {
+                        player.prepare()
+                        player.play()
+                    }
+                }
+                "ACTION_NEXT" -> {
+                    val wasEndedOrIdle = player.playbackState == androidx.media3.common.Player.STATE_ENDED ||
+                        player.playbackState == androidx.media3.common.Player.STATE_IDLE
+                    if (player.hasNextMediaItem()) {
+                        player.seekToNextMediaItem()
+                    } else if (player.mediaItemCount > 1) {
+                        player.seekTo(0, 0)
+                    } else {
+                        player.seekTo(0)
+                    }
+                    if (wasEndedOrIdle || player.playWhenReady) {
+                        player.prepare()
+                        player.play()
+                    }
+                }
                 "ACTION_PLAY_ITEM" -> {
                     val index = intent.getIntExtra("index", -1)
                     if (index >= 0) player.seekToDefaultPosition(index)
@@ -1368,7 +1407,6 @@ composeView = null
                             player.setMediaItem(mediaItem, startPos)
                             player.prepare()
                             player.play()
-                            ensureArtworkLoaded(mediaItem)
                         }
                     }
                 }
@@ -1397,6 +1435,47 @@ composeView = null
                     }
                     context.sendBroadcast(broadcastIntent)
                 } catch (_: Exception) {}
+            }
+        }
+
+        fun stopPlaybackAndRelease(context: android.content.Context) {
+            val stopBlock = {
+                val inst = instance
+                if (inst != null) {
+                    try {
+                        inst.hideOverlay()
+                        inst.resetSessionFloatingState()
+                        androidx.core.app.ServiceCompat.stopForeground(inst, androidx.core.app.ServiceCompat.STOP_FOREGROUND_REMOVE)
+                        val nm = inst.getSystemService(android.content.Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager
+                        nm?.cancelAll()
+                        inst.mediaSession?.let { session ->
+                            try { session.release() } catch (_: Exception) {}
+                            inst.mediaSession = null
+                        }
+                        PlayerManager.release()
+                        inst.stopSelf()
+                    } catch (e: Exception) {
+                        shura.media.LogKeeper.logError("PlaybackService", "Error in stopPlaybackAndRelease", e)
+                        PlayerManager.release()
+                    }
+                } else {
+                    try {
+                        val nm = context.getSystemService(android.content.Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager
+                        nm?.cancelAll()
+                    } catch (_: Exception) {}
+                    PlayerManager.isFloatingVideoActive = false
+                    PlayerManager.floatingSession.reset()
+                    PlayerManager.release()
+                    try {
+                        context.stopService(android.content.Intent(context, PlaybackService::class.java))
+                    } catch (_: Exception) {}
+                }
+                Unit
+            }
+            if (Looper.myLooper() == Looper.getMainLooper()) {
+                stopBlock()
+            } else {
+                Handler(Looper.getMainLooper()).post { stopBlock() }
             }
         }
     }

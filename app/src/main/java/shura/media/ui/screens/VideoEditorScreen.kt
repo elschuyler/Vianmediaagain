@@ -314,6 +314,8 @@ fun VideoEditorScreen(
     var isConverting by remember { mutableStateOf(initialRequiresConversion) }
     var playerError by remember { mutableStateOf<String?>(null) }
     var exportedPreviewUri by remember { mutableStateOf<String?>(null) }
+    val isExportPreviewOpen = exportedPreviewUri != null
+    var savedEditorPlayPosMs by remember { mutableLongStateOf(0L) }
     var wasExporting by remember { mutableStateOf(false) }
     var isEditorExporting by remember { mutableStateOf(false) }
     var exportErrorMessage by remember { mutableStateOf<String?>(null) }
@@ -339,10 +341,8 @@ fun VideoEditorScreen(
     // Zero-Memory: Track session temporary files and delete them on screen exit
     val sessionTempFiles = remember { java.util.concurrent.CopyOnWriteArraySet<java.io.File>() }
     DisposableEffect(Unit) {
-        // Resource Exclusivity: Pause background player to prevent decoder/CPU contention
-        try {
-            shura.media.service.PlayerManager.exoPlayer?.pause()
-        } catch (e: Exception) {}
+        // True Single Engine: Fully stop background playback and release shared PlayerManager engine
+        shura.media.service.PlaybackService.stopPlaybackAndRelease(context)
         onDispose {
             if (!shura.media.service.FFmpegStatus.isRunning) {
                 sessionTempFiles.forEach { file ->
@@ -740,8 +740,8 @@ fun VideoEditorScreen(
         } catch (e: Exception) {}
     }
 
-    val exoPlayer = remember(effectiveUri, convertedUri, isConverting, editState.joinVideoUris, editState.joinVideoUri, editState.joinAtEnd) {
-        if (isConverting) {
+    val exoPlayer = remember(effectiveUri, convertedUri, isConverting, isExportPreviewOpen, editState.joinVideoUris, editState.joinVideoUri, editState.joinAtEnd) {
+        if (isConverting || isExportPreviewOpen) {
             null
         } else {
             val uriToUse = convertedUri ?: effectiveUri?.toString()
@@ -763,6 +763,9 @@ fun VideoEditorScreen(
                 setMediaItems(items)
                 repeatMode = androidx.media3.common.Player.REPEAT_MODE_ALL
                 prepare()
+                if (savedEditorPlayPosMs > 0L) {
+                    seekTo(savedEditorPlayPosMs)
+                }
                 playWhenReady = true
                 addListener(object : androidx.media3.common.Player.Listener {
                     override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
@@ -782,9 +785,9 @@ fun VideoEditorScreen(
             }
         }
     }
-    val bgAudioPlayer = remember(editState.addedAudioUri) {
+    val bgAudioPlayer = remember(editState.addedAudioUri, isExportPreviewOpen) {
         val uriStr = editState.addedAudioUri
-        if (uriStr.isNullOrBlank()) null
+        if (uriStr.isNullOrBlank() || isExportPreviewOpen) null
         else androidx.media3.exoplayer.ExoPlayer.Builder(context).build().apply {
             setMediaItem(androidx.media3.common.MediaItem.fromUri(android.net.Uri.parse(uriStr)))
             repeatMode = if (editState.loopAddedAudio) androidx.media3.common.Player.REPEAT_MODE_ALL else androidx.media3.common.Player.REPEAT_MODE_OFF
@@ -828,6 +831,9 @@ fun VideoEditorScreen(
             exoPlayer.addListener(listener)
             onDispose {
                 LogKeeper.log("ExoPlayer released from video editor", "VideoEditor")
+                try {
+                    savedEditorPlayPosMs = exoPlayer.currentPosition.coerceAtLeast(0L)
+                } catch (e: Exception) {}
                 exoPlayer.removeListener(listener)
                 exoPlayer.release()
             }
@@ -4111,6 +4117,7 @@ fun VideoEditorScreen(
                             val newUri = exportedPreviewUri
                             exportedPreviewUri = null
                             if (newUri != null) {
+                                savedEditorPlayPosMs = 0L
                                 currentMainUri = newUri
                                 convertedUri = null
                                 isConverting = false

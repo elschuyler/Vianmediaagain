@@ -1,0 +1,21 @@
+# ART Baseline Profile for cold-start and 120Hz scrolling paths
+HSPLshura/media/ShuraApplication;->onCreate()V
+HSPLshura/media/MainActivity;->onCreate(Landroid/os/Bundle;)V
+HSPLshura/media/ui/navigation/AppNavigationKt;->**(**)**
+HSPLshura/media/ui/screens/MainScreenKt;->**(**)**
+HSPLshura/media/ui/screens/MediaViewModel;->**(**)**
+HSPLshura/media/ui/screens/PlayerScreenKt;->**(**)**
+HSPLshura/media/data/MediaRepository;->**(**)**
+HSPLshura/media/data/SettingsManager;->**(**)**
+HSPLshura/media/data/SettingsManager$PlaybackStateLookup;->**(**)**
+HSPLshura/media/service/PlayerManager;->**(**)**
+HSPLshura/media/service/PlaybackService;->**(**)**
+Lshura/media/**;
+Landroidx/compose/runtime/**;
+Landroidx/compose/ui/**;
+Landroidx/compose/foundation/**;
+Landroidx/compose/material3/**;
+Landroidx/navigation/**;
+Landroidx/media3/exoplayer/**;
+Landroidx/media3/session/**;
+Lcoil/**;

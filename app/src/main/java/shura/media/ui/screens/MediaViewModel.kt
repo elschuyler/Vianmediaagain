@@ -78,7 +78,16 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     private var loadJob: kotlinx.coroutines.Job? = null
     private var scanJob: kotlinx.coroutines.Job? = null
+    private var cacheSaveJob: kotlinx.coroutines.Job? = null
     private var isSuspended = false
+
+    private fun scheduleCacheSave(folders: List<MediaFolder>) {
+        cacheSaveJob?.cancel()
+        cacheSaveJob = viewModelScope.launch(Dispatchers.IO) {
+            kotlinx.coroutines.delay(1500L)
+            repository.saveCachedMediaFolders(folders)
+        }
+    }
 
     init {
         val cached = repository.getCachedMediaFolders()
@@ -167,11 +176,59 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun syncPlaybackTags() {
+        viewModelScope.launch(Dispatchers.Default) {
+            val currentFolders = _mediaFolders.value
+            if (currentFolders.isEmpty()) return@launch
+            val lookup = shura.media.data.SettingsManager.getInstance(getApplication()).createPlaybackLookup()
+            val currentTime = System.currentTimeMillis()
+            val fifteenDaysMs = 15L * 24 * 60 * 60 * 1000
+            var anyChanged = false
+            val updatedFolders = currentFolders.map { folder ->
+                var folderChanged = false
+                val updatedItems = folder.mediaItems.map { item ->
+                    val uriStr = item.uri.toString()
+                    val isFinished = lookup.isFinished(uriStr, item.name)
+                    val playbackPos = lookup.getPlaybackPosition(uriStr, item.name)
+                    val lastPlayedTime = lookup.getLastPlayedTime(uriStr, item.name)
+                    val newTag = if (isFinished) {
+                        shura.media.data.PlaybackTag.SEEN
+                    } else if (playbackPos > 0L) {
+                        shura.media.data.PlaybackTag.PLAYING
+                    } else if (lastPlayedTime > 0L) {
+                        shura.media.data.PlaybackTag.UNSEEN
+                    } else {
+                        if (currentTime - item.dateAdded < fifteenDaysMs) shura.media.data.PlaybackTag.NEW else shura.media.data.PlaybackTag.UNSEEN
+                    }
+                    if (newTag != item.tag) {
+                        folderChanged = true
+                        item.copy(tag = newTag)
+                    } else {
+                        item
+                    }
+                }
+                if (folderChanged) {
+                    anyChanged = true
+                    folder.copy(
+                        mediaItems = updatedItems,
+                        hasNew = updatedItems.any { it.tag == shura.media.data.PlaybackTag.NEW }
+                    )
+                } else {
+                    folder
+                }
+            }
+            if (anyChanged) {
+                _mediaFolders.value = updatedFolders
+            }
+        }
+    }
+
     fun scanFolder(folderId: String) {
         if (isSuspended) return
         scanJob?.cancel()
         scanJob = viewModelScope.launch(Dispatchers.IO) {
-            val updatedFolder = repository.getMediaFolder(folderId)
+            val cachedFolder = _mediaFolders.value.find { it.id == folderId }
+            val updatedFolder = repository.getMediaFolder(folderId, cachedFolder)
             val currentFolders = _mediaFolders.value.toMutableList()
             val index = currentFolders.indexOfFirst { it.id == folderId }
             if (index != -1) {
@@ -181,11 +238,11 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                     currentFolders.removeAt(index)
                 }
                 _mediaFolders.value = currentFolders
-                repository.saveCachedMediaFolders(currentFolders)
+                scheduleCacheSave(currentFolders)
             } else if (updatedFolder != null && updatedFolder.mediaItems.isNotEmpty()) {
                 currentFolders.add(updatedFolder)
                 _mediaFolders.value = currentFolders
-                repository.saveCachedMediaFolders(currentFolders)
+                scheduleCacheSave(currentFolders)
             }
         }
     }

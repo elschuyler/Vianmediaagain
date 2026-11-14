@@ -623,3 +623,35 @@
      - `VideoEditorScreen.kt`: Probe per-clip audio presence for joined MP4s and inject duration-matched silent `anullsrc` (or video-only concat when all segments are silent) to prevent `Stream specifier ':a' matches no streams`; block silent-video MP3 export before spawning `FFmpegService`.
      - `LogCatcher.kt`: Tighten path regexes to redact full space-containing storage paths, parse `timeStr` timestamps accurately in `parseLogLine()`, and record accurate receipt clarifications in `RECEIPTS_031.md`.
 
+
+- [x] **Phase 139: UI & Architecture Hardening (Single Engine, Zero-Video Audio Mode, Loop OFF Fix, PiP Cleanup, 120Hz Library & Settings Navigation)**
+  1. Native Android PiP Plumbing Removal:
+     - Delete `PipHelper.kt` and `PipActionReceiver.kt`; remove `MainActivity.pipReceiver` / `ACTION_ENTER_PIP` / `ACTION_START_PIP`, `android:supportsPictureInPicture="true"` (`MainActivity`, `PlayerActivity`), and native `PictureInPictureParams` / `isInPipMode` / `isPip` logic in `PlayerScreen.kt` while keeping custom `WindowManager` floating/mini player overlays (`.PipMediaActivity`, `ACTION_VIDEO_OVERLAY`, `ACTION_MINIPLAYER`).
+  2. Loop OFF (`REPEAT_MODE_OFF`) & Notification Next/Prev Replay Fix:
+     - Replace hardcoded `pauseAtEndOfMediaItems = false` across `PlayerManager`, `PlaybackService`, `PlayerActivity`, `PlayerScreen`, `MiniPlayerOverlay`, and `FloatingVideoPlayerOverlay` with `(repeatMode == Player.REPEAT_MODE_OFF)`.
+     - Remove Phase 134's forced `seekToNextMediaItem()` and `onNavigateBack()` on `STATE_ENDED` / `PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM` in `PlayerScreen.kt`.
+     - Guard `PlaybackService` `STATE_ENDED` stop with `!PlayerManager.isPlayerScreenVisible` so `PlayerScreen` remains open for Replay / Notification Prev / Next, and ensure Notification Prev/Next calls `prepare()` + `play()` from `STATE_ENDED`/`STATE_IDLE`.
+  3. True Single Engine Across Players & Editors:
+     - Add `PlaybackService.stopPlaybackAndRelease(context)` and invoke it before/upon entering `EditorActivity`, `VideoEditorScreen`, `AudioTrimmerScreen`, and `PhotoEditorScreen`.
+     - Isolate `VideoEditorScreen` export preview dialog (`isExportPreviewOpen`) so main `exoPlayer`/`bgAudioPlayer` release before `previewPlayer` creation and restore saved playback position afterward.
+  4. Zero Video Resources When No Video Is Active:
+     - Detect audio-only media via `PlayerManager.isAudioOnlyHint` + `PlayerManager.hasSupportedVideoTrack` (`onTracksChanged`), skip composing `AndroidView(PlayerView)` in `PlayerScreen.kt` and `FloatingVideoPlayerOverlay.kt`, guard `ON_RESUME` video track enabling, and enforce video track disable + surface detachment whenever neither `PlayerScreen` nor floating video overlay is visible.
+  5. Batch-Only External Panels & 120Hz Library Smoothness + Settings Navigation:
+     - Remove duplicate multi-URI batch dialogs/progress from `AppNavigation.kt`, keeping `BatchActionActivity` (`ClipData` + `FLAG_GRANT_READ_URI_PERMISSION`) + short-lived services.
+     - Eliminate disk JSON reads/rewrites inside `getMediaFolder()` / `scanFolder()`, debounce folder cache saves, add `SettingsManager.PlaybackStateLookup`, remove forced `ON_START` full library refresh in `MainScreen.kt` in favor of fast `syncPlaybackTags()`, switch to `collectAsStateWithLifecycle()`, `HashSet<Long>` selection lookup, gated `snapshotFlow`s, `Dispatchers.IO` info dialog query, `app/compose_compiler_config.conf`, `baseline-prof.txt`, and promote `SettingsScreen` to `NavHost` route `"settings"` with shared Activity-scoped `MediaViewModel`.
+
+- [x] **Phase 140: Fast Playback Startup, Explicit Queue Propagation & Active-Player Isolation (LogKeeper Preserved)**
+  1. Fast Playback Startup & Artwork Cache Consolidation:
+     - `MyBitmapLoader.kt`: Check Coil's shared `imageLoader` cache (`256px` RAM + `100 MB` `thumbnail_cache` disk) first before falling back to `loadThumbnail` and `MediaMetadataRetriever`.
+     - `PlaybackService.kt`: Remove `ensureArtworkLoaded()` and all its calls; supply `artworkUri` lazily via `ForwardingPlayer.getMediaMetadata()` when unset to eliminate `replaceMediaItem()` timeline churn.
+     - `PlayerActivity.kt` & `PlayerScreen.kt`: Deduplicate Main-thread `MediaUriResolver` IPC via `resolveFastUriOnce()`, remove `extractThumbnailBytes()` / `ACTION_UPDATE_NOTIFICATION`, offload `DISPLAY_NAME`, animated WebP probes, `grantUriPermission`, `getType`, and `content://` subtitle detection to `Dispatchers.IO`, and attach explicit `artworkUri` metadata cleanly.
+     - `MainScreen.kt`: Launch player immediately on tap while building & splicing folder queues asynchronously on `Dispatchers.Default` via `PlayerManager.applyFolderQueueAroundCurrent()` guarded by `isQueuePopulationInProgress`; defer `PlayerScreen.kt` sibling resolution until `Player.STATE_READY` (skipped for network streams and explicit queues) and fix `resolveSiblingPlaylistItems()` to support audio extensions/MediaStore cleanly.
+  2. Explicit Playlist & Multi-Select Queue Propagation:
+     - `PlayerManager.kt`: Add `pendingQueueIsImplicit` + `consumePendingQueueWithImplicitFlag()` and `setPendingQueue(..., isImplicit)`.
+     - `MainScreen.kt` & `PlaylistDetailScreen.kt`: Pass `isImplicit = false` via `setPendingQueue()` for multi-select play, playlist FAB, and playlist item taps (moving display name mapping onto `Dispatchers.IO`) so `resolveSiblingPlaylistItems()` does not overwrite explicit queues with folder scans; manage `MediaController` future disposal cleanly.
+  3. Player-Only Isolation & Background Overhead Elimination (LogKeeper Untouched):
+     - `SettingsManager.kt` & `CenterChannelAudioProcessor.kt`: Default `centerChannelEnabled` and `nightModeEnabled` to `false` (`AudioFormat.NOT_SET` + scratch buffer release when disabled for true zero-copy DSP bypass unless toggled on in `AudioSettingsScreen`).
+     - `PlayerManager.kt`, `PlaybackService.kt`, & `PlayerScreen.kt`: Gate `PlayerManager` 500ms progress ticker solely to expanded `MiniPlayerOverlay` (`setOverlayProgressTickerActive`), consolidate `updateSnapshot()` onto `Player.Listener.onEvents()` reusing `playlist` unless timeline/count changed, deduplicate `"Temp Current"` deletion, and widen `PlayerScreen.kt` idle periodic save interval from `500ms/3s` to `10s` when A-B repeat and sleep timer are inactive.
+     - `MainActivity.kt`, `MiniPlayerOverlay.kt`, `FloatingVideoPlayerOverlay.kt`, & `MediaWidgetProvider.kt`: Defer `PlayerManager.initialize()` out of `MainActivity.onCreate()`, replace Binder display-name IPC in `handleFloatingOrMiniIntent()` with fast decoded segments, load `MiniPlayerOverlay` Folders/Playlists tabs lazily on demand, remove unused playlist mirroring in `FloatingVideoPlayerOverlay`, and cache widget presence (`hasInstalledWidgets`) in `MediaWidgetProvider` to skip unneeded Binder IPC.
+     - `LogKeeper` / `LogCatcher`: Explicitly preserved active and untouched across process and UI.
+

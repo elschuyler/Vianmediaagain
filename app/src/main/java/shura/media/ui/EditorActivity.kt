@@ -13,7 +13,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import shura.media.LogKeeper
-import shura.media.service.PlayerManager
 import shura.media.service.PlaybackService
 import shura.media.ui.screens.AudioTrimmerScreen
 import shura.media.ui.screens.PhotoEditorScreen
@@ -152,7 +151,7 @@ class EditorActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleIntentData(intent)
-        PlaybackService.hideOverlay(this)
+        PlaybackService.stopPlaybackAndRelease(this)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -160,10 +159,7 @@ class EditorActivity : ComponentActivity() {
         LogKeeper.init(this)
         handleIntentData(intent)
 
-        try {
-            PlayerManager.exoPlayer?.pause()
-        } catch (e: Exception) {}
-        PlaybackService.hideOverlay(this)
+        PlaybackService.stopPlaybackAndRelease(this)
 
         if (activeUris.isEmpty()) {
             Toast.makeText(this, "No media file provided to edit", Toast.LENGTH_SHORT).show()

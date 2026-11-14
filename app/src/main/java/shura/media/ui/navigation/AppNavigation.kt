@@ -23,9 +23,6 @@ import shura.media.ui.screens.PlaylistDetailScreen
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import android.net.Uri
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.ui.unit.dp
 
 @Composable
 fun AppNavigation(
@@ -105,44 +102,12 @@ fun AppNavigation(
         }
     }
 
-    var batchCompressionUris by remember { mutableStateOf<List<String>?>(null) }
-    var batchFFmpegUris by remember { mutableStateOf<List<String>?>(null) }
-    LaunchedEffect(initialUris, forceAction) {
-        if (initialUris.size > 1 && forceAction != "edit") {
-            val isVideoOrAudioOrAnimated = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                initialUris.any { rawUri ->
-                    val parsed = android.net.Uri.parse(rawUri)
-                    val mime = context.contentResolver.getType(parsed)?.lowercase() ?: ""
-                    val ext = parsed.lastPathSegment
-                        ?.substringAfterLast('.', "")
-                        ?.lowercase()
-                        ?: rawUri.substringBefore('?').substringAfterLast('.', "").lowercase()
-                    val isVideoOrAudio = mime.startsWith("video/") ||
-                        mime.startsWith("audio/") ||
-                        ext in shura.media.data.COMMON_VIDEO_EXTENSIONS ||
-                        ext in shura.media.data.COMMON_AUDIO_EXTENSIONS
-                    val isAnim = (mime == "image/gif" || mime == "image/webp" || ext == "gif" || ext == "webp") &&
-                        shura.media.data.isAnimatedMedia(context, parsed)
-                    isVideoOrAudio || isAnim
-                }
-            }
-            val isImage = if (!isVideoOrAudioOrAnimated) {
-                initialUris.any { rawUri ->
-                    val parsed = android.net.Uri.parse(rawUri)
-                    val mime = context.contentResolver.getType(parsed)?.lowercase() ?: ""
-                    val ext = parsed.lastPathSegment
-                        ?.substringAfterLast('.', "")
-                        ?.lowercase()
-                        ?: rawUri.substringBefore('?').substringAfterLast('.', "").lowercase()
-                    mime.startsWith("image/") || ext in shura.media.data.COMMON_IMAGE_EXTENSIONS
-                }
-            } else false
-
-            if (isVideoOrAudioOrAnimated) {
-                batchFFmpegUris = initialUris
-            } else if (isImage) {
-                batchCompressionUris = initialUris
-            }
+    LaunchedEffect(startDest) {
+        if (startDest.startsWith("photo_editor/") ||
+            startDest.startsWith("audio_trimmer/") ||
+            startDest.startsWith("video_editor/")
+        ) {
+            shura.media.service.PlaybackService.stopPlaybackAndRelease(context)
         }
     }
 
@@ -209,6 +174,7 @@ fun AppNavigation(
                     context.startActivity(intent)
                 },
                 onNavigateToPhotoEditor = { uri ->
+                    shura.media.service.PlaybackService.stopPlaybackAndRelease(context)
                     val encodedUri = android.util.Base64.encodeToString(uri.toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
                     navController.navigate("photo_editor/$encodedUri")
                 },
@@ -219,18 +185,24 @@ fun AppNavigation(
                     navController.navigate("playlist/$id")
                 },
                 onNavigateToAudioTrimmer = { uri ->
+                    shura.media.service.PlaybackService.stopPlaybackAndRelease(context)
                     val encodedUri = android.util.Base64.encodeToString(uri.toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
                     navController.navigate("audio_trimmer/$encodedUri")
                 },
                 onNavigateToVideoEditor = { uri ->
+                    shura.media.service.PlaybackService.stopPlaybackAndRelease(context)
                     inAppJoinUris = emptyList()
                     val encodedUri = android.util.Base64.encodeToString(uri.toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
                     navController.navigate("video_editor/$encodedUri")
                 },
                 onNavigateToVideoEditorWithJoin = { mainUri, joinUris ->
+                    shura.media.service.PlaybackService.stopPlaybackAndRelease(context)
                     inAppJoinUris = joinUris
                     val encodedUri = android.util.Base64.encodeToString(mainUri.toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
                     navController.navigate("video_editor/$encodedUri")
+                },
+                onNavigateToSettings = {
+                    navController.navigate("settings")
                 },
                 initialSearchActive = (forceAction == "ACTION_SEARCH")
             )
@@ -386,187 +358,15 @@ fun AppNavigation(
                 }
             )
         }
-    }
-
-    batchCompressionUris?.let { uris ->
-        shura.media.ui.components.CompressionOptionsDialog(
-            uris = uris,
-            onDismiss = { 
-                batchCompressionUris = null
-                if (initialUris.isNotEmpty()) { (context as? android.app.Activity)?.finish() }
-            },
-            onStartCompression = { urisToCompress, w, h, q, f ->
-                val intent = android.content.Intent(context, shura.media.service.CompressionService::class.java).apply {
-                    action = "START_BATCH"
-                    putStringArrayListExtra("uris", java.util.ArrayList(urisToCompress))
-                    putExtra("maxWidth", w)
-                    putExtra("maxHeight", h)
-                    putExtra("quality", q)
-                    putExtra("format", f)
-                    if (urisToCompress.isNotEmpty()) {
-                        val firstUri = android.net.Uri.parse(urisToCompress.first())
-                        data = firstUri
-                        val clip = android.content.ClipData.newRawUri("media", firstUri)
-                        for (i in 1 until urisToCompress.size) {
-                            clip.addItem(android.content.ClipData.Item(android.net.Uri.parse(urisToCompress[i])))
-                        }
-                        clipData = clip
-                    }
-                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                }
-                androidx.core.content.ContextCompat.startForegroundService(context, intent)
-                batchCompressionUris = null
-            }
-        )
-    }
-
-    batchFFmpegUris?.let { uris ->
-        shura.media.ui.components.FFmpegBatchDialog(
-            uris = uris,
-            onDismiss = {
-                batchFFmpegUris = null
-                if (initialUris.isNotEmpty()) { (context as? android.app.Activity)?.finish() }
-            },
-            onStartProcessing = { urisToProcess, commandArgs, outputExt ->
-                val intent = android.content.Intent(context, shura.media.service.FFmpegService::class.java).apply {
-                    putStringArrayListExtra("uris", java.util.ArrayList(urisToProcess))
-                    putStringArrayListExtra("commandArgs", java.util.ArrayList(commandArgs))
-                    putExtra("outputExt", outputExt)
-                    if (urisToProcess.isNotEmpty()) {
-                        val firstUri = android.net.Uri.parse(urisToProcess.first())
-                        data = firstUri
-                        val clip = android.content.ClipData.newRawUri("media", firstUri)
-                        for (i in 1 until urisToProcess.size) {
-                            clip.addItem(android.content.ClipData.Item(android.net.Uri.parse(urisToProcess[i])))
-                        }
-                        clipData = clip
-                    }
-                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                }
-                androidx.core.content.ContextCompat.startForegroundService(context, intent)
-                batchFFmpegUris = null
-            }
-        )
-    }
-
-    if (shura.media.service.CompressionStatus.isRunning) {
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { },
-            properties = androidx.compose.ui.window.DialogProperties(
-                dismissOnBackPress = false,
-                dismissOnClickOutside = false
-            ),
-            title = { androidx.compose.material3.Text("Compressing Images") },
-            text = {
-                androidx.compose.foundation.layout.Column {
-                    val total = shura.media.service.CompressionStatus.totalFiles
-                    val current = shura.media.service.CompressionStatus.currentFile
-                    if (total > 1) {
-                        val progressRatio = if (total > 0) current.toFloat() / total else 0f
-                        androidx.compose.material3.LinearProgressIndicator(
-                            progress = { progressRatio },
-                            modifier = androidx.compose.ui.Modifier.fillMaxWidth()
-                        )
-                    } else {
-                        androidx.compose.material3.LinearProgressIndicator(
-                            modifier = androidx.compose.ui.Modifier.fillMaxWidth()
-                        )
-                    }
-                    androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.Modifier.height(8.dp))
-                    if (total > 1) {
-                        androidx.compose.material3.Text("$current / $total files processed", style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
-                    } else {
-                        androidx.compose.material3.Text("Processing file...", style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
+        composable("settings") {
+            SettingsScreen(
+                onNavigateBack = {
+                    val popped = navController.popBackStack()
+                    if (!popped) {
+                        (context as? android.app.Activity)?.finish()
                     }
                 }
-            },
-            confirmButton = {},
-            dismissButton = {
-                androidx.compose.material3.TextButton(onClick = {
-                    shura.media.service.CompressionStatus.stop(context)
-                }) {
-                    androidx.compose.material3.Text("Cancel")
-                }
-            }
-        )
-    }
-
-    if (shura.media.service.FFmpegStatus.isRunning) {
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { },
-            properties = androidx.compose.ui.window.DialogProperties(
-                dismissOnBackPress = false,
-                dismissOnClickOutside = false
-            ),
-            title = { androidx.compose.material3.Text("Processing Video/Audio") },
-            text = {
-                androidx.compose.foundation.layout.Column {
-                    val total = shura.media.service.FFmpegStatus.totalFiles
-                    val current = shura.media.service.FFmpegStatus.currentFile
-                    val statusText = shura.media.service.FFmpegStatus.currentProgress
-                    var parsedProgress: Float? = null
-                    if (total > 1) {
-                        parsedProgress = if (total > 0) current.toFloat() / total else 0f
-                    }
-                    if (statusText.startsWith("Saving: ") && statusText.contains("%")) {
-                        val pctStr = statusText.substringAfter("Saving: ").substringBefore("%").trim()
-                        val pct = pctStr.toFloatOrNull()
-                        if (pct != null) {
-                            parsedProgress = pct / 100f
-                        }
-                    }
-                    
-                    if (parsedProgress != null) {
-                        androidx.compose.material3.LinearProgressIndicator(
-                            progress = { parsedProgress },
-                            modifier = androidx.compose.ui.Modifier.fillMaxWidth()
-                        )
-                    } else {
-                        androidx.compose.material3.LinearProgressIndicator(
-                            modifier = androidx.compose.ui.Modifier.fillMaxWidth()
-                        )
-                    }
-                    androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.Modifier.height(8.dp))
-                    if (total > 1) {
-                        androidx.compose.material3.Text("$current / $total files processed", style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
-                        androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.Modifier.height(4.dp))
-                    }
-                    androidx.compose.material3.Text(statusText, style = androidx.compose.material3.MaterialTheme.typography.bodySmall, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                }
-            },
-            confirmButton = {},
-            dismissButton = {
-                androidx.compose.material3.TextButton(onClick = {
-                    shura.media.service.FFmpegService.requestCancel()
-                }) {
-                    androidx.compose.material3.Text("Cancel")
-                }
-            }
-        )
-    }
-    
-    var wasCompressing by remember { mutableStateOf(false) }
-    LaunchedEffect(shura.media.service.CompressionStatus.isRunning) {
-        if (shura.media.service.CompressionStatus.isRunning) {
-            wasCompressing = true
-        } else if (wasCompressing) {
-            wasCompressing = false
-            android.widget.Toast.makeText(context, "Compression complete!", android.widget.Toast.LENGTH_SHORT).show()
-            if (initialUris.isNotEmpty()) {
-                (context as? android.app.Activity)?.finish()
-            }
-        }
-    }
-    
-    var wasFFmpegRunning by remember { mutableStateOf(false) }
-    LaunchedEffect(shura.media.service.FFmpegStatus.isRunning) {
-        if (shura.media.service.FFmpegStatus.isRunning) {
-            wasFFmpegRunning = true
-        } else if (wasFFmpegRunning) {
-            wasFFmpegRunning = false
-            android.widget.Toast.makeText(context, "Media processing complete!", android.widget.Toast.LENGTH_SHORT).show()
-            // Do not auto-finish here so VideoEditor can show the preview dialog.
-            // If it's batch compression, they can dismiss the modal.
+            )
         }
     }
 }

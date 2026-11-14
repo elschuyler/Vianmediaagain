@@ -76,10 +76,8 @@ fun PhotoEditorScreen(uriString: String, onNavigateBack: () -> Unit) {
     val touchSlop = 60f
 
     DisposableEffect(Unit) {
-        // Resource Exclusivity: Pause background playback to prevent memory pressure while editing photos
-        try {
-            shura.media.service.PlayerManager.exoPlayer?.pause()
-        } catch (e: Exception) {}
+        // True Single Engine: Fully stop background playback and release shared PlayerManager engine
+        shura.media.service.PlaybackService.stopPlaybackAndRelease(context)
         onDispose {}
     }
 

@@ -367,7 +367,7 @@ class SettingsManager private constructor(context: Context) {
 
     
     var centerChannelEnabled: Boolean
-        get() = prefs.getBoolean("center_channel_enabled", true)
+        get() = prefs.getBoolean("center_channel_enabled", false)
         set(value) {
             prefs.edit().putBoolean("center_channel_enabled", value).apply()
             shura.media.service.PlayerManager.applyAudioEffects(this)
@@ -381,7 +381,7 @@ class SettingsManager private constructor(context: Context) {
         }
 
     var nightModeEnabled: Boolean
-        get() = prefs.getBoolean("night_mode_enabled", true)
+        get() = prefs.getBoolean("night_mode_enabled", false)
         set(value) {
             prefs.edit().putBoolean("night_mode_enabled", value).apply()
             shura.media.service.PlayerManager.applyAudioEffects(this)
@@ -410,6 +410,51 @@ class SettingsManager private constructor(context: Context) {
     
     fun setNotificationPriority(priority: List<String>) {
         prefs.edit().putString("notification_priority", priority.joinToString(",")).apply()
+    }
+
+    inner class PlaybackStateLookup(private val entries: Map<String, Any?>) {
+        fun getLastPlayedTime(uri: String, fileName: String? = null): Long {
+            val direct = (entries["time_$uri"] as? Number)?.toLong() ?: 0L
+            if (direct > 0L) return direct
+            val variants = getFileNameVariants(fileName, uri)
+            for (v in variants) {
+                val fnTime = (entries["time_fn_$v"] as? Number)?.toLong() ?: 0L
+                if (fnTime > 0L) return fnTime
+            }
+            return 0L
+        }
+
+        fun getPlaybackPosition(uri: String, fileName: String? = null): Long {
+            val direct = (entries["pos_$uri"] as? Number)?.toLong() ?: 0L
+            if (direct > 0L) return direct
+            val variants = getFileNameVariants(fileName, uri)
+            for (v in variants) {
+                val fnPos = (entries["pos_fn_$v"] as? Number)?.toLong() ?: 0L
+                if (fnPos > 0L) return fnPos
+            }
+            return 0L
+        }
+
+        fun getStoredDuration(uri: String, fileName: String? = null): Long {
+            val direct = (entries["dur_$uri"] as? Number)?.toLong() ?: -1L
+            if (direct > 0L) return direct
+            val variants = getFileNameVariants(fileName, uri)
+            for (v in variants) {
+                val fnDur = (entries["dur_fn_$v"] as? Number)?.toLong() ?: -1L
+                if (fnDur > 0L) return fnDur
+            }
+            return -1L
+        }
+
+        fun isFinished(uri: String, fileName: String? = null): Boolean {
+            val pos = getPlaybackPosition(uri, fileName)
+            val dur = getStoredDuration(uri, fileName)
+            return if (dur > 0L) pos >= dur * 0.99 else false
+        }
+    }
+
+    fun createPlaybackLookup(): PlaybackStateLookup {
+        return PlaybackStateLookup(prefs.all.toMap())
     }
 
     companion object {

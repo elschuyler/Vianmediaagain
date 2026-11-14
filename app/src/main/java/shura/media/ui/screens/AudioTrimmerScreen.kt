@@ -114,10 +114,8 @@ fun AudioTrimmerScreen(
         }
     }
     DisposableEffect(player) {
-        // Resource Exclusivity: Pause background playback to yield audio focus
-        try {
-            shura.media.service.PlayerManager.exoPlayer?.pause()
-        } catch (e: Exception) {}
+        // True Single Engine: Fully stop background playback and release shared PlayerManager engine
+        shura.media.service.PlaybackService.stopPlaybackAndRelease(context)
         onDispose {
             player.release()
         }

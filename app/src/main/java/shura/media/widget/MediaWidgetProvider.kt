@@ -21,7 +21,23 @@ class MediaWidgetProvider : AppWidgetProvider() {
     }
 
 
+    override fun onEnabled(context: Context) {
+        super.onEnabled(context)
+        cachedHasWidgets = true
+    }
+
+    override fun onDisabled(context: Context) {
+        super.onDisabled(context)
+        cachedHasWidgets = false
+    }
+
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        super.onDeleted(context, appWidgetIds)
+        cachedHasWidgets = null
+    }
+
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
+        cachedHasWidgets = appWidgetIds.isNotEmpty()
         shura.media.LogKeeper.log("onUpdate started for ${appWidgetIds.size} widgets", "MediaWidgetProvider")
         try {
             for (appWidgetId in appWidgetIds) {
@@ -187,6 +203,22 @@ class MediaWidgetProvider : AppWidgetProvider() {
         private const val EXTRA_WIDGET_TOKEN = "EXTRA_WIDGET_TOKEN"
         private const val KEY_WIDGET_TOKEN = "widget_ipc_token"
         private val tokenLock = Any()
+        @Volatile
+        private var cachedHasWidgets: Boolean? = null
+
+        fun hasInstalledWidgets(context: Context): Boolean {
+            val cached = cachedHasWidgets
+            if (cached != null) return cached
+            return try {
+                val mgr = AppWidgetManager.getInstance(context.applicationContext)
+                val cn = android.content.ComponentName(context.applicationContext, MediaWidgetProvider::class.java)
+                val has = mgr.getAppWidgetIds(cn).isNotEmpty()
+                cachedHasWidgets = has
+                has
+            } catch (_: Exception) {
+                false
+            }
+        }
 
         private fun getWidgetToken(context: Context): String {
             val prefs = context.getSharedPreferences("widget_prefs", Context.MODE_PRIVATE)

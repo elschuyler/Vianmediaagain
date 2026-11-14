@@ -112,21 +112,10 @@ fun FloatingVideoPlayerOverlay(
     var isPlaying by remember { mutableStateOf(playerSnapshot.isPlaying) }
     var repeatMode by remember { mutableIntStateOf(playerSnapshot.repeatMode) }
     var currentSpeed by remember { mutableFloatStateOf(playerSnapshot.playbackSpeed) }
-    val playlist = remember { mutableStateListOf<MediaItem>() }
-    var currentIndex by remember { mutableIntStateOf(playerSnapshot.currentIndex.coerceAtLeast(0)) }
     var gestureFeedbackText by remember { mutableStateOf("") }
     var showGestureFeedback by remember { mutableStateOf(false) }
-
-
-    val refreshPlaylist: () -> Unit = {
-        playlist.clear()
-        player?.let { p ->
-            for (i in 0 until p.mediaItemCount) {
-                playlist.add(p.getMediaItemAt(i))
-            }
-            currentIndex = p.currentMediaItemIndex
-        }
-    }
+    var hasVideoTrack by remember { mutableStateOf<Boolean?>(null) }
+    var currentMediaUri by remember { mutableStateOf(player?.currentMediaItem?.localConfiguration?.uri) }
 
     val context = androidx.compose.ui.platform.LocalContext.current
     val settingsManager = remember { shura.media.data.SettingsManager.getInstance(context) }
@@ -139,18 +128,31 @@ fun FloatingVideoPlayerOverlay(
         if (playerSnapshot.currentTitle.isNotEmpty()) {
             title = playerSnapshot.currentTitle
         }
-        if (playerSnapshot.currentIndex >= 0) {
-            currentIndex = playerSnapshot.currentIndex
-        }
-        if (playerSnapshot.playlist.isNotEmpty() && playerSnapshot.playlist.size != playlist.size) {
-            playlist.clear()
-            playlist.addAll(playerSnapshot.playlist)
+    }
+
+    val isAudioOnly = hasVideoTrack?.let { !it }
+        ?: shura.media.service.PlayerManager.isAudioOnlyHint(context, currentMediaUri)
+
+    LaunchedEffect(player, isAudioOnly, isMinimizedExternal) {
+        if (!isMinimizedExternal) {
+            if (isAudioOnly) {
+                shura.media.service.PlayerManager.isFloatingVideoActive = false
+                shura.media.service.PlayerManager.detachVideoSurface()
+                shura.media.service.PlayerManager.setVideoTrackEnabled(false)
+            } else {
+                shura.media.service.PlayerManager.isFloatingVideoActive = true
+                shura.media.service.PlayerManager.setVideoTrackEnabled(true)
+            }
         }
     }
 
     LaunchedEffect(player) {
-        refreshPlaylist()
         currentSpeed = player?.playbackParameters?.speed ?: 1.0f
+        currentMediaUri = player?.currentMediaItem?.localConfiguration?.uri
+        val initialTracks = player?.currentTracks
+        hasVideoTrack = if (initialTracks != null && !initialTracks.isEmpty) {
+            shura.media.service.PlayerManager.hasSupportedVideoTrack(initialTracks)
+        } else null
         player?.videoSize?.let { vs ->
             if (vs.width > 0 && vs.height > 0) {
                 onAspectRatioChanged(vs.width.toFloat() / vs.height.toFloat())
@@ -163,11 +165,15 @@ fun FloatingVideoPlayerOverlay(
         val listener = object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 title = mediaItem?.mediaMetadata?.title?.toString() ?: "Unknown"
-                currentIndex = player.currentMediaItemIndex
+                currentMediaUri = mediaItem?.localConfiguration?.uri
+                hasVideoTrack = null
                 currentSpeed = player.playbackParameters.speed
             }
-            override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
-                refreshPlaylist()
+            override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+                if (!tracks.isEmpty) {
+                    val hasVideo = shura.media.service.PlayerManager.hasSupportedVideoTrack(tracks)
+                    hasVideoTrack = hasVideo
+                }
             }
             override fun onIsPlayingChanged(isPlayingChange: Boolean) {
                 isPlaying = isPlayingChange
@@ -191,7 +197,6 @@ fun FloatingVideoPlayerOverlay(
             }
         }
         player.addListener(listener)
-        refreshPlaylist()
         onDispose {
             player.removeListener(listener)
         }
@@ -310,79 +315,105 @@ fun FloatingVideoPlayerOverlay(
                 }
 
                 if (player != null) {
-                    AndroidView(
-                        factory = { ctx ->
-                            (android.view.LayoutInflater.from(ctx).inflate(shura.media.R.layout.player_view_texture, null) as PlayerView).apply {
-                                this.player = player
-                                useController = false
-                                resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
-                                setShutterBackgroundColor(android.graphics.Color.TRANSPARENT)
-                            }
-                        },
-                        update = { view ->
-                            if (view.player != player) {
-                                view.player = player
-                            }
-                            view.resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
-                            view.keepScreenOn = keepScreenAwake && isPlaying
-                        },
-                        modifier = Modifier.fillMaxSize().pointerInput(Unit) {
-                            detectTapGestures(
-                                onTap = {
-                                    showControls = !showControls
-                                    if (showControls) {
+                    if (!isAudioOnly) {
+                        AndroidView(
+                            factory = { ctx ->
+                                (android.view.LayoutInflater.from(ctx).inflate(shura.media.R.layout.player_view_texture, null) as PlayerView).apply {
+                                    this.player = player
+                                    useController = false
+                                    resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                                    setShutterBackgroundColor(android.graphics.Color.TRANSPARENT)
+                                }
+                            },
+                            update = { view ->
+                                if (view.player != player) {
+                                    view.player = player
+                                }
+                                view.resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                                view.keepScreenOn = keepScreenAwake && isPlaying
+                            },
+                            modifier = Modifier.fillMaxSize().pointerInput(Unit) {
+                                detectTapGestures(
+                                    onTap = {
+                                        showControls = !showControls
+                                        if (showControls) {
+                                            lastInteractionTime = System.currentTimeMillis()
+                                        }
+                                    },
+                                    onDoubleTap = { offset ->
                                         lastInteractionTime = System.currentTimeMillis()
-                                    }
-                                },
-                                onDoubleTap = { offset ->
-                                    lastInteractionTime = System.currentTimeMillis()
-                                    val width = size.width.toFloat()
-                                    if (width > 0f) {
-                                        val ratio = offset.x / width
-                                        if (ratio < 0.35f) {
-                                            // Left 35%: Rewind 10s
-                                            player?.let { p ->
-                                                val target = (p.currentPosition - 10000L).coerceAtLeast(0L)
-                                                p.seekTo(target)
-                                                gestureFeedbackText = "-10s"
-                                                showGestureFeedback = true
-                                            }
-                                        } else if (ratio > 0.65f) {
-                                            // Right 35%: Forward 10s
-                                            player?.let { p ->
-                                                val duration = p.duration.coerceAtLeast(0L)
-                                                val target = (p.currentPosition + 10000L).coerceAtMost(duration)
-                                                p.seekTo(target)
-                                                gestureFeedbackText = "+10s"
-                                                showGestureFeedback = true
-                                            }
-                                        } else {
-                                            // Center 30%: Toggle Play/Pause
-                                            player?.let { p ->
-                                                if (p.playbackState == Player.STATE_ENDED) {
-                                                    p.seekTo(0)
-                                                    p.prepare()
-                                                    p.play()
-                                                    gestureFeedbackText = "Play"
-                                                } else if (p.playbackState == Player.STATE_IDLE) {
-                                                    p.prepare()
-                                                    p.play()
-                                                    gestureFeedbackText = "Play"
-                                                } else if (p.isPlaying) {
-                                                    p.pause()
-                                                    gestureFeedbackText = "Pause"
-                                                } else {
-                                                    p.play()
-                                                    gestureFeedbackText = "Play"
+                                        val width = size.width.toFloat()
+                                        if (width > 0f) {
+                                            val ratio = offset.x / width
+                                            if (ratio < 0.35f) {
+                                                // Left 35%: Rewind 10s
+                                                player?.let { p ->
+                                                    val target = (p.currentPosition - 10000L).coerceAtLeast(0L)
+                                                    p.seekTo(target)
+                                                    gestureFeedbackText = "-10s"
+                                                    showGestureFeedback = true
                                                 }
-                                                showGestureFeedback = true
+                                            } else if (ratio > 0.65f) {
+                                                // Right 35%: Forward 10s
+                                                player?.let { p ->
+                                                    val duration = p.duration.coerceAtLeast(0L)
+                                                    val target = (p.currentPosition + 10000L).coerceAtMost(duration)
+                                                    p.seekTo(target)
+                                                    gestureFeedbackText = "+10s"
+                                                    showGestureFeedback = true
+                                                }
+                                            } else {
+                                                // Center 30%: Toggle Play/Pause
+                                                player?.let { p ->
+                                                    if (p.playbackState == Player.STATE_ENDED) {
+                                                        p.seekTo(0)
+                                                        p.prepare()
+                                                        p.play()
+                                                        gestureFeedbackText = "Play"
+                                                    } else if (p.playbackState == Player.STATE_IDLE) {
+                                                        p.prepare()
+                                                        p.play()
+                                                        gestureFeedbackText = "Play"
+                                                    } else if (p.isPlaying) {
+                                                        p.pause()
+                                                        gestureFeedbackText = "Pause"
+                                                    } else {
+                                                        p.play()
+                                                        gestureFeedbackText = "Play"
+                                                    }
+                                                    showGestureFeedback = true
+                                                }
                                             }
                                         }
                                     }
-                                }
+                                )
+                            }
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color(0xFF101318))
+                                .pointerInput(Unit) {
+                                    detectTapGestures(
+                                        onTap = {
+                                            showControls = !showControls
+                                            if (showControls) {
+                                                lastInteractionTime = System.currentTimeMillis()
+                                            }
+                                        }
+                                    )
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.MusicNote,
+                                contentDescription = "Audio Playback",
+                                tint = Color.White.copy(alpha = 0.7f),
+                                modifier = Modifier.size(44.dp)
                             )
                         }
-                    )
+                    }
                     
                     androidx.compose.animation.AnimatedVisibility(
                         visible = showControls,
@@ -421,10 +452,17 @@ fun FloatingVideoPlayerOverlay(
                                         IconButton(
                                             onClick = { 
                                                 player?.let { controller ->
+                                                    val wasEnded = controller.playbackState == Player.STATE_ENDED || controller.playbackState == Player.STATE_IDLE
                                                     if (controller.hasPreviousMediaItem()) {
                                                         controller.seekToPreviousMediaItem()
+                                                    } else if (controller.mediaItemCount > 1) {
+                                                        controller.seekTo(controller.mediaItemCount - 1, 0)
                                                     } else {
                                                         controller.seekTo(0)
+                                                    }
+                                                    if (wasEnded || controller.playWhenReady) {
+                                                        controller.prepare()
+                                                        controller.play()
                                                     }
                                                 }
                                             },
@@ -468,8 +506,17 @@ fun FloatingVideoPlayerOverlay(
                                         IconButton(
                                             onClick = { 
                                                 player?.let { controller ->
+                                                    val wasEnded = controller.playbackState == Player.STATE_ENDED || controller.playbackState == Player.STATE_IDLE
                                                     if (controller.hasNextMediaItem()) {
                                                         controller.seekToNextMediaItem()
+                                                    } else if (controller.mediaItemCount > 1) {
+                                                        controller.seekTo(0, 0)
+                                                    } else {
+                                                        controller.seekTo(0)
+                                                    }
+                                                    if (wasEnded || controller.playWhenReady) {
+                                                        controller.prepare()
+                                                        controller.play()
                                                     }
                                                 }
                                             },
@@ -494,6 +541,7 @@ fun FloatingVideoPlayerOverlay(
                                                         else -> Player.REPEAT_MODE_OFF
                                                     }
                                                     controller.repeatMode = nextMode
+                                                    controller.pauseAtEndOfMediaItems = (nextMode == Player.REPEAT_MODE_OFF)
                                                     repeatMode = nextMode
                                                 }
                                             },
