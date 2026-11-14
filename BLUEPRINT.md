@@ -655,3 +655,8 @@
      - `MainActivity.kt`, `MiniPlayerOverlay.kt`, `FloatingVideoPlayerOverlay.kt`, & `MediaWidgetProvider.kt`: Defer `PlayerManager.initialize()` out of `MainActivity.onCreate()`, replace Binder display-name IPC in `handleFloatingOrMiniIntent()` with fast decoded segments, load `MiniPlayerOverlay` Folders/Playlists tabs lazily on demand, remove unused playlist mirroring in `FloatingVideoPlayerOverlay`, and cache widget presence (`hasInstalledWidgets`) in `MediaWidgetProvider` to skip unneeded Binder IPC.
      - `LogKeeper` / `LogCatcher`: Explicitly preserved active and untouched across process and UI.
 
+- [x] **Phase 141: CI Kotlin Compilation Fix — ExoPlayer `pauseAtEndOfMediaItems` Receiver Resolution (Option 1)**
+  - `PlaybackService.kt` (`ACTION_LOOP`): Resolve `(player as? ExoPlayer) ?: PlayerManager.exoPlayer` before writing `pauseAtEndOfMediaItems` instead of invoking an `ExoPlayer`-only property on `Player`-typed `session.player` (`ForwardingPlayer`).
+  - `FloatingVideoPlayerOverlay.kt`: Resolve `(controller as? ExoPlayer) ?: PlayerManager.exoPlayer` before writing `pauseAtEndOfMediaItems` in the loop toggle button instead of invoking it directly on `Player?`.
+
+

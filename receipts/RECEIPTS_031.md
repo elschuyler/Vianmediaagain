@@ -152,4 +152,20 @@
 * Any deviation from what was requested: None (`LogKeeper` / `LogCatcher` retained active as explicitly requested).
 * Any known issue or follow-up needed: Export/push to GitHub Actions to run `assembleDebug` and `assembleMinifiedDebug` and execute the On-Device Verification Guide.
 
+## Phase 141: CI Kotlin Compilation Fix — ExoPlayer `pauseAtEndOfMediaItems` Resolution (Option 1)
+* Timestamp: 2026-11-14T13:53:30Z
+* One-line summary: Resolved the two `Unresolved reference 'pauseAtEndOfMediaItems'` Kotlin CI errors by safely casting/resolving `ExoPlayer` instead of invoking it on `Player`-typed references.
+* Files touched:
+  - BLUEPRINT.md
+  - app/src/main/java/shura/media/service/PlaybackService.kt
+  - app/src/main/java/shura/media/ui/components/FloatingVideoPlayerOverlay.kt
+  - receipts/RECEIPTS_031.md
+* What was actually done:
+  - `app/src/main/java/shura/media/service/PlaybackService.kt`: Updated `ACTION_LOOP` (`L595`) from `player.pauseAtEndOfMediaItems = ...` (where `session.player` is typed as `androidx.media3.common.Player` via `ForwardingPlayer`) to `((player as? androidx.media3.exoplayer.ExoPlayer) ?: PlayerManager.exoPlayer)?.pauseAtEndOfMediaItems = (player.repeatMode == androidx.media3.common.Player.REPEAT_MODE_OFF)`.
+  - `app/src/main/java/shura/media/ui/components/FloatingVideoPlayerOverlay.kt`: Updated loop button click (`L544`) from `controller.pauseAtEndOfMediaItems = ...` (where `player` parameter is typed as `Player?`) to `((controller as? androidx.media3.exoplayer.ExoPlayer) ?: shura.media.service.PlayerManager.exoPlayer)?.pauseAtEndOfMediaItems = (nextMode == Player.REPEAT_MODE_OFF)`.
+* How it was verified: Static verification only — verified all 15 `pauseAtEndOfMediaItems` sites across `app/src/main/java` resolve through `ExoPlayer` / `ExoPlayer?` receivers, verified cross-file Phase 140 symbol signatures, verified curly/paren balance (`0`/`0`) on both edited `.kt` files, confirmed clean workspace security scan, and executed `compile_applet` and `lint_applet` for workspace toolchain verification. Local `./gradlew` / Android SDK is absent; CI `assembleDebug` / `assembleMinifiedDebug` awaits GitHub push and on-device testing has not run.
+* Any deviation from what was requested: None (Option 1 implemented cleanly).
+* Any known issue or follow-up needed: Push to GitHub to run CI `assembleDebug` & `assembleMinifiedDebug` (including R8 `minifyMinifiedDebugWithR8`, which did not execute during the prior failed Kotlin compile run).
+
+
 

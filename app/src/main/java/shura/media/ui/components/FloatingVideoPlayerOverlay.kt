@@ -541,7 +541,8 @@ fun FloatingVideoPlayerOverlay(
                                                         else -> Player.REPEAT_MODE_OFF
                                                     }
                                                     controller.repeatMode = nextMode
-                                                    controller.pauseAtEndOfMediaItems = (nextMode == Player.REPEAT_MODE_OFF)
+                                                    ((controller as? androidx.media3.exoplayer.ExoPlayer) ?: shura.media.service.PlayerManager.exoPlayer)?.pauseAtEndOfMediaItems =
+                                                        (nextMode == Player.REPEAT_MODE_OFF)
                                                     repeatMode = nextMode
                                                 }
                                             },

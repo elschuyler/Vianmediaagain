@@ -592,7 +592,8 @@ if (customCommand.customAction == "ACTION_LOOP") {
         androidx.media3.common.Player.REPEAT_MODE_ALL -> androidx.media3.common.Player.REPEAT_MODE_ONE
         else -> androidx.media3.common.Player.REPEAT_MODE_OFF
     }
-    player.pauseAtEndOfMediaItems = (player.repeatMode == androidx.media3.common.Player.REPEAT_MODE_OFF)
+    ((player as? androidx.media3.exoplayer.ExoPlayer) ?: PlayerManager.exoPlayer)?.pauseAtEndOfMediaItems =
+        (player.repeatMode == androidx.media3.common.Player.REPEAT_MODE_OFF)
     updateCustomLayout()
     return Futures.immediateFuture(androidx.media3.session.SessionResult(androidx.media3.session.SessionResult.RESULT_SUCCESS))
 }
