@@ -204,5 +204,15 @@
 * Any deviation from what was requested: Added a subtle `16.dp` bookmark icon next to bookmarked folder titles (without adding any separator line or section header text) for visual clarity; kept explicit Next button wrapping on last item consistent with Notification Prev/Next while stopping auto-advance and `Play`-at-end next-file playback under Loop OFF.
 * Any known issue or follow-up needed: Push to GitHub to run CI `assembleDebug` & `assembleMinifiedDebug` and execute the On-Device Verification Guide.
 
-
-
+## Phase 144: CI Lint Vital Fix — `widget_media.xml` Duplicate `widget_btn_refresh` ID (Option 1A)
+* Timestamp: 2026-11-15T20:38:31Z
+* One-line summary: Removed the duplicate `@+id/widget_btn_refresh` `ImageView` from the Top Bar of `widget_media.xml` (Option 1A) to resolve the `:app:lintVitalMinifiedDebug` `DuplicateIds` CI failure.
+* Files touched:
+  - BLUEPRINT.md
+  - app/src/main/res/layout/widget_media.xml
+  - receipts/RECEIPTS_031.md
+* What was actually done:
+  - `app/src/main/res/layout/widget_media.xml`: Removed the duplicate `<ImageView android:id="@+id/widget_btn_refresh">` block from the Top Bar (`L30–37`), retaining the Controls Row 2 `widget_btn_refresh` button alongside `widget_btn_shuffle` and `widget_btn_loop` so `MediaWidgetProvider.kt` binds `R.id.widget_btn_refresh` unambiguously.
+* How it was verified: Static verification only — Python `ElementTree` parse and duplicate-ID scan across all XML files under `app/src/main/res/` confirmed zero duplicate IDs and valid XML; `grep` confirmed `@+id/widget_btn_refresh` appears once in `widget_media.xml`; security scan was clean; `compile_applet` and `lint_applet` executed for workspace toolchain verification. Local `./gradlew` / Android SDK is absent; CI `:app:lintVitalMinifiedDebug` & `assembleMinifiedDebug` awaits GitHub push and on-device testing has not run.
+* Any deviation from what was requested: None (Option 1A implemented as approved).
+* Any known issue or follow-up needed: Export/push to GitHub to run CI `assembleDebug` and `assembleMinifiedDebug` (including `:app:lintVitalMinifiedDebug`) and verify widget refresh tap behavior on-device.

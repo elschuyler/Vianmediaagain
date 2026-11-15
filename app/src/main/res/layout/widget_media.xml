@@ -28,15 +28,6 @@
             android:textStyle="bold" />
 
         <ImageView
-            android:id="@+id/widget_btn_refresh"
-            android:layout_width="28dp"
-            android:layout_height="28dp"
-            android:layout_marginStart="8dp"
-            android:src="@drawable/ic_widget_refresh"
-            android:background="@drawable/widget_btn_bg"
-            android:scaleType="centerInside" />
-
-        <ImageView
             android:id="@+id/widget_btn_pip"
             android:layout_width="28dp"
             android:layout_height="28dp"

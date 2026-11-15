@@ -671,4 +671,5 @@
     - Tracked active item index/URI/title/duration in `PlayerManager` so when `pauseAtEndOfMediaItems = true` (`REPEAT_MODE_OFF`) auto-advances at the end of a non-last file and triggers `PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM`, `PlayerManager` marks the *actually finished* item in `SettingsManager.markAsFinished(...)` and seeks paused back to `(endedIdx, 0L)` instead of leaving Play pointed at the next file.
     - Updated `PlayerScreen.kt` to skip `markAsOpened` on passive `REASON_AUTO` peeks under `REPEAT_MODE_OFF` and stopped rewinds, reset `wasPlayingBeforePause = false` on `END_OF_MEDIA_ITEM`, guard `ON_RESUME` against `STATE_ENDED`, and updated `MiniPlayerOverlay.kt` Prev/Next + `MainActivity.kt` `pauseAtEndOfMediaItems` consistency.
 
-
+- [x] **Phase 144: CI Lint Vital Fix — `widget_media.xml` Duplicate `widget_btn_refresh` ID (Option 1A)**
+  - `app/src/main/res/layout/widget_media.xml`: Removed the duplicate Top Bar `<ImageView android:id="@+id/widget_btn_refresh">` (`L30–37`), keeping the Controls Row 2 `widget_btn_refresh` intact next to `widget_btn_shuffle` and `widget_btn_loop` while `MediaWidgetProvider.kt:72` continues binding `R.id.widget_btn_refresh`.

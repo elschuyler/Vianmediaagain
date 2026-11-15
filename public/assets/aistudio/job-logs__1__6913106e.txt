@@ -1,0 +1,718 @@
+2026-11-15T20:23:12.4479196Z Current runner version: '2.338.2'
+2026-11-15T20:23:12.4501533Z ##[group]Runner Image Provisioner
+2026-11-15T20:23:12.4502457Z Hosted Compute Agent
+2026-11-15T20:23:12.4503330Z Version: 20261103.629
+2026-11-15T20:23:12.4504103Z Commit: 15dbd9ccb5dbf34fae002b6ed1a2670f52df37bc
+2026-11-15T20:23:12.4504831Z Build Date: 2026-11-03T17:26:59Z
+2026-11-15T20:23:12.4505540Z Worker ID: {3dd970a6-b98c-4e5c-8134-b9686328ea2d}
+2026-11-15T20:23:12.4506209Z Region: eastus3
+2026-11-15T20:23:12.4506734Z Cloud: Azure
+2026-11-15T20:23:12.4507248Z ##[endgroup]
+2026-11-15T20:23:12.4508620Z ##[group]Operating System
+2026-11-15T20:23:12.4509240Z Ubuntu
+2026-11-15T20:23:12.4509717Z 26.04.1
+2026-11-15T20:23:12.4510180Z LTS
+2026-11-15T20:23:12.4510676Z ##[endgroup]
+2026-11-15T20:23:12.4511205Z ##[group]Runner Image
+2026-11-15T20:23:12.4511814Z Image: ubuntu-26.04
+2026-11-15T20:23:12.4512359Z Version: 20261111.196.1
+2026-11-15T20:23:12.4514231Z Included Software: https://github.com/actions/runner-images/blob/ubuntu26/20261111.196/images/ubuntu/Ubuntu2604-Readme.md
+2026-11-15T20:23:12.4515749Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu26%2F20261111.196
+2026-11-15T20:23:12.4516683Z ##[endgroup]
+2026-11-15T20:23:12.4517767Z ##[group]GITHUB_TOKEN Permissions
+2026-11-15T20:23:12.4520037Z Contents: read
+2026-11-15T20:23:12.4520609Z Metadata: read
+2026-11-15T20:23:12.4521154Z Packages: read
+2026-11-15T20:23:12.4521682Z ##[endgroup]
+2026-11-15T20:23:12.4524028Z Secret source: Actions
+2026-11-15T20:23:12.4524976Z Cache mode: write
+2026-11-15T20:23:12.4525620Z Prepare workflow directory
+2026-11-15T20:23:12.4850640Z Prepare all required actions
+2026-11-15T20:23:12.4899256Z Getting action download info
+2026-11-15T20:23:12.6953972Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+2026-11-15T20:23:12.8067919Z Download action repository 'actions/setup-java@v4' (SHA:cf277c60eb25467037889841efdb72551f06f6c3)
+2026-11-15T20:23:13.2090553Z Download action repository 'gradle/actions@v3' (SHA:d9c87d481d55275bb5441eef3fe0e46805f9ef70)
+2026-11-15T20:23:13.9950528Z Download action repository 'actions/upload-artifact@v4' (SHA:ea165f8d65b6e75b540449e92b4886f43607fa02)
+2026-11-15T20:23:14.2493429Z Complete job name: build
+2026-11-15T20:23:14.3393125Z ##[group]Run actions/checkout@v4
+2026-11-15T20:23:14.3394435Z with:
+2026-11-15T20:23:14.3395408Z   repository: elschuyler/Vianmediaagain
+2026-11-15T20:23:14.3402111Z   token: ***
+2026-11-15T20:23:14.3403278Z   ssh-strict: true
+2026-11-15T20:23:14.3404262Z   ssh-user: git
+2026-11-15T20:23:14.3405147Z   persist-credentials: true
+2026-11-15T20:23:14.3406096Z   clean: true
+2026-11-15T20:23:14.3406975Z   sparse-checkout-cone-mode: true
+2026-11-15T20:23:14.3407955Z   fetch-depth: 1
+2026-11-15T20:23:14.3408800Z   fetch-tags: false
+2026-11-15T20:23:14.3409650Z   show-progress: true
+2026-11-15T20:23:14.3410521Z   lfs: false
+2026-11-15T20:23:14.3411361Z   submodules: false
+2026-11-15T20:23:14.3412279Z   set-safe-directory: true
+2026-11-15T20:23:14.3413503Z   allow-unsafe-pr-checkout: false
+2026-11-15T20:23:14.3414880Z ##[endgroup]
+2026-11-15T20:23:14.6108984Z Syncing repository: elschuyler/Vianmediaagain
+2026-11-15T20:23:14.6111631Z ##[group]Getting Git version info
+2026-11-15T20:23:14.6113370Z Working directory is '/home/runner/work/Vianmediaagain/Vianmediaagain'
+2026-11-15T20:23:14.6115307Z [command]/usr/bin/git version
+2026-11-15T20:23:14.6171937Z git version 2.56.1
+2026-11-15T20:23:14.6191866Z ##[endgroup]
+2026-11-15T20:23:14.6216077Z Temporarily overriding HOME='/home/runner/work/_temp/580850d5-23a5-4f2f-a2db-167e51698849' before making global git config changes
+2026-11-15T20:23:14.6220331Z Adding repository directory to the temporary git global config as a safe directory
+2026-11-15T20:23:14.6224297Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/Vianmediaagain/Vianmediaagain
+2026-11-15T20:23:14.6274837Z Deleting the contents of '/home/runner/work/Vianmediaagain/Vianmediaagain'
+2026-11-15T20:23:14.6278387Z ##[group]Initializing the repository
+2026-11-15T20:23:14.6282406Z [command]/usr/bin/git init /home/runner/work/Vianmediaagain/Vianmediaagain
+2026-11-15T20:23:14.6399212Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-11-15T20:23:14.6402046Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-11-15T20:23:14.6405138Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-11-15T20:23:14.6407444Z hint: call:
+2026-11-15T20:23:14.6408765Z hint:
+2026-11-15T20:23:14.6410535Z hint: 	git config --global init.defaultBranch <name>
+2026-11-15T20:23:14.6412261Z hint:
+2026-11-15T20:23:14.6414237Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-11-15T20:23:14.6416676Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-11-15T20:23:14.6420483Z hint:
+2026-11-15T20:23:14.6422008Z hint: 	git branch -m <name>
+2026-11-15T20:23:14.6423960Z hint:
+2026-11-15T20:23:14.6426523Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-11-15T20:23:14.6430255Z Initialized empty Git repository in /home/runner/work/Vianmediaagain/Vianmediaagain/.git/
+2026-11-15T20:23:14.6435772Z [command]/usr/bin/git remote add origin https://github.com/elschuyler/Vianmediaagain
+2026-11-15T20:23:14.6476908Z ##[endgroup]
+2026-11-15T20:23:14.6478947Z ##[group]Disabling automatic garbage collection
+2026-11-15T20:23:14.6480667Z [command]/usr/bin/git config --local gc.auto 0
+2026-11-15T20:23:14.6512792Z ##[endgroup]
+2026-11-15T20:23:14.6514919Z ##[group]Setting up auth
+2026-11-15T20:23:14.6520154Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-11-15T20:23:14.6550590Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-11-15T20:23:14.6956284Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-11-15T20:23:14.6993796Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-11-15T20:23:14.7230603Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-11-15T20:23:14.7259745Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-11-15T20:23:14.7471424Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-11-15T20:23:14.7511502Z ##[endgroup]
+2026-11-15T20:23:14.7513961Z ##[group]Fetching the repository
+2026-11-15T20:23:14.7523040Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +0c1ef1d4399206ee997a87b8c00eb13d366279b7:refs/remotes/origin/main
+2026-11-15T20:23:15.2130079Z From https://github.com/elschuyler/Vianmediaagain
+2026-11-15T20:23:15.2132590Z  * [new ref]         0c1ef1d4399206ee997a87b8c00eb13d366279b7 -> origin/main
+2026-11-15T20:23:15.2136068Z ##[endgroup]
+2026-11-15T20:23:15.2137126Z ##[group]Determining the checkout info
+2026-11-15T20:23:15.2138374Z ##[endgroup]
+2026-11-15T20:23:15.2145669Z [command]/usr/bin/git sparse-checkout disable
+2026-11-15T20:23:15.2228443Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-11-15T20:23:15.2256429Z ##[group]Checking out the ref
+2026-11-15T20:23:15.2260736Z [command]/usr/bin/git checkout --progress --force -B main refs/remotes/origin/main
+2026-11-15T20:23:15.2552233Z Switched to a new branch 'main'
+2026-11-15T20:23:15.2558089Z branch 'main' set up to track 'origin/main'.
+2026-11-15T20:23:15.2563458Z ##[endgroup]
+2026-11-15T20:23:15.2602526Z [command]/usr/bin/git log -1 --format=%H
+2026-11-15T20:23:15.2623271Z 0c1ef1d4399206ee997a87b8c00eb13d366279b7
+2026-11-15T20:23:15.2907361Z ##[group]Run actions/setup-java@v4
+2026-11-15T20:23:15.2907839Z with:
+2026-11-15T20:23:15.2908105Z   java-version: 21
+2026-11-15T20:23:15.2908375Z   distribution: temurin
+2026-11-15T20:23:15.2908654Z   java-package: jdk
+2026-11-15T20:23:15.2908921Z   check-latest: false
+2026-11-15T20:23:15.2909185Z   server-id: github
+2026-11-15T20:23:15.2909477Z   server-username: GITHUB_ACTOR
+2026-11-15T20:23:15.2909808Z   server-password: GITHUB_TOKEN
+2026-11-15T20:23:15.2910111Z   overwrite-settings: true
+2026-11-15T20:23:15.2910397Z   job-status: success
+2026-11-15T20:23:15.2912672Z   token: ***
+2026-11-15T20:23:15.2913093Z ##[endgroup]
+2026-11-15T20:23:15.4574280Z ##[warning]setup-java v4 is deprecated and will no longer receive updates. Please migrate to actions/setup-java@v5.
+2026-11-15T20:23:15.4581462Z ##[group]Installed distributions
+2026-11-15T20:23:15.4613022Z Resolved Java 21.0.13+9 from tool-cache
+2026-11-15T20:23:15.4613703Z Setting Java 21.0.13+9 as the default
+2026-11-15T20:23:15.4621338Z (node:2389) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-11-15T20:23:15.4622538Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-11-15T20:23:15.4625179Z Creating toolchains.xml for JDK version 21 from temurin
+2026-11-15T20:23:15.4688475Z Writing to /home/runner/.m2/toolchains.xml
+2026-11-15T20:23:15.4688953Z 
+2026-11-15T20:23:15.4689181Z Java configuration:
+2026-11-15T20:23:15.4689711Z   Distribution: temurin
+2026-11-15T20:23:15.4690196Z   Version: 21.0.13+9
+2026-11-15T20:23:15.4690955Z   Path: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/21.0.13-9/x64
+2026-11-15T20:23:15.4691460Z 
+2026-11-15T20:23:15.4692142Z ##[endgroup]
+2026-11-15T20:23:15.4710991Z Creating settings.xml with server-id: github
+2026-11-15T20:23:15.4744363Z Writing to /home/runner/.m2/settings.xml
+2026-11-15T20:23:15.5004883Z ##[group]Run gradle/actions/setup-gradle@v3
+2026-11-15T20:23:15.5005678Z with:
+2026-11-15T20:23:15.5006326Z   cache-disabled: false
+2026-11-15T20:23:15.5007060Z   cache-read-only: false
+2026-11-15T20:23:15.5007841Z   cache-write-only: false
+2026-11-15T20:23:15.5008586Z   cache-overwrite-existing: false
+2026-11-15T20:23:15.5009221Z   gradle-home-cache-includes: caches
+notifications
+
+2026-11-15T20:23:15.5009819Z   gradle-home-cache-cleanup: false
+2026-11-15T20:23:15.5010295Z   add-job-summary: always
+2026-11-15T20:23:15.5010740Z   add-job-summary-as-pr-comment: never
+2026-11-15T20:23:15.5011221Z   dependency-graph: disabled
+2026-11-15T20:23:15.5011711Z   dependency-graph-continue-on-failure: true
+2026-11-15T20:23:15.5012228Z   build-scan-publish: false
+2026-11-15T20:23:15.5012684Z   validate-wrappers: false
+2026-11-15T20:23:15.5013254Z   generate-job-summary: true
+2026-11-15T20:23:15.5013732Z   gradle-home-cache-strict-match: false
+2026-11-15T20:23:15.5014274Z   workflow-job-context: null
+2026-11-15T20:23:15.5016996Z   github-token: ***
+2026-11-15T20:23:15.5017304Z env:
+2026-11-15T20:23:15.5017796Z   JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/21.0.13-9/x64
+2026-11-15T20:23:15.5018546Z   JAVA_HOME_21_X64: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/21.0.13-9/x64
+2026-11-15T20:23:15.5019087Z ##[endgroup]
+2026-11-15T20:23:15.6833863Z (node:2405) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-11-15T20:23:15.6835204Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-11-15T20:23:15.9393005Z Merged default JDK locations into /home/runner/.m2/toolchains.xml
+2026-11-15T20:23:15.9396390Z ##[group]Restore Gradle state from cache
+2026-11-15T20:23:16.0234231Z ##[warning]Failed to restore gradle-home-v1|Linux|build[e080f0fdc288b6f0c5023fd4b86f7a10]-0c1ef1d4399206ee997a87b8c00eb13d366279b7: Error: Cache service responded with 400
+2026-11-15T20:23:16.0322689Z Gradle User Home cache not found. Will initialize empty.
+2026-11-15T20:23:16.0324198Z ##[endgroup]
+2026-11-15T20:23:16.0459291Z ##[group]Run if [ -f "./gradlew" ]; then
+2026-11-15T20:23:16.0459757Z [36;1mif [ -f "./gradlew" ]; then[0m
+2026-11-15T20:23:16.0460244Z [36;1m  chmod +x ./gradlew[0m
+2026-11-15T20:23:16.0460655Z [36;1m  ./gradlew assembleDebug assembleMinifiedDebug --stacktrace[0m
+2026-11-15T20:23:16.0461053Z [36;1melse[0m
+2026-11-15T20:23:16.0461404Z [36;1m  gradle assembleDebug assembleMinifiedDebug --stacktrace[0m
+2026-11-15T20:23:16.0461781Z [36;1mfi[0m
+2026-11-15T20:23:16.0495932Z shell: /usr/bin/bash -e {0}
+2026-11-15T20:23:16.0496279Z env:
+2026-11-15T20:23:16.0496653Z   JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/21.0.13-9/x64
+2026-11-15T20:23:16.0497184Z   JAVA_HOME_21_X64: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/21.0.13-9/x64
+2026-11-15T20:23:16.0497640Z   GRADLE_ACTION_ID: gradle/actions/setup-gradle
+2026-11-15T20:23:16.0498010Z   GRADLE_BUILD_ACTION_SETUP_COMPLETED: true
+2026-11-15T20:23:16.0498372Z   GRADLE_BUILD_ACTION_CACHE_RESTORED: true
+2026-11-15T20:23:16.0498884Z   DEVELOCITY_INJECTION_INIT_SCRIPT_NAME: gradle-actions.inject-develocity.init.gradle
+2026-11-15T20:23:16.0499407Z   DEVELOCITY_AUTO_INJECTION_CUSTOM_VALUE: gradle-actions
+2026-11-15T20:23:16.0499812Z   GITHUB_DEPENDENCY_GRAPH_ENABLED: false
+2026-11-15T20:23:16.0500334Z ##[endgroup]
+2026-11-15T20:23:18.7793217Z 
+2026-11-15T20:23:18.7794778Z Welcome to Gradle 9.9.1!
+2026-11-15T20:23:18.7795251Z 
+2026-11-15T20:23:18.7795424Z Here are the highlights of this release:
+2026-11-15T20:23:18.7795966Z  - Performance improvements for Kotlin DSL compilation
+2026-11-15T20:23:18.7796543Z  - Test filtering for non-method JUnit Platform tests
+2026-11-15T20:23:18.7797155Z  - Wrapper settings preserved on upgrade
+2026-11-15T20:23:18.7797872Z  - Predefined groups in the Problems API
+2026-11-15T20:23:18.7798171Z 
+2026-11-15T20:23:18.7799747Z For more details see https://docs.gradle.org/9.9.1/release-notes.html
+2026-11-15T20:23:18.7800203Z 
+2026-11-15T20:23:19.2788692Z Starting a Gradle Daemon (subsequent builds will be faster)
+2026-11-15T20:23:25.4789712Z Calculating task graph as no cached configuration is available for tasks: assembleDebug assembleMinifiedDebug
+2026-11-15T20:24:34.4820216Z > Task :app:generateDebugAssets UP-TO-DATE
+2026-11-15T20:24:34.4844120Z > Task :app:generateMinifiedDebugAssets UP-TO-DATE
+2026-11-15T20:24:34.4883836Z > Task :app:preBuild UP-TO-DATE
+2026-11-15T20:24:34.4906745Z > Task :app:preDebugBuild UP-TO-DATE
+2026-11-15T20:24:34.5796107Z > Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+2026-11-15T20:24:34.6802370Z > Task :app:generateDebugBuildConfig
+2026-11-15T20:24:34.6825592Z > Task :app:generateDebugResources
+2026-11-15T20:24:34.8804350Z > Task :app:packageDebugResources
+2026-11-15T20:24:40.4788049Z > Task :app:javaPreCompileDebug
+2026-11-15T20:24:40.6827594Z > Task :app:processDebugNavigationResources
+2026-11-15T20:24:41.5804347Z > Task :app:parseDebugLocalResources
+2026-11-15T20:24:44.2794577Z > Task :app:mergeDebugAssets
+2026-11-15T20:24:44.3794250Z > Task :app:compressDebugAssets
+2026-11-15T20:24:44.3824133Z > Task :app:generateDebugRFile
+2026-11-15T20:24:44.3883811Z > Task :app:desugarDebugFileDependencies
+2026-11-15T20:24:44.3908316Z > Task :app:mapDebugSourceSetPaths
+2026-11-15T20:24:44.6795911Z > Task :app:compileDebugNavigationResources
+2026-11-15T20:24:44.6883949Z > Task :app:checkDebugAarMetadata
+2026-11-15T20:24:44.6958454Z > Task :app:createDebugCompatibleScreenManifests
+2026-11-15T20:24:44.6970858Z > Task :app:extractDeepLinksDebug
+2026-11-15T20:24:44.7806805Z > Task :app:checkDebugDuplicateClasses
+2026-11-15T20:24:45.4790894Z > Task :app:processDebugMainManifest
+2026-11-15T20:24:47.9854238Z > Task :app:mergeLibDexDebug
+2026-11-15T20:24:48.3794288Z > Task :app:processDebugManifest
+2026-11-15T20:25:04.6812772Z > Task :app:kspDebugKotlin
+2026-11-15T20:25:06.6868052Z ##[error]Exception in thread "AWT-EventQueue-0" java.lang.NullPointerException: Cannot invoke "ksp.com.intellij.openapi.application.Application.getService(java.lang.Class)" because the return value of "ksp.com.intellij.openapi.application.ApplicationManager.getApplication()" is null
+2026-11-15T20:25:06.6872295Z 	at ksp.com.intellij.openapi.fileEditor.FileDocumentManager.getInstance(FileDocumentManager.java:35)
+2026-11-15T20:25:06.6934762Z 	at ksp.com.intellij.openapi.fileTypes.BinaryFileTypeDecompilers.lambda$notifyDecompilerSetChange$1(BinaryFileTypeDecompilers.java:29)
+2026-11-15T20:25:06.6936174Z 	at java.desktop/java.awt.event.InvocationEvent.dispatch(InvocationEvent.java:318)
+2026-11-15T20:25:06.6937048Z 	at java.desktop/java.awt.EventQueue.dispatchEventImpl(EventQueue.java:773)
+2026-11-15T20:25:06.6937826Z 	at java.desktop/java.awt.EventQueue$4.run(EventQueue.java:720)
+2026-11-15T20:25:06.6938472Z 	at java.desktop/java.awt.EventQueue$4.run(EventQueue.java:714)
+2026-11-15T20:25:06.6939205Z 	at java.base/java.security.AccessController.doPrivileged(AccessController.java:400)
+2026-11-15T20:25:06.6940382Z 	at java.base/java.security.ProtectionDomain$JavaSecurityAccessImpl.doIntersectionPrivilege(ProtectionDomain.java:87)
+2026-11-15T20:25:06.6941383Z 	at java.desktop/java.awt.EventQueue.dispatchEvent(EventQueue.java:742)
+2026-11-15T20:25:06.6942273Z 	at java.desktop/java.awt.EventDispatchThread.pumpOneEventForFilters(EventDispatchThread.java:203)
+2026-11-15T20:25:06.6943546Z 	at java.desktop/java.awt.EventDispatchThread.pumpEventsForFilter(EventDispatchThread.java:124)
+2026-11-15T20:25:06.6944664Z 	at java.desktop/java.awt.EventDispatchThread.pumpEventsForHierarchy(EventDispatchThread.java:113)
+2026-11-15T20:25:06.6945688Z 	at java.desktop/java.awt.EventDispatchThread.pumpEvents(EventDispatchThread.java:109)
+2026-11-15T20:25:06.6946614Z 	at java.desktop/java.awt.EventDispatchThread.pumpEvents(EventDispatchThread.java:101)
+2026-11-15T20:25:06.6947488Z 	at java.desktop/java.awt.EventDispatchThread.run(EventDispatchThread.java:90)
+2026-11-15T20:25:06.6947995Z 
+2026-11-15T20:25:14.6788321Z 
+2026-11-15T20:25:14.6814505Z > Task :app:mergeDebugResources
+2026-11-15T20:25:14.7804289Z > Task :app:mergeExtDexDebug
+2026-11-15T20:25:18.3814478Z > Task :app:processDebugManifestForPackage
+2026-11-15T20:25:25.0792592Z > Task :app:mergeDebugJniLibFolders
+2026-11-15T20:25:36.6804032Z > Task :app:compileDebugKotlin
+2026-11-15T20:25:48.8814001Z > Task :app:mergeDebugNativeLibs
+2026-11-15T20:25:49.6794640Z > Task :app:processDebugResources
+2026-11-15T20:25:54.9814477Z > Task :app:validateSigningDebug
+2026-11-15T20:25:54.9883746Z > Task :app:writeDebugAppMetadata
+2026-11-15T20:25:54.9884117Z 
+2026-11-15T20:25:54.9884278Z > Task :app:stripDebugDebugSymbols
+2026-11-15T20:25:54.9886619Z Unable to strip the following libraries, packaging them as they are: libandroidx.graphics.path.so, libavcodec.so, libavdevice.so, libavfilter.so, libavformat.so, libavutil.so, libc++_shared.so, libffmpegJNI.so, libffmpegkit.so, libffmpegkit_abidetect.so, libimagepipeline.so, libnative-filters.so, libnative-imagetranscoder.so, libstatic-webp.so, libswresample.so, libswscale.so. Run with --info option to learn more.
+2026-11-15T20:25:55.0823416Z 
+2026-11-15T20:25:55.0854254Z > Task :app:writeDebugSigningConfigVersions
+2026-11-15T20:25:55.0856334Z > Task :app:preMinifiedDebugBuild UP-TO-DATE
+2026-11-15T20:25:55.0883940Z > Task :app:mergeMinifiedDebugJniLibFolders
+2026-11-15T20:25:55.3789361Z > Task :app:checkMinifiedDebugDuplicateClasses
+2026-11-15T20:25:55.3802989Z > Task :app:generateMinifiedDebugBuildConfig
+2026-11-15T20:25:55.4804770Z > Task :app:generateMinifiedDebugResources FROM-CACHE
+2026-11-15T20:25:55.5838853Z > Task :app:packageMinifiedDebugResources
+2026-11-15T20:25:55.5884390Z > Task :app:processMinifiedDebugNavigationResources FROM-CACHE
+2026-11-15T20:25:55.5914161Z > Task :app:parseMinifiedDebugLocalResources FROM-CACHE
+2026-11-15T20:25:55.5943938Z > Task :app:mergeMinifiedDebugNativeLibs
+2026-11-15T20:25:55.5973674Z > Task :app:generateMinifiedDebugRFile FROM-CACHE
+2026-11-15T20:25:56.0824711Z 
+2026-11-15T20:25:56.0936907Z > Task :app:stripMinifiedDebugDebugSymbols
+2026-11-15T20:25:56.0985693Z Unable to strip the following libraries, packaging them as they are: libandroidx.graphics.path.so, libavcodec.so, libavdevice.so, libavfilter.so, libavformat.so, libavutil.so, libc++_shared.so, libffmpegJNI.so, libffmpegkit.so, libffmpegkit_abidetect.so, libimagepipeline.so, libnative-filters.so, libnative-imagetranscoder.so, libstatic-webp.so, libswresample.so, libswscale.so. Run with --info option to learn more.
+2026-11-15T20:25:56.1803463Z 
+2026-11-15T20:25:56.1834901Z > Task :app:extractMinifiedDebugNativeSymbolTables
+2026-11-15T20:25:56.1835904Z > Task :app:mergeMinifiedDebugNativeDebugMetadata NO-SOURCE
+2026-11-15T20:25:56.1884212Z > Task :app:javaPreCompileMinifiedDebug FROM-CACHE
+2026-11-15T20:25:56.4854150Z > Task :app:mergeMinifiedDebugArtProfile
+2026-11-15T20:25:56.5794063Z > Task :app:checkMinifiedDebugAarMetadata
+2026-11-15T20:25:56.5854229Z > Task :app:mapMinifiedDebugSourceSetPaths
+2026-11-15T20:25:56.5914065Z > Task :app:compileMinifiedDebugNavigationResources FROM-CACHE
+2026-11-15T20:26:00.8797532Z > Task :app:mergeMinifiedDebugResources
+2026-11-15T20:26:00.9803049Z > Task :app:createMinifiedDebugCompatibleScreenManifests
+2026-11-15T20:26:00.9854196Z > Task :app:extractDeepLinksMinifiedDebug FROM-CACHE
+2026-11-15T20:26:01.2812398Z > Task :app:processMinifiedDebugMainManifest
+2026-11-15T20:26:01.3795188Z > Task :app:processMinifiedDebugManifest
+2026-11-15T20:26:01.3853912Z > Task :app:processMinifiedDebugManifestForPackage
+2026-11-15T20:26:03.0788065Z > Task :app:processMinifiedDebugResources
+2026-11-15T20:26:03.1801054Z > Task :app:extractProguardFiles
+2026-11-15T20:26:03.1854118Z > Task :app:mergeMinifiedDebugStartupProfile
+2026-11-15T20:26:03.1913858Z > Task :app:mergeMinifiedDebugAssets
+2026-11-15T20:26:03.2814084Z > Task :app:compressMinifiedDebugAssets
+2026-11-15T20:26:03.5794090Z > Task :app:extractMinifiedDebugVersionControlInfo
+2026-11-15T20:26:04.1804722Z > Task :app:collectMinifiedDebugDependencies
+2026-11-15T20:26:04.5794062Z > Task :app:sdkMinifiedDebugDependencyData
+2026-11-15T20:26:04.5853917Z > Task :app:validateSigningMinifiedDebug
+2026-11-15T20:26:04.5914082Z > Task :app:writeMinifiedDebugAppMetadata
+2026-11-15T20:26:04.6034342Z > Task :app:writeMinifiedDebugSigningConfigVersions
+2026-11-15T20:26:08.0804175Z > Task :app:kspMinifiedDebugKotlin
+2026-11-15T20:26:38.0804516Z > Task :app:compileMinifiedDebugKotlin
+2026-11-15T20:27:14.5794194Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/MainActivity.kt:54:19 'fun <T : Parcelable!> getParcelableExtra(p0: String!): T?' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.5802636Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/MainActivity.kt:67:34 'fun <T : Parcelable!> getParcelableArrayListExtra(p0: String!): ArrayList<T!>?' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.5805332Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/MainActivity.kt:101:19 'fun <T : Parcelable!> getParcelableExtra(p0: String!): T?' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.5884986Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/MainActivity.kt:114:34 'fun <T : Parcelable!> getParcelableArrayListExtra(p0: String!): ArrayList<T!>?' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.5904606Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/MainActivity.kt:419:37 'fun <T : Parcelable!> getParcelableExtra(p0: String!): T?' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.6824948Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/MainActivity.kt:434:52 'fun <T : Parcelable!> getParcelableArrayListExtra(p0: String!): ArrayList<T!>?' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.6884527Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/MyBitmapLoader.kt:69:29 Condition is always 'true'.
+2026-11-15T20:27:14.6915670Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/VideoThumbnailFetcher.kt:31:30 'fun resume(value: Bitmap?, onCancellation: ((@ParameterName(...) Throwable) -> Unit)?): Unit' is deprecated. Use the overload that also accepts the `value` and the coroutine context in lambda.
+2026-11-15T20:27:14.6974890Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/VideoThumbnailFetcher.kt:34:34 'fun resume(value: Bitmap?, onCancellation: ((@ParameterName(...) Throwable) -> Unit)?): Unit' is deprecated. Use the overload that also accepts the `value` and the coroutine context in lambda.
+2026-11-15T20:27:14.7005110Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/data/AppDatabase.kt:40:18 'fun fallbackToDestructiveMigration(): RoomDatabase.Builder<AppDatabase>' is deprecated. Replace by overloaded version with parameter to indicate if all tables should be dropped or not.
+2026-11-15T20:27:14.7065231Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/data/CacheManager.kt:54:62 This declaration needs opt-in. Its usage should be marked with '@coil.annotation.ExperimentalCoilApi' or '@OptIn(coil.annotation.ExperimentalCoilApi::class)'
+2026-11-15T20:27:14.7094917Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/data/CacheManager.kt:56:36 This declaration needs opt-in. Its usage should be marked with '@coil.annotation.ExperimentalCoilApi' or '@OptIn(coil.annotation.ExperimentalCoilApi::class)'
+2026-11-15T20:27:14.7114892Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/data/CacheManager.kt:57:61 This declaration needs opt-in. Its usage should be marked with '@coil.annotation.ExperimentalCoilApi' or '@OptIn(coil.annotation.ExperimentalCoilApi::class)'
+2026-11-15T20:27:14.7184402Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/service/FFmpegService.kt:266:62 'fun newInstance(): CapturedType(*)!' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.7214778Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/service/PlaybackService.kt:556:14 'fun onPlayerCommandRequest(p0: MediaSession, p1: MediaSession.ControllerInfo, p2: Int): Int' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.7244516Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/service/PlaybackService.kt:1315:34 'fun notifyAppWidgetViewDataChanged(p0: Int, p1: Int): Unit' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.7304414Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/EditorActivity.kt:34:21 'fun <T : Parcelable!> getParcelableExtra(p0: String!): T?' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.7334514Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/EditorActivity.kt:47:36 'fun <T : Parcelable!> getParcelableArrayListExtra(p0: String!): ArrayList<T!>?' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.7394612Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/EditorActivity.kt:89:21 'fun <T : Parcelable!> getParcelableExtra(p0: String!): T?' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.7424546Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/EditorActivity.kt:104:31 'fun <T : Parcelable!> getParcelableArrayListExtra(p0: String!): ArrayList<T!>?' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.7484385Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/PlayerActivity.kt:34:21 'fun <T : Parcelable!> getParcelableExtra(p0: String!): T?' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.7514404Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/PlayerActivity.kt:66:24 'fun <T : Parcelable!> getParcelableExtra(p0: String!): T?' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.7545053Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/components/CompressionOptionsDialog.kt:69:17 'fun Divider(modifier: Modifier = ..., thickness: Dp = ..., color: Color = ...): Unit' is deprecated. Renamed to HorizontalDivider.
+2026-11-15T20:27:14.7604627Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/components/MiniPlayerOverlay.kt:436:60 'val Icons.Filled.VolumeUp: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.VolumeUp.
+2026-11-15T20:27:14.7634551Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/components/MiniPlayerOverlay.kt:466:47 'val Icons.Filled.ArrowBack: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.ArrowBack.
+2026-11-15T20:27:14.7657119Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/components/MiniPlayerOverlay.kt:493:103 'val Icons.Filled.PlaylistPlay: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.PlaylistPlay.
+2026-11-15T20:27:14.7714904Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/components/MiniPlayerOverlay.kt:649:51 'val Icons.Filled.PlaylistPlay: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.PlaylistPlay.
+2026-11-15T20:27:14.7774646Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/screens/AudioSettingsScreen.kt:82:17 'fun Divider(modifier: Modifier = ..., thickness: Dp = ..., color: Color = ...): Unit' is deprecated. Renamed to HorizontalDivider.
+2026-11-15T20:27:14.7834607Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/screens/AudioSettingsScreen.kt:112:17 'fun Divider(modifier: Modifier = ..., thickness: Dp = ..., color: Color = ...): Unit' is deprecated. Renamed to HorizontalDivider.
+2026-11-15T20:27:14.7895335Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/screens/MainScreen.kt:204:40 This declaration needs opt-in. Its usage should be marked with '@coil.annotation.ExperimentalCoilApi' or '@OptIn(coil.annotation.ExperimentalCoilApi::class)'
+2026-11-15T20:27:14.7934923Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/screens/MainScreen.kt:1210:64 This declaration needs opt-in. Its usage should be marked with '@coil.annotation.ExperimentalCoilApi' or '@OptIn(coil.annotation.ExperimentalCoilApi::class)'
+2026-11-15T20:27:14.7984819Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/screens/MainScreen.kt:1233:64 This declaration needs opt-in. Its usage should be marked with '@coil.annotation.ExperimentalCoilApi' or '@OptIn(coil.annotation.ExperimentalCoilApi::class)'
+2026-11-15T20:27:14.7987703Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/screens/PhotoEditorScreen.kt:149:43 'val Icons.Filled.ArrowBack: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.ArrowBack.
+2026-11-15T20:27:14.7989968Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/screens/PlayerScreen.kt:661:20 'var statusBarColor: Int' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.7991873Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/screens/PlayerScreen.kt:675:24 'var statusBarColor: Int' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.7993738Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/screens/PlayerScreen.kt:984:144 'field unappliedRotationDegrees: Int' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.7995226Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/screens/VideoEditorScreen.kt:429:66 'fun newInstance(): CapturedType(*)!' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.7997480Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/screens/VideoEditorScreen.kt:1623:47 'val Icons.Filled.VolumeUp: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.VolumeUp.
+2026-11-15T20:27:14.8000090Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/screens/VideoEditorScreen.kt:1625:47 'val Icons.Filled.RotateRight: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.RotateRight.
+2026-11-15T20:27:14.8002527Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/screens/hud/PlayerHudCapsules.kt:95:44 'val Icons.Filled.VolumeUp: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.VolumeUp.
+2026-11-15T20:27:14.8033902Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/widget/MediaWidgetProvider.kt:20:26 'fun notifyAppWidgetViewDataChanged(p0: IntArray!, p1: Int): Unit' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.8036404Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/widget/MediaWidgetProvider.kt:175:15 'fun setRemoteAdapter(p0: Int, p1: Intent!): Unit' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.8038775Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/widget/WidgetSearchActivity.kt:107:30 'fun notifyAppWidgetViewDataChanged(p0: IntArray!, p1: Int): Unit' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.8040095Z 
+2026-11-15T20:27:14.8040274Z > Task :app:compileDebugKotlin
+2026-11-15T20:27:14.8041540Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/MainActivity.kt:54:19 'fun <T : Parcelable!> getParcelableExtra(p0: String!): T?' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.8043849Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/MainActivity.kt:67:34 'fun <T : Parcelable!> getParcelableArrayListExtra(p0: String!): ArrayList<T!>?' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.8046170Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/MainActivity.kt:101:19 'fun <T : Parcelable!> getParcelableExtra(p0: String!): T?' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.8114560Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/MainActivity.kt:114:34 'fun <T : Parcelable!> getParcelableArrayListExtra(p0: String!): ArrayList<T!>?' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.8144441Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/MainActivity.kt:419:37 'fun <T : Parcelable!> getParcelableExtra(p0: String!): T?' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.8174532Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/MainActivity.kt:434:52 'fun <T : Parcelable!> getParcelableArrayListExtra(p0: String!): ArrayList<T!>?' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.8234008Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/MyBitmapLoader.kt:69:29 Condition is always 'true'.
+2026-11-15T20:27:14.8294794Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/VideoThumbnailFetcher.kt:31:30 'fun resume(value: Bitmap?, onCancellation: ((@ParameterName(...) Throwable) -> Unit)?): Unit' is deprecated. Use the overload that also accepts the `value` and the coroutine context in lambda.
+2026-11-15T20:27:14.8354922Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/VideoThumbnailFetcher.kt:34:34 'fun resume(value: Bitmap?, onCancellation: ((@ParameterName(...) Throwable) -> Unit)?): Unit' is deprecated. Use the overload that also accepts the `value` and the coroutine context in lambda.
+2026-11-15T20:27:14.8385312Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/data/AppDatabase.kt:40:18 'fun fallbackToDestructiveMigration(): RoomDatabase.Builder<AppDatabase>' is deprecated. Replace by overloaded version with parameter to indicate if all tables should be dropped or not.
+2026-11-15T20:27:14.8444904Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/data/CacheManager.kt:54:62 This declaration needs opt-in. Its usage should be marked with '@coil.annotation.ExperimentalCoilApi' or '@OptIn(coil.annotation.ExperimentalCoilApi::class)'
+2026-11-15T20:27:14.8474848Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/data/CacheManager.kt:56:36 This declaration needs opt-in. Its usage should be marked with '@coil.annotation.ExperimentalCoilApi' or '@OptIn(coil.annotation.ExperimentalCoilApi::class)'
+2026-11-15T20:27:14.8504909Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/data/CacheManager.kt:57:61 This declaration needs opt-in. Its usage should be marked with '@coil.annotation.ExperimentalCoilApi' or '@OptIn(coil.annotation.ExperimentalCoilApi::class)'
+2026-11-15T20:27:14.8564329Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/service/FFmpegService.kt:266:62 'fun newInstance(): CapturedType(*)!' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.8624714Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/service/PlaybackService.kt:556:14 'fun onPlayerCommandRequest(p0: MediaSession, p1: MediaSession.ControllerInfo, p2: Int): Int' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.8654450Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/service/PlaybackService.kt:1315:34 'fun notifyAppWidgetViewDataChanged(p0: Int, p1: Int): Unit' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.8684357Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/EditorActivity.kt:34:21 'fun <T : Parcelable!> getParcelableExtra(p0: String!): T?' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.8744499Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/EditorActivity.kt:47:36 'fun <T : Parcelable!> getParcelableArrayListExtra(p0: String!): ArrayList<T!>?' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.8774273Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/EditorActivity.kt:89:21 'fun <T : Parcelable!> getParcelableExtra(p0: String!): T?' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.8834485Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/EditorActivity.kt:104:31 'fun <T : Parcelable!> getParcelableArrayListExtra(p0: String!): ArrayList<T!>?' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.8864349Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/PlayerActivity.kt:34:21 'fun <T : Parcelable!> getParcelableExtra(p0: String!): T?' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.8914383Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/PlayerActivity.kt:66:24 'fun <T : Parcelable!> getParcelableExtra(p0: String!): T?' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.8944532Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/components/CompressionOptionsDialog.kt:69:17 'fun Divider(modifier: Modifier = ..., thickness: Dp = ..., color: Color = ...): Unit' is deprecated. Renamed to HorizontalDivider.
+2026-11-15T20:27:14.8984780Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/components/MiniPlayerOverlay.kt:436:60 'val Icons.Filled.VolumeUp: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.VolumeUp.
+2026-11-15T20:27:14.9035503Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/components/MiniPlayerOverlay.kt:466:47 'val Icons.Filled.ArrowBack: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.ArrowBack.
+2026-11-15T20:27:14.9064848Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/components/MiniPlayerOverlay.kt:493:103 'val Icons.Filled.PlaylistPlay: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.PlaylistPlay.
+2026-11-15T20:27:14.9104636Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/components/MiniPlayerOverlay.kt:649:51 'val Icons.Filled.PlaylistPlay: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.PlaylistPlay.
+2026-11-15T20:27:14.9164442Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/screens/AudioSettingsScreen.kt:82:17 'fun Divider(modifier: Modifier = ..., thickness: Dp = ..., color: Color = ...): Unit' is deprecated. Renamed to HorizontalDivider.
+2026-11-15T20:27:14.9214755Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/screens/AudioSettingsScreen.kt:112:17 'fun Divider(modifier: Modifier = ..., thickness: Dp = ..., color: Color = ...): Unit' is deprecated. Renamed to HorizontalDivider.
+2026-11-15T20:27:14.9274800Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/screens/MainScreen.kt:204:40 This declaration needs opt-in. Its usage should be marked with '@coil.annotation.ExperimentalCoilApi' or '@OptIn(coil.annotation.ExperimentalCoilApi::class)'
+2026-11-15T20:27:14.9334954Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/screens/MainScreen.kt:1210:64 This declaration needs opt-in. Its usage should be marked with '@coil.annotation.ExperimentalCoilApi' or '@OptIn(coil.annotation.ExperimentalCoilApi::class)'
+2026-11-15T20:27:14.9364969Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/screens/MainScreen.kt:1233:64 This declaration needs opt-in. Its usage should be marked with '@coil.annotation.ExperimentalCoilApi' or '@OptIn(coil.annotation.ExperimentalCoilApi::class)'
+2026-11-15T20:27:14.9368110Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/screens/PhotoEditorScreen.kt:149:43 'val Icons.Filled.ArrowBack: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.ArrowBack.
+2026-11-15T20:27:14.9394366Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/screens/PlayerScreen.kt:661:20 'var statusBarColor: Int' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.9424285Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/screens/PlayerScreen.kt:675:24 'var statusBarColor: Int' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.9426410Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/screens/PlayerScreen.kt:984:144 'field unappliedRotationDegrees: Int' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.9483000Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/screens/VideoEditorScreen.kt:429:66 'fun newInstance(): CapturedType(*)!' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.9524726Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/screens/VideoEditorScreen.kt:1623:47 'val Icons.Filled.VolumeUp: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.VolumeUp.
+2026-11-15T20:27:14.9564647Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/screens/VideoEditorScreen.kt:1625:47 'val Icons.Filled.RotateRight: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.RotateRight.
+2026-11-15T20:27:14.9595091Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/ui/screens/hud/PlayerHudCapsules.kt:95:44 'val Icons.Filled.VolumeUp: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.VolumeUp.
+2026-11-15T20:27:14.9651207Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/widget/MediaWidgetProvider.kt:20:26 'fun notifyAppWidgetViewDataChanged(p0: IntArray!, p1: Int): Unit' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.9724710Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/widget/MediaWidgetProvider.kt:175:15 'fun setRemoteAdapter(p0: Int, p1: Intent!): Unit' is deprecated. Deprecated in Java.
+2026-11-15T20:27:14.9784652Z w: file:///home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/java/shura/media/widget/WidgetSearchActivity.kt:107:30 'fun notifyAppWidgetViewDataChanged(p0: IntArray!, p1: Int): Unit' is deprecated. Deprecated in Java.
+2026-11-15T20:27:15.3812601Z 
+2026-11-15T20:27:15.3904358Z > Task :app:processMinifiedDebugJavaRes
+2026-11-15T20:27:15.3957915Z > Task :app:processDebugJavaRes
+2026-11-15T20:27:20.1794668Z > Task :app:mergeDebugJavaResource
+2026-11-15T20:27:20.1795560Z > Task :app:mergeMinifiedDebugJavaResource
+2026-11-15T20:27:25.7814318Z > Task :app:compileMinifiedDebugJavaWithJavac
+2026-11-15T20:27:25.7823992Z > Task :app:compileDebugJavaWithJavac
+2026-11-15T20:27:25.7843807Z > Task :app:mergeMinifiedDebugGeneratedProguardFiles
+2026-11-15T20:27:32.8814407Z > Task :app:generateMinifiedDebugLintVitalReportModel
+2026-11-15T20:27:35.5790033Z > Task :app:expandMinifiedDebugArtProfileWildcards
+2026-11-15T20:27:43.8814292Z > Task :app:dexBuilderDebug
+2026-11-15T20:27:45.4804395Z > Task :app:mergeProjectDexDebug
+2026-11-15T20:27:48.2804396Z > Task :app:packageDebug
+2026-11-15T20:27:48.2805308Z > Task :app:assembleDebug
+2026-11-15T20:27:48.2812555Z > Task :app:createDebugApkListingFileRedirect
+2026-11-15T20:27:55.7804222Z > Task :app:lintVitalAnalyzeMinifiedDebug
+2026-11-15T20:28:05.5814381Z > Task :app:minifyMinifiedDebugWithR8
+2026-11-15T20:29:20.5825118Z /home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/res/layout/widget_media.xml:159: Error: Duplicate id @+id/widget_btn_refresh, already defined earlier in this layout [DuplicateIds]
+2026-11-15T20:29:20.5826246Z 
+2026-11-15T20:29:20.5848013Z > Task :app:lintVitalReportMinifiedDebug
+2026-11-15T20:29:20.5883993Z             android:id="@+id/widget_btn_refresh"
+2026-11-15T20:29:20.5884553Z Lint found 1 error. First failure:
+2026-11-15T20:29:20.5885041Z             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+2026-11-15T20:29:20.5897688Z /home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/res/layout/widget_media.xml:159: Error: Duplicate id @+id/widget_btn_refresh, already defined earlier in this layout [DuplicateIds]
+2026-11-15T20:29:20.5913899Z             android:id="@+id/widget_btn_refresh"
+2026-11-15T20:29:20.5943879Z             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+2026-11-15T20:29:20.5974513Z     /home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/res/layout/widget_media.xml:31: Duplicate id @+id/widget_btn_refresh originally defined here
+2026-11-15T20:29:20.5976250Z     /home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/res/layout/widget_media.xml:31: Duplicate id @+id/widget_btn_refresh originally defined here
+2026-11-15T20:29:20.5997871Z 
+2026-11-15T20:29:20.6033445Z 
+2026-11-15T20:29:20.6033466Z 
+2026-11-15T20:29:20.6034074Z > Task :app:lintVitalMinifiedDebug FAILED
+2026-11-15T20:29:20.6084507Z    Explanation for issues of type "DuplicateIds":
+2026-11-15T20:29:20.6144499Z    Within a layout, id's should be unique since otherwise findViewById() can
+2026-11-15T20:29:20.6205595Z    return an unexpected view.
+2026-11-15T20:29:20.6206151Z 
+2026-11-15T20:29:20.6206485Z 1 error
+2026-11-15T20:29:20.6206832Z 
+2026-11-15T20:30:08.9793545Z 
+2026-11-15T20:30:08.9816400Z 
+2026-11-15T20:30:08.9817809Z [Incubating] Problems report is available at: file:///home/runner/work/Vianmediaagain/Vianmediaagain/build/reports/problems/problems-report.html
+2026-11-15T20:30:08.9843312Z 
+2026-11-15T20:30:08.9844846Z Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+2026-11-15T20:30:08.9845468Z 
+2026-11-15T20:30:08.9846107Z You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+2026-11-15T20:30:08.9847069Z 
+2026-11-15T20:30:08.9847907Z For more on this, please refer to https://docs.gradle.org/9.9.1/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+2026-11-15T20:30:08.9903838Z FAILURE: Build failed with an exception.
+2026-11-15T20:30:08.9917698Z 
+2026-11-15T20:30:08.9919072Z 83 actionable tasks: 76 executed, 7 from cache
+2026-11-15T20:30:08.9934059Z * What went wrong:
+2026-11-15T20:30:08.9938252Z Execution failed for task ':app:lintVitalMinifiedDebug' (registered by plugin 'com.android.internal.application').
+2026-11-15T20:30:08.9939279Z > Lint found fatal errors while assembling a release target.
+2026-11-15T20:30:08.9939903Z   
+2026-11-15T20:30:08.9940504Z   Fix the issues identified by lint, or create a baseline to see only new errors.
+2026-11-15T20:30:08.9941610Z   To create a baseline, run `gradlew updateLintBaseline` after adding the following to the module's build.gradle file:
+2026-11-15T20:30:08.9942461Z   ```
+2026-11-15T20:30:08.9942792Z   android {
+2026-11-15T20:30:08.9943344Z       lint {
+2026-11-15T20:30:08.9943727Z           baseline = file("lint-baseline.xml")
+2026-11-15T20:30:08.9944173Z       }
+2026-11-15T20:30:08.9944504Z   }
+2026-11-15T20:30:08.9944858Z   ```
+2026-11-15T20:30:08.9945453Z   For more details, see https://developer.android.com/studio/write/lint#snapshot
+2026-11-15T20:30:08.9954684Z   
+2026-11-15T20:30:08.9955968Z   /home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/res/layout/widget_media.xml:159: Error: Duplicate id @+id/widget_btn_refresh, already defined earlier in this layout [DuplicateIds]
+2026-11-15T20:30:08.9982044Z               android:id="@+id/widget_btn_refresh"
+2026-11-15T20:30:09.0003773Z               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+2026-11-15T20:30:09.0005227Z       /home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/res/layout/widget_media.xml:31: Duplicate id @+id/widget_btn_refresh originally defined here
+2026-11-15T20:30:09.0006369Z   
+2026-11-15T20:30:09.0006837Z      Explanation for issues of type "DuplicateIds":
+2026-11-15T20:30:09.0007632Z      Within a layout, id's should be unique since otherwise findViewById() can
+2026-11-15T20:30:09.0008304Z      return an unexpected view.
+2026-11-15T20:30:09.0008772Z   
+2026-11-15T20:30:09.0009146Z   1 error
+2026-11-15T20:30:09.0009396Z 
+2026-11-15T20:30:09.0009620Z * Try:
+2026-11-15T20:30:09.0010089Z > Run with --info or --debug option to get more log output.
+2026-11-15T20:30:09.0010840Z > Run with --scan to get full insights from a Build Scan (powered by Develocity).
+2026-11-15T20:30:09.0011560Z > Get more help at https://help.gradle.org.
+2026-11-15T20:30:09.0011932Z 
+2026-11-15T20:30:09.0012127Z * Exception is:
+2026-11-15T20:30:09.0013282Z org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':app:lintVitalMinifiedDebug' (registered by plugin 'com.android.internal.application').
+2026-11-15T20:30:09.0015001Z 	at org.gradle.api.internal.tasks.execution.DefaultTaskNodeExecutor.lambda$doExecute$1(DefaultTaskNodeExecutor.java:367)
+2026-11-15T20:30:09.0016152Z 	at org.gradle.internal.Try$Failure.ifSuccessfulOrElse(Try.java:288)
+2026-11-15T20:30:09.0017245Z 	at org.gradle.api.internal.tasks.execution.DefaultTaskNodeExecutor.doExecute(DefaultTaskNodeExecutor.java:365)
+2026-11-15T20:30:09.0018780Z 	at org.gradle.api.internal.tasks.execution.DefaultTaskNodeExecutor.executeTrackingTaskIdentity(DefaultTaskNodeExecutor.java:332)
+2026-11-15T20:30:09.0020431Z 	at org.gradle.api.internal.tasks.execution.DefaultTaskNodeExecutor.executeFinalizingProperties(DefaultTaskNodeExecutor.java:318)
+2026-11-15T20:30:09.0022086Z 	at org.gradle.api.internal.tasks.execution.DefaultTaskNodeExecutor.executeSkippingWithNoActions(DefaultTaskNodeExecutor.java:289)
+2026-11-15T20:30:09.0024257Z 	at org.gradle.api.internal.tasks.execution.DefaultTaskNodeExecutor.executeSkippingOnlyIf(DefaultTaskNodeExecutor.java:272)
+2026-11-15T20:30:09.0025942Z 	at org.gradle.api.internal.tasks.execution.DefaultTaskNodeExecutor.executeCatchingFailures(DefaultTaskNodeExecutor.java:228)
+2026-11-15T20:30:09.0027742Z 	at org.gradle.api.internal.tasks.execution.DefaultTaskNodeExecutor.executeWithFallbackOperationId(DefaultTaskNodeExecutor.java:197)
+2026-11-15T20:30:09.0029392Z 	at org.gradle.api.internal.tasks.execution.DefaultTaskNodeExecutor.executeWithLifecycle(DefaultTaskNodeExecutor.java:171)
+2026-11-15T20:30:09.0030876Z 	at org.gradle.api.internal.tasks.execution.DefaultTaskNodeExecutor.access$000(DefaultTaskNodeExecutor.java:67)
+2026-11-15T20:30:09.0032211Z 	at org.gradle.api.internal.tasks.execution.DefaultTaskNodeExecutor$1.run(DefaultTaskNodeExecutor.java:136)
+2026-11-15T20:30:09.0033655Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:30)
+2026-11-15T20:30:09.0035008Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:27)
+2026-11-15T20:30:09.0036320Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
+2026-11-15T20:30:09.0037627Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
+2026-11-15T20:30:09.0038948Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
+2026-11-15T20:30:09.0040304Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
+2026-11-15T20:30:09.0041665Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner.run(DefaultBuildOperationRunner.java:48)
+2026-11-15T20:30:09.0043051Z 	at org.gradle.api.internal.tasks.execution.DefaultTaskNodeExecutor.execute(DefaultTaskNodeExecutor.java:133)
+2026-11-15T20:30:09.0044304Z 	at org.gradle.execution.plan.LocalTaskNode.execute(LocalTaskNode.java:229)
+2026-11-15T20:30:09.0045541Z 	at org.gradle.execution.DefaultBuildWorkExecutor.lambda$executePlan$0(DefaultBuildWorkExecutor.java:153)
+2026-11-15T20:30:09.0046853Z 	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.lambda$execute$0(DefaultPlanExecutor.java:476)
+2026-11-15T20:30:09.0048098Z 	at org.gradle.internal.operations.CurrentBuildOperationRef.with(CurrentBuildOperationRef.java:85)
+2026-11-15T20:30:09.0049346Z 	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.execute(DefaultPlanExecutor.java:475)
+2026-11-15T20:30:09.0050612Z 	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.run(DefaultPlanExecutor.java:392)
+2026-11-15T20:30:09.0051792Z 	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:65)
+2026-11-15T20:30:09.0053093Z 	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:47)
+2026-11-15T20:30:09.0054229Z Caused by: java.lang.RuntimeException: Lint found fatal errors while assembling a release target.
+2026-11-15T20:30:09.0054865Z 
+2026-11-15T20:30:09.0055248Z Fix the issues identified by lint, or create a baseline to see only new errors.
+2026-11-15T20:30:09.0056282Z To create a baseline, run `gradlew updateLintBaseline` after adding the following to the module's build.gradle file:
+2026-11-15T20:30:09.0057194Z ```
+2026-11-15T20:30:09.0057871Z android {
+2026-11-15T20:30:09.0058326Z     lint {
+2026-11-15T20:30:09.0058885Z         baseline = file("lint-baseline.xml")
+2026-11-15T20:30:09.0059484Z     }
+2026-11-15T20:30:09.0059882Z }
+2026-11-15T20:30:09.0060281Z ```
+2026-11-15T20:30:09.0060853Z For more details, see https://developer.android.com/studio/write/lint#snapshot
+2026-11-15T20:30:09.0061316Z 
+2026-11-15T20:30:09.0062305Z /home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/res/layout/widget_media.xml:159: Error: Duplicate id @+id/widget_btn_refresh, already defined earlier in this layout [DuplicateIds]
+2026-11-15T20:30:09.0063938Z             android:id="@+id/widget_btn_refresh"
+2026-11-15T20:30:09.0064522Z             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+2026-11-15T20:30:09.0065708Z     /home/runner/work/Vianmediaagain/Vianmediaagain/app/src/main/res/layout/widget_media.xml:31: Duplicate id @+id/widget_btn_refresh originally defined here
+2026-11-15T20:30:09.0066719Z 
+2026-11-15T20:30:09.0067072Z    Explanation for issues of type "DuplicateIds":
+2026-11-15T20:30:09.0067801Z    Within a layout, id's should be unique since otherwise findViewById() can
+2026-11-15T20:30:09.0068460Z    return an unexpected view.
+2026-11-15T20:30:09.0068822Z 
+2026-11-15T20:30:09.0069012Z 1 error
+2026-11-15T20:30:09.0069934Z 	at com.android.build.gradle.internal.lint.AndroidLintWorkAction$Companion.maybeThrowException(AndroidLintWorkAction.kt:232)
+2026-11-15T20:30:09.0071588Z 	at com.android.build.gradle.internal.lint.AndroidLintTextOutputTask.doTaskAction(AndroidLintTextOutputTask.kt:105)
+2026-11-15T20:30:09.0073199Z 	at com.android.build.gradle.internal.tasks.NonIncrementalTask$taskAction$$inlined$recordTaskAction$1.invoke(BaseTask.kt:72)
+2026-11-15T20:30:09.0074434Z 	at com.android.build.gradle.internal.tasks.Blocks.recordSpan(Blocks.java:51)
+2026-11-15T20:30:09.0075535Z 	at com.android.build.gradle.internal.tasks.NonIncrementalTask.taskAction(NonIncrementalTask.kt:71)
+2026-11-15T20:30:09.0076651Z 	at org.gradle.internal.reflect.JavaMethod.invoke(JavaMethod.java:125)
+2026-11-15T20:30:09.0077698Z 	at org.gradle.api.internal.project.taskfactory.StandardTaskAction.doExecute(StandardTaskAction.java:58)
+2026-11-15T20:30:09.0078824Z 	at org.gradle.api.internal.project.taskfactory.StandardTaskAction.execute(StandardTaskAction.java:51)
+2026-11-15T20:30:09.0079862Z 	at org.gradle.api.internal.project.taskfactory.StandardTaskAction.execute(StandardTaskAction.java:29)
+2026-11-15T20:30:09.0080941Z 	at org.gradle.api.internal.tasks.execution.TaskExecution$3.run(TaskExecution.java:268)
+2026-11-15T20:30:09.0082200Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:30)
+2026-11-15T20:30:09.0083559Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:27)
+2026-11-15T20:30:09.0084810Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
+2026-11-15T20:30:09.0086080Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
+2026-11-15T20:30:09.0087357Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
+2026-11-15T20:30:09.0088923Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
+2026-11-15T20:30:09.0090234Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner.run(DefaultBuildOperationRunner.java:48)
+2026-11-15T20:30:09.0091583Z 	at org.gradle.api.internal.tasks.execution.TaskExecution.executeAction(TaskExecution.java:253)
+2026-11-15T20:30:09.0093236Z 	at org.gradle.api.internal.tasks.execution.TaskExecution.executeActions(TaskExecution.java:236)
+2026-11-15T20:30:09.0094545Z 	at org.gradle.api.internal.tasks.execution.TaskExecution.executeWithPreviousOutputFiles(TaskExecution.java:219)
+2026-11-15T20:30:09.0103045Z 	at org.gradle.api.internal.tasks.execution.TaskExecution.execute(TaskExecution.java:185)
+2026-11-15T20:30:09.0104363Z 	at org.gradle.internal.execution.steps.ExecuteStep.executeInternal(ExecuteStep.java:167)
+2026-11-15T20:30:09.0106055Z 	at org.gradle.internal.execution.steps.ExecuteStep.access$000(ExecuteStep.java:47)
+2026-11-15T20:30:09.0107146Z 	at org.gradle.internal.execution.steps.ExecuteStep$1.call(ExecuteStep.java:137)
+2026-11-15T20:30:09.0108078Z 	at org.gradle.internal.execution.steps.ExecuteStep$1.call(ExecuteStep.java:134)
+2026-11-15T20:30:09.0109379Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:210)
+2026-11-15T20:30:09.0111298Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:205)
+2026-11-15T20:30:09.0113061Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
+2026-11-15T20:30:09.0114511Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
+2026-11-15T20:30:09.0115767Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
+2026-11-15T20:30:09.0117332Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
+2026-11-15T20:30:09.0118712Z 	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:54)
+2026-11-15T20:30:09.0120060Z 	at org.gradle.internal.execution.steps.ExecuteStep.execute(ExecuteStep.java:134)
+2026-11-15T20:30:09.0121393Z 	at org.gradle.internal.execution.steps.ExecuteStep$Mutable.execute(ExecuteStep.java:80)
+2026-11-15T20:30:09.0122654Z 	at org.gradle.internal.execution.steps.CancelExecutionStep.execute(CancelExecutionStep.java:42)
+2026-11-15T20:30:09.0124012Z 	at org.gradle.internal.execution.steps.TimeoutStep.executeWithoutTimeout(TimeoutStep.java:75)
+2026-11-15T20:30:09.0125170Z 	at org.gradle.internal.execution.steps.TimeoutStep.execute(TimeoutStep.java:55)
+2026-11-15T20:30:09.0126413Z 	at org.gradle.internal.execution.steps.PreCreateOutputParentsStep.execute(PreCreateOutputParentsStep.java:51)
+2026-11-15T20:30:09.0127808Z 	at org.gradle.internal.execution.steps.PreCreateOutputParentsStep.execute(PreCreateOutputParentsStep.java:29)
+2026-11-15T20:30:09.0129243Z 	at org.gradle.internal.execution.steps.RemovePreviousOutputsStep.executeMutable(RemovePreviousOutputsStep.java:67)
+2026-11-15T20:30:09.0130691Z 	at org.gradle.internal.execution.steps.RemovePreviousOutputsStep.executeMutable(RemovePreviousOutputsStep.java:39)
+2026-11-15T20:30:09.0131958Z 	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
+2026-11-15T20:30:09.0133472Z 	at org.gradle.internal.execution.steps.BroadcastChangingOutputsStep.execute(BroadcastChangingOutputsStep.java:42)
+2026-11-15T20:30:09.0135348Z 	at org.gradle.internal.execution.steps.BroadcastChangingOutputsStep.execute(BroadcastChangingOutputsStep.java:24)
+2026-11-15T20:30:09.0137107Z 	at org.gradle.internal.execution.steps.CaptureOutputsAfterExecutionStep.execute(CaptureOutputsAfterExecutionStep.java:69)
+2026-11-15T20:30:09.0138788Z 	at org.gradle.internal.execution.steps.CaptureOutputsAfterExecutionStep.execute(CaptureOutputsAfterExecutionStep.java:46)
+2026-11-15T20:30:09.0140230Z 	at org.gradle.internal.execution.steps.ResolveInputChangesStep.executeMutable(ResolveInputChangesStep.java:39)
+2026-11-15T20:30:09.0141782Z 	at org.gradle.internal.execution.steps.ResolveInputChangesStep.executeMutable(ResolveInputChangesStep.java:28)
+2026-11-15T20:30:09.0143420Z 	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
+2026-11-15T20:30:09.0144750Z 	at org.gradle.internal.execution.steps.BuildCacheStep.executeWithoutCache(BuildCacheStep.java:189)
+2026-11-15T20:30:09.0146045Z 	at org.gradle.internal.execution.steps.BuildCacheStep.lambda$execute$1(BuildCacheStep.java:76)
+2026-11-15T20:30:09.0147099Z 	at org.gradle.internal.Either$Right.fold(Either.java:176)
+2026-11-15T20:30:09.0148240Z 	at org.gradle.internal.execution.caching.CachingState.fold(CachingState.java:62)
+2026-11-15T20:30:09.0149289Z 	at org.gradle.internal.execution.steps.BuildCacheStep.execute(BuildCacheStep.java:74)
+2026-11-15T20:30:09.0150476Z 	at org.gradle.internal.execution.steps.BuildCacheStep.execute(BuildCacheStep.java:49)
+2026-11-15T20:30:09.0151752Z 	at org.gradle.internal.execution.steps.StoreExecutionStateStep.executeMutable(StoreExecutionStateStep.java:46)
+2026-11-15T20:30:09.0153390Z 	at org.gradle.internal.execution.steps.StoreExecutionStateStep.executeMutable(StoreExecutionStateStep.java:35)
+2026-11-15T20:30:09.0155049Z 	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
+2026-11-15T20:30:09.0156301Z 	at org.gradle.internal.execution.steps.SkipUpToDateStep.executeBecause(SkipUpToDateStep.java:75)
+2026-11-15T20:30:09.0157960Z 	at org.gradle.internal.execution.steps.SkipUpToDateStep.lambda$execute$2(SkipUpToDateStep.java:53)
+2026-11-15T20:30:09.0159117Z 	at org.gradle.internal.execution.steps.SkipUpToDateStep.execute(SkipUpToDateStep.java:53)
+2026-11-15T20:30:09.0160353Z 	at org.gradle.internal.execution.steps.SkipUpToDateStep.execute(SkipUpToDateStep.java:35)
+2026-11-15T20:30:09.0161998Z 	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsFinishedStep.execute(MarkSnapshottingInputsFinishedStep.java:37)
+2026-11-15T20:30:09.0164650Z 	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsFinishedStep.execute(MarkSnapshottingInputsFinishedStep.java:27)
+2026-11-15T20:30:09.0166265Z 	at org.gradle.internal.execution.steps.ResolveMutableCachingStateStep.executeDelegate(ResolveMutableCachingStateStep.java:70)
+2026-11-15T20:30:09.0167659Z 	at org.gradle.internal.execution.steps.ResolveMutableCachingStateStep.executeDelegate(ResolveMutableCachingStateStep.java:32)
+2026-11-15T20:30:09.0169672Z 	at org.gradle.internal.execution.steps.AbstractResolveCachingStateStep.execute(AbstractResolveCachingStateStep.java:69)
+2026-11-15T20:30:09.0171053Z 	at org.gradle.internal.execution.steps.AbstractResolveCachingStateStep.execute(AbstractResolveCachingStateStep.java:37)
+2026-11-15T20:30:09.0172758Z 	at org.gradle.internal.execution.steps.ResolveChangesStep.executeMutable(ResolveChangesStep.java:63)
+2026-11-15T20:30:09.0174179Z 	at org.gradle.internal.execution.steps.ResolveChangesStep.executeMutable(ResolveChangesStep.java:34)
+2026-11-15T20:30:09.0175304Z 	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
+2026-11-15T20:30:09.0176398Z 	at org.gradle.internal.execution.steps.ValidateStep$Mutable.executeDelegate(ValidateStep.java:78)
+2026-11-15T20:30:09.0177610Z 	at org.gradle.internal.execution.steps.ValidateStep$Mutable.executeDelegate(ValidateStep.java:64)
+2026-11-15T20:30:09.0178490Z 	at org.gradle.internal.execution.steps.ValidateStep.execute(ValidateStep.java:104)
+2026-11-15T20:30:09.0179397Z 	at org.gradle.internal.execution.steps.ValidateStep$Mutable.execute(ValidateStep.java:64)
+2026-11-15T20:30:09.0180523Z 	at org.gradle.internal.execution.steps.CaptureMutableStateBeforeExecutionStep.executeMutable(CaptureMutableStateBeforeExecutionStep.java:86)
+2026-11-15T20:30:09.0181857Z 	at org.gradle.internal.execution.steps.CaptureMutableStateBeforeExecutionStep.execute(CaptureMutableStateBeforeExecutionStep.java:65)
+2026-11-15T20:30:09.0183241Z 	at org.gradle.internal.execution.steps.CaptureMutableStateBeforeExecutionStep.execute(CaptureMutableStateBeforeExecutionStep.java:45)
+2026-11-15T20:30:09.0184347Z 	at org.gradle.internal.execution.steps.SkipEmptyMutableWorkStep.executeWithNonEmptySources(SkipEmptyMutableWorkStep.java:210)
+2026-11-15T20:30:09.0185330Z 	at org.gradle.internal.execution.steps.SkipEmptyMutableWorkStep.executeMutable(SkipEmptyMutableWorkStep.java:85)
+2026-11-15T20:30:09.0186233Z 	at org.gradle.internal.execution.steps.SkipEmptyMutableWorkStep.executeMutable(SkipEmptyMutableWorkStep.java:53)
+2026-11-15T20:30:09.0187020Z 	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
+2026-11-15T20:30:09.0187836Z 	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsStartedStep.execute(MarkSnapshottingInputsStartedStep.java:38)
+2026-11-15T20:30:09.0188816Z 	at org.gradle.internal.execution.steps.LoadPreviousExecutionStateStep.executeMutable(LoadPreviousExecutionStateStep.java:36)
+2026-11-15T20:30:09.0189800Z 	at org.gradle.internal.execution.steps.LoadPreviousExecutionStateStep.executeMutable(LoadPreviousExecutionStateStep.java:23)
+2026-11-15T20:30:09.0190582Z 	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
+2026-11-15T20:30:09.0191407Z 	at org.gradle.internal.execution.steps.HandleStaleOutputsStep.executeMutable(HandleStaleOutputsStep.java:77)
+2026-11-15T20:30:09.0192577Z 	at org.gradle.internal.execution.steps.HandleStaleOutputsStep.executeMutable(HandleStaleOutputsStep.java:43)
+2026-11-15T20:30:09.0195278Z 	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
+2026-11-15T20:30:09.0196515Z 	at org.gradle.internal.execution.steps.AssignMutableWorkspaceStep.lambda$executeMutable$0(AssignMutableWorkspaceStep.java:34)
+2026-11-15T20:30:09.0197647Z 	at org.gradle.api.internal.tasks.execution.TaskExecution$4.withWorkspace(TaskExecution.java:314)
+2026-11-15T20:30:09.0199023Z 	at org.gradle.internal.execution.steps.AssignMutableWorkspaceStep.executeMutable(AssignMutableWorkspaceStep.java:30)
+2026-11-15T20:30:09.0199979Z 	at org.gradle.internal.execution.steps.AssignMutableWorkspaceStep.executeMutable(AssignMutableWorkspaceStep.java:21)
+2026-11-15T20:30:09.0200722Z 	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
+2026-11-15T20:30:09.0201435Z 	at org.gradle.internal.execution.steps.ChoosePipelineStep.execute(ChoosePipelineStep.java:40)
+2026-11-15T20:30:09.0202166Z 	at org.gradle.internal.execution.steps.ChoosePipelineStep.execute(ChoosePipelineStep.java:23)
+2026-11-15T20:30:09.0203320Z 	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.lambda$execute$2(ExecuteWorkBuildOperationFiringStep.java:67)
+2026-11-15T20:30:09.0204502Z 	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.execute(ExecuteWorkBuildOperationFiringStep.java:67)
+2026-11-15T20:30:09.0205502Z 	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.execute(ExecuteWorkBuildOperationFiringStep.java:39)
+2026-11-15T20:30:09.0206387Z 	at org.gradle.internal.execution.steps.IdentityCacheStep.execute(IdentityCacheStep.java:46)
+2026-11-15T20:30:09.0207108Z 	at org.gradle.internal.execution.steps.IdentityCacheStep.execute(IdentityCacheStep.java:34)
+2026-11-15T20:30:09.0207776Z 	at org.gradle.internal.execution.steps.IdentifyStep.execute(IdentifyStep.java:56)
+2026-11-15T20:30:09.0208416Z 	at org.gradle.internal.execution.steps.IdentifyStep.execute(IdentifyStep.java:38)
+2026-11-15T20:30:09.0209108Z 	at org.gradle.internal.execution.impl.DefaultExecutionEngine$1.execute(DefaultExecutionEngine.java:68)
+2026-11-15T20:30:09.0209963Z 	at org.gradle.api.internal.tasks.execution.DefaultTaskNodeExecutor.doExecute(DefaultTaskNodeExecutor.java:364)
+2026-11-15T20:30:09.0210562Z 	... 25 more
+2026-11-15T20:30:09.0210708Z 
+2026-11-15T20:30:09.0210714Z 
+2026-11-15T20:30:09.0210882Z BUILD FAILED in 6m 52s
+2026-11-15T20:30:09.0795208Z Configuration cache entry stored.
+2026-11-15T20:30:09.4797755Z ##[error]Process completed with exit code 1.
+2026-11-15T20:30:09.4881723Z ##[group]Run actions/upload-artifact@v4
+2026-11-15T20:30:09.4882093Z with:
+2026-11-15T20:30:09.4882418Z   name: minified-debug-mapping
+2026-11-15T20:30:09.4883072Z   path: app/build/outputs/mapping/minifiedDebug/mapping.txt
+2026-11-15T20:30:09.4883485Z   if-no-files-found: ignore
+2026-11-15T20:30:09.4883910Z   compression-level: 6
+2026-11-15T20:30:09.4884218Z   overwrite: false
+2026-11-15T20:30:09.4884538Z   include-hidden-files: false
+2026-11-15T20:30:09.4884849Z env:
+2026-11-15T20:30:09.4885759Z   JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/21.0.13-9/x64
+2026-11-15T20:30:09.4886392Z   JAVA_HOME_21_X64: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/21.0.13-9/x64
+2026-11-15T20:30:09.4886867Z   GRADLE_ACTION_ID: gradle/actions/setup-gradle
+2026-11-15T20:30:09.4887258Z   GRADLE_BUILD_ACTION_SETUP_COMPLETED: true
+2026-11-15T20:30:09.4887675Z   GRADLE_BUILD_ACTION_CACHE_RESTORED: true
+2026-11-15T20:30:09.4888247Z   DEVELOCITY_INJECTION_INIT_SCRIPT_NAME: gradle-actions.inject-develocity.init.gradle
+2026-11-15T20:30:09.4888823Z   DEVELOCITY_AUTO_INJECTION_CUSTOM_VALUE: gradle-actions
+2026-11-15T20:30:09.4889209Z   GITHUB_DEPENDENCY_GRAPH_ENABLED: false
+2026-11-15T20:30:09.4889577Z ##[endgroup]
+2026-11-15T20:30:09.6544077Z (node:3020) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-11-15T20:30:09.6544884Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-11-15T20:30:09.6590908Z With the provided path, there will be 1 file uploaded
+2026-11-15T20:30:09.6607596Z Artifact name is valid!
+2026-11-15T20:30:09.6609162Z Root directory input is valid!
+2026-11-15T20:30:09.9189267Z Beginning upload of artifact content to blob storage
+2026-11-15T20:30:10.6827730Z (node:3020) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-11-15T20:30:10.9302773Z Uploaded bytes 4762702
+2026-11-15T20:30:10.9546132Z Finished uploading artifact content to blob storage!
+2026-11-15T20:30:10.9547466Z SHA256 digest of uploaded artifact zip is 795177444af163ff7cc46761455ac995a7d27a5a4896317ade95d81cf179f055
+2026-11-15T20:30:10.9548436Z Finalizing artifact upload
+2026-11-15T20:30:11.3010597Z Artifact minified-debug-mapping.zip successfully finalized. Artifact ID 14179266608
+2026-11-15T20:30:11.3012093Z Artifact minified-debug-mapping has been successfully uploaded! Final size is 4762702 bytes. Artifact ID is 14179266608
+2026-11-15T20:30:11.3019805Z Artifact download URL: https://github.com/elschuyler/Vianmediaagain/actions/runs/43757774166/artifacts/14179266608
+2026-11-15T20:30:11.3259119Z Post job cleanup.
+2026-11-15T20:30:11.5254418Z In post-action step
+2026-11-15T20:30:11.5267881Z Stopping all Gradle daemons before saving Gradle User Home state
+2026-11-15T20:30:11.5274302Z Stopping Gradle daemons for /usr/share/gradle-9.9.1
+2026-11-15T20:30:11.5306562Z [command]/usr/share/gradle-9.9.1/bin/gradle --stop
+2026-11-15T20:30:11.5314821Z (node:3034) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-11-15T20:30:11.5324450Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-11-15T20:30:12.1984725Z Stopping Daemon(s)
+2026-11-15T20:30:12.1994290Z 1 Daemon stopped
+2026-11-15T20:30:12.2135705Z ##[group]Caching Gradle state
+2026-11-15T20:30:12.2447802Z Not saving configuration-cache state, as no encryption key was provided
+2026-11-15T20:30:12.5394579Z Caching dependencies with path '/home/runner/.gradle/caches/modules-*/files-*/*/*/*/*' and cache key: gradle-dependencies-v1-6ee6330a7b705bd0a6173ce075290660
+2026-11-15T20:30:12.5484147Z Caching instrumented-jars with path '/home/runner/.gradle/caches/jars-*/*/' and cache key: gradle-instrumented-jars-v1-f26582a10734d4095ec594bc8fe748dd
+2026-11-15T20:30:12.5688321Z Caching kotlin-dsl with path '/home/runner/.gradle/caches/*/kotlin-dsl/accessors/*/
+2026-11-15T20:30:12.5689628Z /home/runner/.gradle/caches/*/kotlin-dsl/scripts/*/' and cache key: gradle-kotlin-dsl-v1-bfd620d32459d6db4ab501de3ff784c9
+2026-11-15T20:30:12.5712922Z [command]/usr/bin/tar --posix -cf cache.tzst --exclude cache.tzst -P -C /home/runner/work/Vianmediaagain/Vianmediaagain --files-from manifest.txt --use-compress-program zstdmt
+2026-11-15T20:30:12.5869762Z Caching groovy-dsl with path '/home/runner/.gradle/caches/*/groovy-dsl/*/' and cache key: gradle-groovy-dsl-v1-425e3121a6d6d915bc17184c48de04e6
+2026-11-15T20:30:12.6223495Z [command]/usr/bin/tar --posix -cf cache.tzst --exclude cache.tzst -P -C /home/runner/work/Vianmediaagain/Vianmediaagain --files-from manifest.txt --use-compress-program zstdmt
+2026-11-15T20:30:12.6448331Z [command]/usr/bin/tar --posix -cf cache.tzst --exclude cache.tzst -P -C /home/runner/work/Vianmediaagain/Vianmediaagain --files-from manifest.txt --use-compress-program zstdmt
+2026-11-15T20:30:12.6740976Z ##[warning]Failed to save cache entry with path '/home/runner/.gradle/caches/jars-*/*/' and key: gradle-instrumented-jars-v1-f26582a10734d4095ec594bc8fe748dd: Error: <h2>Our services aren't available right now</h2><p>We're working to restore all services as soon as possible. Please check back soon.</p>0VBb6agAAAADNMIl84CzvQbN1Hw7bdAV9QVRMMzMxMDAwMTAyMDMxAEVkZ2U=
+2026-11-15T20:30:12.7013519Z ##[warning]Failed to save cache entry with path '/home/runner/.gradle/caches/*/kotlin-dsl/accessors/*/
+/home/runner/.gradle/caches/*/kotlin-dsl/scripts/*/' and key: gradle-kotlin-dsl-v1-bfd620d32459d6db4ab501de3ff784c9: Error: <h2>Our services aren't available right now</h2><p>We're working to restore all services as soon as possible. Please check back soon.</p>0VBb6agAAAAAxqJxsiR4HQLqdC1QcXygXQVRMMzMxMDAwMTAyMDI5AEVkZ2U=
+2026-11-15T20:30:12.7442196Z ##[warning]Failed to save cache entry with path '/home/runner/.gradle/caches/*/groovy-dsl/*/' and key: gradle-groovy-dsl-v1-425e3121a6d6d915bc17184c48de04e6: Error: <h2>Our services aren't available right now</h2><p>We're working to restore all services as soon as possible. Please check back soon.</p>0VBb6agAAAAAOT1K9P/taSrT/bYvNkNq3QVRMMzMxMDAwMTA4MDI1AEVkZ2U=
+2026-11-15T20:30:13.0734000Z [command]/usr/bin/tar --posix -cf cache.tzst --exclude cache.tzst -P -C /home/runner/work/Vianmediaagain/Vianmediaagain --files-from manifest.txt --use-compress-program zstdmt
+2026-11-15T20:30:13.2954996Z Caching transforms with path '/home/runner/.gradle/caches/transforms-4/*/
+2026-11-15T20:30:13.2984069Z /home/runner/.gradle/caches/*/transforms/*/' and cache key: gradle-transforms-v1-0a69acbc83e21986f0309bf257323ecc
+2026-11-15T20:30:13.9833963Z [command]/usr/bin/tar --posix -cf cache.tzst --exclude cache.tzst -P -C /home/runner/work/Vianmediaagain/Vianmediaagain --files-from manifest.txt --use-compress-program zstdmt
+2026-11-15T20:30:14.7670994Z ##[warning]Failed to save cache entry with path '/home/runner/.gradle/caches/modules-*/files-*/*/*/*/*' and key: gradle-dependencies-v1-6ee6330a7b705bd0a6173ce075290660: Error: <h2>Our services aren't available right now</h2><p>We're working to restore all services as soon as possible. Please check back soon.</p>0Vhb6agAAAAAtjLmMoYVCTqeHoZmic6POQVRMMzMxMDAwMTA2MDUxAEVkZ2U=
+2026-11-15T20:30:16.3598799Z ##[warning]Failed to save cache entry with path '/home/runner/.gradle/caches/transforms-4/*/
+/home/runner/.gradle/caches/*/transforms/*/' and key: gradle-transforms-v1-0a69acbc83e21986f0309bf257323ecc: Error: <h2>Our services aren't available right now</h2><p>We're working to restore all services as soon as possible. Please check back soon.</p>0WBb6agAAAAAdrr8whj9dSZsWXKC+xbgKQVRMMzMxMDAwMTA3MDQ1AEVkZ2U=
+2026-11-15T20:30:18.4441541Z Caching Gradle User Home with cache key: gradle-home-v1|Linux|build[e080f0fdc288b6f0c5023fd4b86f7a10]-0c1ef1d4399206ee997a87b8c00eb13d366279b7
+2026-11-15T20:30:18.4523967Z [command]/usr/bin/tar --posix -cf cache.tzst --exclude cache.tzst -P -C /home/runner/work/Vianmediaagain/Vianmediaagain --files-from manifest.txt --use-compress-program zstdmt
+2026-11-15T20:30:18.7678567Z ##[warning]Failed to save cache entry with path '/home/runner/.gradle/caches,/home/runner/.gradle/notifications,/home/runner/.gradle/.setup-gradle' and key: gradle-home-v1|Linux|build[e080f0fdc288b6f0c5023fd4b86f7a10]-0c1ef1d4399206ee997a87b8c00eb13d366279b7: Error: <h2>Our services aren't available right now</h2><p>We're working to restore all services as soon as possible. Please check back soon.</p>0Whb6agAAAADJ75JjlsyMQbPcDdsYpkPJQVRMMzMxMDAwMTAyMDI5AEVkZ2U=
+2026-11-15T20:30:18.7681672Z ##[endgroup]
+2026-11-15T20:30:18.7682019Z Generating Job Summary
+2026-11-15T20:30:18.7693744Z Completed post-action step
+2026-11-15T20:30:18.7887394Z Post job cleanup.
+2026-11-15T20:30:18.9225129Z (node:3136) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-11-15T20:30:18.9226200Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-11-15T20:30:18.9369108Z Post job cleanup.
+2026-11-15T20:30:19.0315783Z [command]/usr/bin/git version
+2026-11-15T20:30:19.0364118Z git version 2.56.1
+2026-11-15T20:30:19.0406729Z Temporarily overriding HOME='/home/runner/work/_temp/3f5e367a-8868-4bf0-a988-7be2d546bb85' before making global git config changes
+2026-11-15T20:30:19.0408294Z Adding repository directory to the temporary git global config as a safe directory
+2026-11-15T20:30:19.0409817Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/Vianmediaagain/Vianmediaagain
+2026-11-15T20:30:19.0453024Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-11-15T20:30:19.0500173Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-11-15T20:30:19.0753188Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-11-15T20:30:19.0777447Z http.https://github.com/.extraheader
+2026-11-15T20:30:19.0791431Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-11-15T20:30:19.0830563Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-11-15T20:30:19.1081384Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-11-15T20:30:19.1124899Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-11-15T20:30:19.1499454Z Cleaning up orphan processes
+2026-11-15T20:30:19.1794822Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-java@v4, actions/upload-artifact@v4, gradle/actions/setup-gradle@v3. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
