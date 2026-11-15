@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.automirrored.filled.Sort
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -99,6 +100,7 @@ fun MainScreen(
     val selectedTab by viewModel.selectedTab.collectAsStateWithLifecycle()
     val selectedFolderId by viewModel.selectedFolderId.collectAsStateWithLifecycle()
     val sortOrder by viewModel.sortOrder.collectAsStateWithLifecycle()
+    val bookmarkedFolders by settingsManager.bookmarkedFolders.collectAsStateWithLifecycle()
 
     var showNetworkStreamDialog by rememberSaveable { mutableStateOf(false) }
 
@@ -699,13 +701,17 @@ fun MainScreen(
                                 )
                             }
                         } else if (selectedFolder == null && !isSearchActive && selectedTab == LibraryTab.FOLDERS) {
-                            val sortedFolders = remember(mediaFolders, sortOrder) {
-                                when (sortOrder) {
-                                    SortOrder.NAME -> mediaFolders.sortedBy { it.name.lowercase() }
-                                    SortOrder.DATE -> mediaFolders.sortedByDescending { it.dateModified }
+                            val sortedFolders = remember(mediaFolders, sortOrder, bookmarkedFolders) {
+                                val baseComparator = when (sortOrder) {
+                                    SortOrder.NAME -> compareBy<MediaFolder> { it.name.lowercase() }
+                                    SortOrder.DATE -> compareByDescending<MediaFolder> { it.dateModified }
                                 }
+                                mediaFolders.sortedWith(
+                                    compareByDescending<MediaFolder> { it.id in bookmarkedFolders }
+                                        .then(baseComparator)
+                                )
                             }
-                            var folderForOptionsMenu by remember { mutableStateOf<MediaFolder?>(null) }
+                            var expandedFolderMenuId by remember { mutableStateOf<String?>(null) }
 
                             LazyColumn(
                                 state = folderListState,
@@ -713,24 +719,21 @@ fun MainScreen(
                                 contentPadding = PaddingValues(16.dp)
                             ) {
                                 items(sortedFolders, key = { it.id }, contentType = { "folder_card" }) { folder ->
+                                    val isBookmarked = folder.id in bookmarkedFolders
                                     FolderCard(
                                         folder = folder,
+                                        isBookmarked = isBookmarked,
+                                        isMenuExpanded = expandedFolderMenuId == folder.id,
                                         onClick = { viewModel.selectFolder(folder.id) },
-                                        onOptionsClick = { folderForOptionsMenu = folder }
-                                    )
-                                }
-                            }
-
-                            folderForOptionsMenu?.let { targetFolder ->
-                                DropdownMenu(
-                                    expanded = true,
-                                    onDismissRequest = { folderForOptionsMenu = null }
-                                ) {
-                                    DropdownMenuItem(
-                                        text = { Text("Exclude Folder") },
-                                        onClick = {
-                                            folderForOptionsMenu = null
-                                            settingsManager.addExcludedFolder(targetFolder.id)
+                                        onOptionsClick = { expandedFolderMenuId = folder.id },
+                                        onDismissMenu = { expandedFolderMenuId = null },
+                                        onToggleBookmark = {
+                                            expandedFolderMenuId = null
+                                            settingsManager.toggleBookmarkedFolder(folder.id)
+                                        },
+                                        onExcludeFolder = {
+                                            expandedFolderMenuId = null
+                                            settingsManager.addExcludedFolder(folder.id)
                                             viewModel.refreshMedia()
                                         }
                                     )
@@ -1373,7 +1376,16 @@ fun MainScreen(
 }
 
 @Composable
-fun FolderCard(folder: MediaFolder, onClick: () -> Unit, onOptionsClick: () -> Unit) {
+fun FolderCard(
+    folder: MediaFolder,
+    isBookmarked: Boolean,
+    isMenuExpanded: Boolean,
+    onClick: () -> Unit,
+    onOptionsClick: () -> Unit,
+    onDismissMenu: () -> Unit,
+    onToggleBookmark: () -> Unit,
+    onExcludeFolder: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1397,14 +1409,34 @@ fun FolderCard(folder: MediaFolder, onClick: () -> Unit, onOptionsClick: () -> U
                     Text("NEW", style = MaterialTheme.typography.labelSmall, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 8.sp, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
                 }
             }
+            if (folder.newCount > 0) {
+                val newBadgeText = if (folder.newCount > 99) "99+" else folder.newCount.toString()
+                Box(modifier = Modifier.align(Alignment.TopEnd).padding(8.dp).background(Color(0xFFE53935), RoundedCornerShape(4.dp))) {
+                    Text(newBadgeText, style = MaterialTheme.typography.labelSmall, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 8.sp, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
+                }
+            }
         }
         Spacer(modifier = Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = folder.name, 
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = folder.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                if (isBookmarked) {
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Icon(
+                        imageVector = Icons.Filled.Bookmark,
+                        contentDescription = "Bookmarked",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
             Spacer(modifier = Modifier.height(4.dp))
             if (folder.path.isNotEmpty()) {
                 Text(
@@ -1444,8 +1476,23 @@ fun FolderCard(folder: MediaFolder, onClick: () -> Unit, onOptionsClick: () -> U
                 }
             }
         }
-        IconButton(onClick = onOptionsClick) {
-            Icon(Icons.Filled.MoreVert, contentDescription = "More Options")
+        Box {
+            IconButton(onClick = onOptionsClick) {
+                Icon(Icons.Filled.MoreVert, contentDescription = "More Options")
+            }
+            DropdownMenu(
+                expanded = isMenuExpanded,
+                onDismissRequest = onDismissMenu
+            ) {
+                DropdownMenuItem(
+                    text = { Text(if (isBookmarked) "Remove Bookmark" else "Bookmark Folder") },
+                    onClick = onToggleBookmark
+                )
+                DropdownMenuItem(
+                    text = { Text("Exclude Folder") },
+                    onClick = onExcludeFolder
+                )
+            }
         }
     }
 }

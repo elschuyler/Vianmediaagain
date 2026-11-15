@@ -58,11 +58,12 @@ data class MediaFolder(
     val path: String,
     val dateModified: Long,
     val totalSize: Long,
-    val mediaItems: List<MediaItem>,
-    val hasNew: Boolean = mediaItems.any { it.tag == PlaybackTag.NEW }
+    val mediaItems: List<MediaItem>
 ) {
     val videoCount: Int = mediaItems.size
     val totalDuration: Long = mediaItems.sumOf { it.duration }
+    val newCount: Int = mediaItems.count { it.tag == PlaybackTag.NEW }
+    val hasNew: Boolean = newCount > 0
 
     val formattedSize: String by lazy {
         val sizeMb = totalSize / (1024 * 1024)

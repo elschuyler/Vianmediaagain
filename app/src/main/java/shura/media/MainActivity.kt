@@ -159,6 +159,7 @@ class MainActivity : ComponentActivity() {
                   val lastPos = settings.getPlaybackPosition(firstUriStr, firstFastName)
                   val startPos = if (lastPos > 0 && !settings.isFinished(firstUriStr, firstFastName)) lastPos else 0L
                   player.setMediaItems(mediaItems, 0, startPos)
+                  player.pauseAtEndOfMediaItems = (player.repeatMode == androidx.media3.common.Player.REPEAT_MODE_OFF)
                   player.prepare()
                   player.play()
               }
@@ -239,6 +240,7 @@ class MainActivity : ComponentActivity() {
               val lastPos = settings.getPlaybackPosition(targetUriStr, displayName)
               val startPos = if (lastPos > 0 && !settings.isFinished(targetUriStr, displayName)) lastPos else 0L
               player?.setMediaItem(mediaItem, startPos)
+              player?.let { it.pauseAtEndOfMediaItems = (it.repeatMode == androidx.media3.common.Player.REPEAT_MODE_OFF) }
               player?.prepare()
               player?.play()
 

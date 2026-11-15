@@ -165,7 +165,44 @@
   - `app/src/main/java/shura/media/ui/components/FloatingVideoPlayerOverlay.kt`: Updated loop button click (`L544`) from `controller.pauseAtEndOfMediaItems = ...` (where `player` parameter is typed as `Player?`) to `((controller as? androidx.media3.exoplayer.ExoPlayer) ?: shura.media.service.PlayerManager.exoPlayer)?.pauseAtEndOfMediaItems = (nextMode == Player.REPEAT_MODE_OFF)`.
 * How it was verified: Static verification only — verified all 15 `pauseAtEndOfMediaItems` sites across `app/src/main/java` resolve through `ExoPlayer` / `ExoPlayer?` receivers, verified cross-file Phase 140 symbol signatures, verified curly/paren balance (`0`/`0`) on both edited `.kt` files, confirmed clean workspace security scan, and executed `compile_applet` and `lint_applet` for workspace toolchain verification. Local `./gradlew` / Android SDK is absent; CI `assembleDebug` / `assembleMinifiedDebug` awaits GitHub push and on-device testing has not run.
 * Any deviation from what was requested: None (Option 1 implemented cleanly).
-* Any known issue or follow-up needed: Push to GitHub to run CI `assembleDebug` & `assembleMinifiedDebug` (including R8 `minifyMinifiedDebugWithR8`, which did not execute during the prior failed Kotlin compile run).
+* Any known issue or follow-up needed: Push to GitHub to run CI `assembleDebug` & `assembleMinifiedDebug` and verify `:app:minifyMinifiedDebugWithR8` plus runtime behavior on-device.
+
+## Phase 142: CI Kotlin Compilation Fix — `PlayerManager` JVM Setter Declaration Clash (Option 1)
+* Timestamp: 2026-11-15T17:01:00Z
+* One-line summary: Resolved the `Platform declaration clash (setOverlayProgressTickerActive(Z)V)` Kotlin CI error in `PlayerManager.kt` by renaming the internal flag to `@Volatile private var overlayTickerActive: Boolean = false` while keeping `fun setOverlayProgressTickerActive(active: Boolean)` public.
+* Files touched:
+  - BLUEPRINT.md
+  - app/src/main/java/shura/media/service/PlayerManager.kt
+  - receipts/RECEIPTS_031.md
+* What was actually done:
+  - `app/src/main/java/shura/media/service/PlayerManager.kt`: Replaced `@Volatile var isOverlayProgressTickerActive: Boolean = false` (`L78-79`) with `@Volatile private var overlayTickerActive: Boolean = false`, and updated the 6 internal read/write sites (`L227`, `L235`, `L507`, `L521`, `L524`, `L626`). Kept `fun setOverlayProgressTickerActive(active: Boolean)` (`L506`) public so external callers in `MiniPlayerOverlay.kt` and `PlaybackService.kt` remain untouched.
+* How it was verified: Static verification only — confirmed zero remaining `isOverlayProgressTickerActive` occurrences across `app/src/main/java/shura/media`, confirmed repo-wide Kotlin/JVM `var` vs `fun` setter/getter clash scan returned no clashes (excluding non-clashing `SettingsManager.instance` vs `getInstance(Context)`), verified balanced braces/parentheses (`0`/`0`) on `PlayerManager.kt`, confirmed clean workspace security scan, and executed `compile_applet` + `lint_applet` for workspace toolchain verification. Local `./gradlew` / Android SDK is absent; CI `assembleDebug` / `assembleMinifiedDebug` (including R8 `minifyMinifiedDebugWithR8`) awaits GitHub push and on-device testing has not run.
+* Any deviation from what was requested: None (Option 1 implemented cleanly).
+* Any known issue or follow-up needed: Push to GitHub to run CI `assembleDebug` & `assembleMinifiedDebug` and verify `:app:minifyMinifiedDebugWithR8` plus runtime behavior on-device.
+
+## Phase 143: Library Folder Menu Anchor, Bookmark Ordering, Option A New-Count Tag & Loop OFF End-of-Item Playback Fix
+* Timestamp: 2026-11-15T17:42:00Z
+* One-line summary: Anchored `FolderCard` 3-dots `DropdownMenu`, added persisted bookmark-first folder ordering (no separator/header) and `Option A` folder new-count badges in Main Library, and fixed Loop OFF (`REPEAT_MODE_OFF`) non-last item auto-advance / `Play`-at-end / `markAsFinished` / `ON_RESUME` / `MiniPlayerOverlay` Prev-Next bugs.
+* Files touched:
+  - BLUEPRINT.md
+  - app/src/main/java/shura/media/data/SettingsManager.kt
+  - app/src/main/java/shura/media/data/BackupManager.kt
+  - app/src/main/java/shura/media/data/MediaRepository.kt
+  - app/src/main/java/shura/media/ui/screens/MediaViewModel.kt
+  - app/src/main/java/shura/media/ui/screens/MainScreen.kt
+  - app/src/main/java/shura/media/service/PlayerManager.kt
+  - app/src/main/java/shura/media/ui/screens/PlayerScreen.kt
+  - app/src/main/java/shura/media/ui/components/MiniPlayerOverlay.kt
+  - app/src/main/java/shura/media/MainActivity.kt
+  - receipts/RECEIPTS_031.md
+* What was actually done:
+  - `SettingsManager.kt` & `BackupManager.kt`: Added `bookmarkedFolders: StateFlow<Set<String>>` persisted under `"bookmarked_folders"` with `addBookmarkedFolder`, `removeBookmarkedFolder`, and `toggleBookmarkedFolder`, plus backup serialization and restore support.
+  - `MediaRepository.kt` & `MediaViewModel.kt`: Moved `hasNew` out of `MediaFolder` primary constructor into the class body alongside `val newCount: Int = mediaItems.count { it.tag == PlaybackTag.NEW }`, and simplified `MediaViewModel.syncPlaybackTags()` `folder.copy(mediaItems = updatedItems)` so both `markAsStarted()` and `syncPlaybackTags()` automatically keep `newCount` and `hasNew` accurate.
+  - `MainScreen.kt`: Removed the unanchored `folderForOptionsMenu` `DropdownMenu` outside `LazyColumn` and placed `DropdownMenu` inside a `Box` wrapping `FolderCard`'s `MoreVert` `IconButton`; added `"Bookmark Folder"` / `"Remove Bookmark"` and `"Exclude Folder"` items; sorted `mediaFolders` with bookmarked folders first regardless of `SortOrder.NAME` / `SortOrder.DATE` without separator lines or section text; added subtle `Icons.Filled.Bookmark` next to bookmarked folder titles and `Option A` small count badge (`TopEnd`) alongside `"NEW"` (`TopStart`) on the `80.dp` folder icon box (Main Library only).
+  - `PlayerManager.kt`, `PlayerScreen.kt`, `MiniPlayerOverlay.kt`, `MainActivity.kt`: Tracked `lastObserved*` and `pendingAutoEnded*` in `PlayerManager.kt` so when `pauseAtEndOfMediaItems = true` transitions `REASON_AUTO` -> `PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM` at the end of a non-last item under `REPEAT_MODE_OFF`, `PlayerManager` marks the *true* finished item via `SettingsManager.markAsFinished(...)` and rewinds paused (`playWhenReady = false`, `seekTo(endedIdx, 0L)`) back onto the finished item (and marks `STATE_ENDED` items on the last item). Updated `PlayerScreen.kt` to skip `markAsOpened` on passive `REASON_AUTO` peeks under `REPEAT_MODE_OFF` and stopped rewinds, reset `wasPlayingBeforePause = false` cleanly on `END_OF_MEDIA_ITEM`, and guard `ON_RESUME` against `STATE_ENDED`. Updated `MiniPlayerOverlay.kt` Prev/Next buttons to handle `STATE_ENDED`/`STATE_IDLE` (`prepare()`/`play()`) and wrapping consistently, and ensured `MainActivity.kt` sets `pauseAtEndOfMediaItems = (repeatMode == REPEAT_MODE_OFF)` on direct queue setup.
+* How it was verified: Static verification only — brace and parenthesis tokenizer returned `0`/`0` across all 9 edited `.kt` files; repo-wide Kotlin/JVM `var` vs `fun` setter/getter scan found zero clashes (excluding non-clashing `SettingsManager.instance` vs `getInstance(Context)`); clean workspace security scan; `compile_applet` and `lint_applet` executed for workspace toolchain verification. Local `./gradlew` / Android SDK is absent; CI `assembleDebug` / `assembleMinifiedDebug` awaits GitHub push and on-device testing has not run.
+* Any deviation from what was requested: Added a subtle `16.dp` bookmark icon next to bookmarked folder titles (without adding any separator line or section header text) for visual clarity; kept explicit Next button wrapping on last item consistent with Notification Prev/Next while stopping auto-advance and `Play`-at-end next-file playback under Loop OFF.
+* Any known issue or follow-up needed: Push to GitHub to run CI `assembleDebug` & `assembleMinifiedDebug` and execute the On-Device Verification Guide.
 
 
 

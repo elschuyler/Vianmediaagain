@@ -1010,7 +1010,14 @@ fun PlayerScreen(
                     currentMediaUri = uri
                     val immediateName = title ?: getFastImmediateName(uri)
                     currentMediaTitle = immediateName
-                    shura.media.data.SettingsManager.getInstance(context).markAsOpened(uri.toString(), currentMediaTitle)
+                    val isPassiveAutoPeek = reason == androidx.media3.common.Player.MEDIA_ITEM_TRANSITION_REASON_AUTO &&
+                        controller.repeatMode == androidx.media3.common.Player.REPEAT_MODE_OFF
+                    val isStoppedRewind = reason == androidx.media3.common.Player.MEDIA_ITEM_TRANSITION_REASON_SEEK &&
+                        !controller.isPlaying && !controller.playWhenReady &&
+                        settingsManager.isFinished(uri.toString(), immediateName)
+                    if (!isPassiveAutoPeek && !isStoppedRewind) {
+                        settingsManager.markAsOpened(uri.toString(), currentMediaTitle)
+                    }
                     if (title == null && uri.scheme == "content") {
                         coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                             var resolved: String? = null
@@ -1147,11 +1154,13 @@ fun PlayerScreen(
                         shura.media.LogKeeper.log("End of media item reached with repeatMode OFF -> staying paused cleanly", "PlayerScreen")
                         wasPlayingBeforePause = false
                         showControls = true
-                        settingsManager.markAsFinished(
-                            currentMediaUri.toString(),
-                            currentMediaTitle,
-                            controller.duration.coerceAtLeast(1000L)
-                        )
+                        if (controller.playbackState == androidx.media3.common.Player.STATE_ENDED) {
+                            settingsManager.markAsFinished(
+                                currentMediaUri.toString(),
+                                currentMediaTitle,
+                                controller.duration.coerceAtLeast(1000L)
+                            )
+                        }
                     }
                 }
             }
@@ -1343,7 +1352,7 @@ fun PlayerScreen(
                             shura.media.LogKeeper.log("PlayerScreen ON_RESUME: Controller is in STATE_IDLE for current item, calling prepare()", "PlayerScreen")
                             controller.prepare()
                         }
-                        if (wasPlayingBeforePause) {
+                        if (wasPlayingBeforePause && controller.playbackState != androidx.media3.common.Player.STATE_ENDED) {
                             shura.media.LogKeeper.log("PlayerScreen ON_RESUME: Resuming playback (wasPlayingBeforePause=true)", "PlayerScreen")
                             controller.play()
                         }

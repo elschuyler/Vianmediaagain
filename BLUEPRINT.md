@@ -659,4 +659,16 @@
   - `PlaybackService.kt` (`ACTION_LOOP`): Resolve `(player as? ExoPlayer) ?: PlayerManager.exoPlayer` before writing `pauseAtEndOfMediaItems` instead of invoking an `ExoPlayer`-only property on `Player`-typed `session.player` (`ForwardingPlayer`).
   - `FloatingVideoPlayerOverlay.kt`: Resolve `(controller as? ExoPlayer) ?: PlayerManager.exoPlayer` before writing `pauseAtEndOfMediaItems` in the loop toggle button instead of invoking it directly on `Player?`.
 
+- [x] **Phase 142: CI Kotlin Compilation Fix — `PlayerManager` JVM Setter Declaration Clash (Option 1)**
+  - `PlayerManager.kt`: Rename `@Volatile var isOverlayProgressTickerActive: Boolean = false` to `@Volatile private var overlayTickerActive: Boolean = false` and update its 6 internal references (`L227, L235, L507, L521, L524, L626`) while keeping `fun setOverlayProgressTickerActive(active: Boolean)` public for `MiniPlayerOverlay.kt` and `PlaybackService.kt`, eliminating the JVM `setOverlayProgressTickerActive(Z)V` signature clash.
+
+- [x] **Phase 143: Library Folder Menu Anchor, Bookmark Ordering, Option A New-Count Tag & Loop OFF End-of-Item Playback Fix**
+  - **Main Library Folder UX (`MainScreen.kt`, `SettingsManager.kt`, `BackupManager.kt`, `MediaRepository.kt`, `MediaViewModel.kt`):**
+    - Wrapped `FolderCard`'s `MoreVert` `IconButton` in a `Box` containing its `DropdownMenu` so the popup anchors directly next to the tapped folder's 3-dots button.
+    - Added persisted `bookmarkedFolders` (`SettingsManager.kt` `"bookmarked_folders"` + `BackupManager.kt` export/restore) and `"Bookmark Folder"` / `"Remove Bookmark"` in the folder 3-dots menu; sorted bookmarked folders first regardless of Name/Date sort without any separator line or header text, with a subtle bookmark icon next to bookmarked folder titles (Main Library `MainScreen.kt` only).
+    - Computed `newCount` and `hasNew` in `MediaFolder`'s class body (`MediaRepository.kt`, removing stale `hasNew` copy override in `MediaViewModel.kt` so `markAsStarted()` updates counts immediately), and rendered the `Option A` small new-count badge (`TopEnd`) alongside the `"NEW"` badge (`TopStart`) on `FolderCard` icons.
+  - **Loop OFF End-of-Item & MiniPlayer Next/Prev Hardening (`PlayerManager.kt`, `PlayerScreen.kt`, `MiniPlayerOverlay.kt`, `MainActivity.kt`):**
+    - Tracked active item index/URI/title/duration in `PlayerManager` so when `pauseAtEndOfMediaItems = true` (`REPEAT_MODE_OFF`) auto-advances at the end of a non-last file and triggers `PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM`, `PlayerManager` marks the *actually finished* item in `SettingsManager.markAsFinished(...)` and seeks paused back to `(endedIdx, 0L)` instead of leaving Play pointed at the next file.
+    - Updated `PlayerScreen.kt` to skip `markAsOpened` on passive `REASON_AUTO` peeks under `REPEAT_MODE_OFF` and stopped rewinds, reset `wasPlayingBeforePause = false` on `END_OF_MEDIA_ITEM`, guard `ON_RESUME` against `STATE_ENDED`, and updated `MiniPlayerOverlay.kt` Prev/Next + `MainActivity.kt` `pauseAtEndOfMediaItems` consistency.
+
 

@@ -76,7 +76,23 @@ object PlayerManager {
     @Volatile
     var isPlayerScreenVisible: Boolean = false
     @Volatile
-    var isOverlayProgressTickerActive: Boolean = false
+    private var overlayTickerActive: Boolean = false
+    @Volatile
+    private var lastObservedItemIndex: Int = -1
+    @Volatile
+    private var lastObservedMediaId: String? = null
+    @Volatile
+    private var lastObservedTitle: String? = null
+    @Volatile
+    private var lastObservedDuration: Long = 0L
+    @Volatile
+    private var pendingAutoEndedFromIndex: Int = -1
+    @Volatile
+    private var pendingAutoEndedMediaId: String? = null
+    @Volatile
+    private var pendingAutoEndedTitle: String? = null
+    @Volatile
+    private var pendingAutoEndedDuration: Long = 0L
 
     fun isAudioOnlyHint(context: Context, uri: android.net.Uri?): Boolean {
         if (uri == null) return false
@@ -220,32 +236,114 @@ object PlayerManager {
         exoPlayer?.addListener(object : androidx.media3.common.Player.Listener {
             override fun onRepeatModeChanged(repeatMode: Int) {
                 exoPlayer?.pauseAtEndOfMediaItems = (repeatMode == Player.REPEAT_MODE_OFF)
+                if (repeatMode != Player.REPEAT_MODE_OFF) {
+                    pendingAutoEndedFromIndex = -1
+                }
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (playbackState == Player.STATE_BUFFERING) {
-                    if (isOverlayProgressTickerActive) startProgressTicker()
+                    if (overlayTickerActive) startProgressTicker()
                 } else if (playbackState == Player.STATE_IDLE || playbackState == Player.STATE_ENDED) {
                     stopProgressTicker()
+                    if (playbackState == Player.STATE_ENDED) {
+                        val p = exoPlayer
+                        if (p != null && p.repeatMode == Player.REPEAT_MODE_OFF) {
+                            val currentItem = p.currentMediaItem
+                            val uriStr = currentItem?.localConfiguration?.uri?.toString() ?: currentItem?.mediaId
+                            if (!uriStr.isNullOrBlank()) {
+                                val title = currentItem?.mediaMetadata?.title?.toString()
+                                    ?: uriStr.substringAfterLast('/')
+                                val dur = p.duration.takeIf { it > 0L }
+                                    ?: lastObservedDuration.takeIf { it > 0L }
+                                    ?: 1000L
+                                shura.media.data.SettingsManager.getInstance(appCtx)
+                                    .markAsFinished(uriStr, title, dur)
+                            }
+                        }
+                    }
+                } else if (playbackState == Player.STATE_READY && pendingAutoEndedFromIndex == -1) {
+                    val p = exoPlayer
+                    val item = p?.currentMediaItem
+                    if (p != null && item != null) {
+                        lastObservedItemIndex = p.currentMediaItemIndex
+                        lastObservedMediaId = item.localConfiguration?.uri?.toString() ?: item.mediaId
+                        lastObservedTitle = item.mediaMetadata.title?.toString()
+                            ?: lastObservedMediaId?.substringAfterLast('/')
+                        val dur = p.duration
+                        if (dur > 0L) lastObservedDuration = dur
+                    }
                 }
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 if (isPlaying) {
-                    if (isOverlayProgressTickerActive) startProgressTicker()
+                    if (overlayTickerActive) startProgressTicker()
                 } else {
                     stopProgressTicker()
                     flushProgressToStorage()
                 }
             }
 
+            override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                if (!playWhenReady && reason == Player.PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM) {
+                    val p = exoPlayer
+                    if (p != null && p.repeatMode == Player.REPEAT_MODE_OFF) {
+                        val endedIdx = pendingAutoEndedFromIndex
+                        if (endedIdx in 0 until p.mediaItemCount && endedIdx != p.currentMediaItemIndex) {
+                            val endedId = pendingAutoEndedMediaId
+                            val endedTitle = pendingAutoEndedTitle
+                            val endedDur = pendingAutoEndedDuration.coerceAtLeast(1000L)
+                            pendingAutoEndedFromIndex = -1
+                            if (!endedId.isNullOrBlank()) {
+                                shura.media.data.SettingsManager.getInstance(appCtx)
+                                    .markAsFinished(endedId, endedTitle, endedDur)
+                            }
+                            p.playWhenReady = false
+                            p.seekTo(endedIdx, 0L)
+                        } else {
+                            pendingAutoEndedFromIndex = -1
+                        }
+                    }
+                }
+            }
+
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                // When transitioning between items, persist the previous item's progress first
-                flushProgressToStorage()
+                val p = exoPlayer
+                if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO &&
+                    p != null &&
+                    p.repeatMode == Player.REPEAT_MODE_OFF &&
+                    lastObservedItemIndex >= 0 &&
+                    lastObservedItemIndex != p.currentMediaItemIndex
+                ) {
+                    pendingAutoEndedFromIndex = lastObservedItemIndex
+                    pendingAutoEndedMediaId = lastObservedMediaId
+                    pendingAutoEndedTitle = lastObservedTitle
+                    pendingAutoEndedDuration = lastObservedDuration.coerceAtLeast(1000L)
+                } else {
+                    pendingAutoEndedFromIndex = -1
+                    // When transitioning between items, persist the previous item's progress
+                    flushProgressToStorage()
+                }
+                if (p != null) {
+                    lastObservedItemIndex = p.currentMediaItemIndex
+                    lastObservedMediaId = mediaItem?.localConfiguration?.uri?.toString() ?: mediaItem?.mediaId
+                    lastObservedTitle = mediaItem?.mediaMetadata?.title?.toString()
+                        ?: lastObservedMediaId?.substringAfterLast('/')
+                    lastObservedDuration = p.duration.takeIf { it > 0L } ?: 0L
+                }
             }
 
             override fun onEvents(player: androidx.media3.common.Player, events: androidx.media3.common.Player.Events) {
                 val timelineChanged = events.contains(androidx.media3.common.Player.EVENT_TIMELINE_CHANGED)
+                if (pendingAutoEndedFromIndex == -1 && player.currentMediaItem != null) {
+                    if (timelineChanged) {
+                        lastObservedItemIndex = player.currentMediaItemIndex
+                    }
+                    if (player.duration > 0L && lastObservedItemIndex == player.currentMediaItemIndex) {
+                        lastObservedDuration = player.duration
+                    }
+                }
                 updateSnapshot(rebuildPlaylist = timelineChanged)
                 if (timelineChanged && player.mediaItemCount == 0) {
                     playerScope.launch {
@@ -504,7 +602,7 @@ object PlayerManager {
     }
 
     fun setOverlayProgressTickerActive(active: Boolean) {
-        isOverlayProgressTickerActive = active
+        overlayTickerActive = active
         if (active) {
             val player = exoPlayer
             if (player != null && (player.isPlaying || player.playbackState == Player.STATE_BUFFERING)) {
@@ -518,10 +616,10 @@ object PlayerManager {
     }
 
     fun startProgressTicker() {
-        if (!isOverlayProgressTickerActive) return
+        if (!overlayTickerActive) return
         if (progressTickerJob?.isActive == true) return
         progressTickerJob = playerScope.launch(kotlinx.coroutines.Dispatchers.Main) {
-            while (isOverlayProgressTickerActive) {
+            while (overlayTickerActive) {
                 val player = exoPlayer
                 if (player != null && (player.isPlaying || player.playbackState == Player.STATE_BUFFERING)) {
                     val pos = if (player.currentPosition < 0L) 0L else player.currentPosition
@@ -623,7 +721,15 @@ object PlayerManager {
         isQueuePopulationInProgress = false
         isFloatingVideoActive = false
         isPlayerScreenVisible = false
-        isOverlayProgressTickerActive = false
+        overlayTickerActive = false
+        lastObservedItemIndex = -1
+        lastObservedMediaId = null
+        lastObservedTitle = null
+        lastObservedDuration = 0L
+        pendingAutoEndedFromIndex = -1
+        pendingAutoEndedMediaId = null
+        pendingAutoEndedTitle = null
+        pendingAutoEndedDuration = 0L
         pendingQueueItems = null
         pendingQueueIndex = 0
         pendingQueueIsImplicit = true

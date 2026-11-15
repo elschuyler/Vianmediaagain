@@ -55,6 +55,10 @@ object BackupManager {
         settings.excludedFolders.value.forEach { excludedArray.put(it) }
         settingsJson.put("excluded_folders", excludedArray)
 
+        val bookmarkedArray = JSONArray()
+        settings.bookmarkedFolders.value.forEach { bookmarkedArray.put(it) }
+        settingsJson.put("bookmarked_folders", bookmarkedArray)
+
         val extensionsArray = JSONArray()
         settings.extensions.value.forEach { extensionsArray.put(it) }
         settingsJson.put("extensions", extensionsArray)
@@ -106,6 +110,7 @@ object BackupManager {
             var showLoggerFab = true
             var hasSeenWelcome = true
             var excludedFoldersParsed: List<String>? = null
+            var bookmarkedFoldersParsed: List<String>? = null
             var extensionsParsed: List<String>? = null
 
             if (hasSettings) {
@@ -122,6 +127,15 @@ object BackupManager {
                         list.add(excludedArray.getString(i))
                     }
                     excludedFoldersParsed = list
+                }
+
+                if (settingsJson.has("bookmarked_folders")) {
+                    val bookmarkedArray = settingsJson.getJSONArray("bookmarked_folders")
+                    val list = mutableListOf<String>()
+                    for (i in 0 until bookmarkedArray.length()) {
+                        list.add(bookmarkedArray.getString(i))
+                    }
+                    bookmarkedFoldersParsed = list
                 }
 
                 if (settingsJson.has("extensions")) {
@@ -224,6 +238,11 @@ object BackupManager {
                 excludedFoldersParsed?.let { parsedExcluded ->
                     settings.excludedFolders.value.forEach { settings.removeExcludedFolder(it) }
                     parsedExcluded.forEach { settings.addExcludedFolder(it) }
+                }
+
+                bookmarkedFoldersParsed?.let { parsedBookmarked ->
+                    settings.bookmarkedFolders.value.forEach { settings.removeBookmarkedFolder(it) }
+                    parsedBookmarked.forEach { settings.addBookmarkedFolder(it) }
                 }
 
                 extensionsParsed?.let { parsedExts ->

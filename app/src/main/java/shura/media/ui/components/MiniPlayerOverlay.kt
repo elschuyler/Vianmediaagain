@@ -297,7 +297,24 @@ fun MiniPlayerOverlay(
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(onClick = { player?.seekToPreviousMediaItem() }) {
+                    IconButton(onClick = {
+                        player?.let { controller ->
+                            val wasEnded = controller.playbackState == Player.STATE_ENDED || controller.playbackState == Player.STATE_IDLE
+                            if (controller.currentPosition > 3000L && !wasEnded) {
+                                controller.seekTo(0)
+                            } else if (controller.hasPreviousMediaItem()) {
+                                controller.seekToPreviousMediaItem()
+                            } else if (controller.mediaItemCount > 1) {
+                                controller.seekTo(controller.mediaItemCount - 1, 0)
+                            } else {
+                                controller.seekTo(0)
+                            }
+                            if (wasEnded || controller.playWhenReady) {
+                                controller.prepare()
+                                controller.play()
+                            }
+                        }
+                    }) {
                         Icon(Icons.Filled.SkipPrevious, "Previous", tint = Color(0xFF121212))
                     }
                     IconButton(onClick = { player?.seekTo(player.currentPosition - 5000) }) {
@@ -323,7 +340,22 @@ fun MiniPlayerOverlay(
                     IconButton(onClick = { player?.seekTo(player.currentPosition + 5000) }) {
                         Icon(Icons.Filled.FastForward, "+5s", tint = Color(0xFF121212))
                     }
-                    IconButton(onClick = { player?.seekToNextMediaItem() }) {
+                    IconButton(onClick = {
+                        player?.let { controller ->
+                            val wasEnded = controller.playbackState == Player.STATE_ENDED || controller.playbackState == Player.STATE_IDLE
+                            if (controller.hasNextMediaItem()) {
+                                controller.seekToNextMediaItem()
+                            } else if (controller.mediaItemCount > 1) {
+                                controller.seekTo(0, 0)
+                            } else {
+                                controller.seekTo(0)
+                            }
+                            if (wasEnded || controller.playWhenReady) {
+                                controller.prepare()
+                                controller.play()
+                            }
+                        }
+                    }) {
                         Icon(Icons.Filled.SkipNext, "Next", tint = Color(0xFF121212))
                     }
                     IconButton(onClick = { player?.stop(); player?.clearMediaItems(); onClose() }) {

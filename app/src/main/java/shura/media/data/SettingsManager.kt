@@ -12,6 +12,9 @@ class SettingsManager private constructor(context: Context) {
     private val _excludedFolders = MutableStateFlow<Set<String>>(emptySet())
     val excludedFolders: StateFlow<Set<String>> = _excludedFolders.asStateFlow()
 
+    private val _bookmarkedFolders = MutableStateFlow<Set<String>>(emptySet())
+    val bookmarkedFolders: StateFlow<Set<String>> = _bookmarkedFolders.asStateFlow()
+
     private val _extensions = MutableStateFlow<List<String>>(emptyList())
     val extensions: StateFlow<List<String>> = _extensions.asStateFlow()
 
@@ -40,6 +43,11 @@ class SettingsManager private constructor(context: Context) {
         val excludedStrSet = prefs.getStringSet("excluded_folders", emptySet())
         if (!excludedStrSet.isNullOrEmpty()) {
             _excludedFolders.value = excludedStrSet
+        }
+
+        val bookmarkedStrSet = prefs.getStringSet("bookmarked_folders", emptySet())
+        if (!bookmarkedStrSet.isNullOrEmpty()) {
+            _bookmarkedFolders.value = bookmarkedStrSet
         }
         
         _outputFolderUri.value = prefs.getString("output_folder_uri", null)
@@ -79,6 +87,30 @@ class SettingsManager private constructor(context: Context) {
         if (currentSet.remove(bucketId)) {
             _excludedFolders.value = currentSet
             prefs.edit().putStringSet("excluded_folders", currentSet).apply()
+        }
+    }
+
+    fun addBookmarkedFolder(bucketId: String) {
+        val currentSet = _bookmarkedFolders.value.toMutableSet()
+        if (currentSet.add(bucketId)) {
+            _bookmarkedFolders.value = currentSet
+            prefs.edit().putStringSet("bookmarked_folders", currentSet).apply()
+        }
+    }
+
+    fun removeBookmarkedFolder(bucketId: String) {
+        val currentSet = _bookmarkedFolders.value.toMutableSet()
+        if (currentSet.remove(bucketId)) {
+            _bookmarkedFolders.value = currentSet
+            prefs.edit().putStringSet("bookmarked_folders", currentSet).apply()
+        }
+    }
+
+    fun toggleBookmarkedFolder(bucketId: String) {
+        if (bucketId in _bookmarkedFolders.value) {
+            removeBookmarkedFolder(bucketId)
+        } else {
+            addBookmarkedFolder(bucketId)
         }
     }
 

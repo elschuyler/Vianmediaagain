@@ -209,10 +209,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 if (folderChanged) {
                     anyChanged = true
-                    folder.copy(
-                        mediaItems = updatedItems,
-                        hasNew = updatedItems.any { it.tag == shura.media.data.PlaybackTag.NEW }
-                    )
+                    folder.copy(mediaItems = updatedItems)
                 } else {
                     folder
                 }
