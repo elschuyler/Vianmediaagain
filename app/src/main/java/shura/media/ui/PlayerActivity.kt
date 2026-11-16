@@ -131,6 +131,11 @@ class PlayerActivity : ComponentActivity() {
         return shura.media.data.MediaUriResolver.resolveToPlayableUri(this, rawUri)
     }
 
+    private fun encodeBase64Url(raw: String): String {
+        val base64Flags = android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING
+        return android.util.Base64.encodeToString(raw.toByteArray(), base64Flags)
+    }
+
     private fun preparePlaybackImmediately(encodedUri: String, preResolvedUri: Uri? = null) {
         if (encodedUri.isEmpty()) return
         val decodedStr = try {
@@ -139,9 +144,12 @@ class PlayerActivity : ComponentActivity() {
         if (decodedStr.isEmpty()) return
         val rawUri = android.net.Uri.parse(decodedStr)
         val uri = preResolvedUri ?: resolveFastUriOnce(rawUri)
-        val player = PlayerManager.exoPlayer
-        if (player != null && player.currentMediaItem?.mediaId != decodedStr) {
-            val pending = PlayerManager.consumePendingQueueWithImplicitFlag()
+        val currentPlayer = PlayerManager.exoPlayer
+        val pending = PlayerManager.consumePendingQueueWithImplicitFlag()
+        if ((pending != null && pending.first.isNotEmpty()) ||
+            currentPlayer == null ||
+            currentPlayer.currentMediaItem?.mediaId != decodedStr
+        ) {
             val settings = shura.media.data.SettingsManager.getInstance(applicationContext)
             val fastName = getFastImmediateName(uri)
             if (pending != null && pending.first.isNotEmpty()) {
@@ -150,14 +158,21 @@ class PlayerActivity : ComponentActivity() {
                 val activeName = activeItem?.mediaMetadata?.title?.toString() ?: fastName
                 val lastPos = settings.getPlaybackPosition(decodedStr, activeName)
                 val startPos = if (lastPos > 0 && !settings.isFinished(decodedStr, activeName)) lastPos else 0L
-                player.setMediaItems(queueItems, queueIndex, startPos)
-                player.pauseAtEndOfMediaItems = (player.repeatMode == androidx.media3.common.Player.REPEAT_MODE_OFF)
-                player.prepare()
-                player.play()
-                PlayerManager.isImplicitFolderQueue = isImplicit
+                PlayerManager.stagePlaybackRequest(
+                    mediaItems = queueItems,
+                    startIndex = queueIndex,
+                    startPositionMs = startPos,
+                    isImplicit = isImplicit,
+                    appendIfActive = false
+                )
                 settings.markAsOpened(decodedStr, activeName)
             } else {
-                val mediaItem = androidx.media3.common.MediaItem.Builder()
+                val siblingSubs = if (uri.scheme == "file" || (uri.scheme == null && uri.path?.startsWith("/") == true)) {
+                    shura.media.service.SubtitleAutoDetector.detectSiblingSubtitles(applicationContext, uri)
+                } else {
+                    emptyList()
+                }
+                val itemBuilder = androidx.media3.common.MediaItem.Builder()
                     .setUri(uri)
                     .setMediaId(decodedStr)
                     .setMediaMetadata(
@@ -167,43 +182,66 @@ class PlayerActivity : ComponentActivity() {
                             .setArtworkUri(uri)
                             .build()
                     )
-                    .build()
+                if (siblingSubs.isNotEmpty()) {
+                    itemBuilder.setSubtitleConfigurations(siblingSubs)
+                }
+                val mediaItem = itemBuilder.build()
                 val lastPos = settings.getPlaybackPosition(decodedStr, fastName)
                 val startPos = if (lastPos > 0 && !settings.isFinished(decodedStr, fastName)) lastPos else 0L
-                player.setMediaItem(mediaItem, startPos)
-                player.pauseAtEndOfMediaItems = (player.repeatMode == androidx.media3.common.Player.REPEAT_MODE_OFF)
-                player.prepare()
-                player.play()
-                PlayerManager.isImplicitFolderQueue = true
+                PlayerManager.stagePlaybackRequest(
+                    mediaItems = listOf(mediaItem),
+                    startIndex = 0,
+                    startPositionMs = startPos,
+                    isImplicit = true,
+                    appendIfActive = false
+                )
                 settings.markAsOpened(decodedStr, fastName)
             }
+            shura.media.service.PlaybackService.applyStagedPlaybackOrStart(applicationContext)
 
-            // Resolve display name and sibling subtitles asynchronously on IO (without touching thumbnails)
-            lifecycleScope.launch(Dispatchers.IO) {
-                val resolvedName = if (uri.scheme == "content") queryDisplayName(uri) else null
-                val asyncSubs = shura.media.service.SubtitleAutoDetector.detectSiblingSubtitles(applicationContext, uri)
-                val hasNewName = !resolvedName.isNullOrBlank() && resolvedName != fastName
+            // Resolve content:// display name and sibling subtitles asynchronously on IO (without duplicating work in PlayerScreen)
+            if (uri.scheme == "content") {
+                lifecycleScope.launch(Dispatchers.IO) {
+                    val resolvedName = queryDisplayName(uri)
+                    val asyncSubs = shura.media.service.SubtitleAutoDetector.detectSiblingSubtitles(applicationContext, uri)
+                    val hasCandidateName = !resolvedName.isNullOrBlank() && resolvedName != fastName
 
-                if (hasNewName || asyncSubs.isNotEmpty()) {
-                    withContext(Dispatchers.Main) {
-                        val currentPlayer = PlayerManager.exoPlayer
-                        if (currentPlayer != null && currentPlayer.currentMediaItem?.mediaId == decodedStr) {
-                            val activeItem = currentPlayer.currentMediaItem
-                            val updatedMeta = currentPlayer.mediaMetadata.buildUpon().apply {
-                                if (hasNewName) {
-                                    setTitle(resolvedName).setDisplayTitle(resolvedName)
-                                }
-                            }.build()
-                            val updatedItemBuilder = activeItem?.buildUpon()?.setMediaMetadata(updatedMeta)
-                            if (asyncSubs.isNotEmpty()) {
-                                val existingConfigs = activeItem?.localConfiguration?.subtitleConfigurations ?: emptyList()
-                                updatedItemBuilder?.setSubtitleConfigurations(existingConfigs + asyncSubs)
+                    if (hasCandidateName || asyncSubs.isNotEmpty()) {
+                        var waitedMs = 0L
+                        while (waitedMs < 2000L) {
+                            val ready = withContext(Dispatchers.Main) {
+                                val p = PlayerManager.exoPlayer
+                                p != null && p.currentMediaItem?.mediaId == decodedStr &&
+                                    p.playbackState == androidx.media3.common.Player.STATE_READY
                             }
-                            val updatedItem = updatedItemBuilder?.build()
-                            if (updatedItem != null) {
-                                currentPlayer.replaceMediaItem(currentPlayer.currentMediaItemIndex, updatedItem)
-                                if (hasNewName) {
-                                    settings.markAsOpened(decodedStr, resolvedName!!)
+                            if (ready) break
+                            kotlinx.coroutines.delay(100L)
+                            waitedMs += 100L
+                        }
+                        withContext(Dispatchers.Main) {
+                            val activePlayer = PlayerManager.exoPlayer
+                            val activeItem = activePlayer?.currentMediaItem
+                            if (activePlayer != null && activeItem?.mediaId == decodedStr) {
+                                val currentTitle = activeItem.mediaMetadata.title?.toString()
+                                val shouldUpdateName = hasCandidateName && (currentTitle.isNullOrBlank() || currentTitle == fastName)
+                                val existingConfigs = activeItem.localConfiguration?.subtitleConfigurations ?: emptyList()
+                                val newSubs = asyncSubs.filter { candidate ->
+                                    existingConfigs.none { it.uri == candidate.uri }
+                                }
+                                if (shouldUpdateName || newSubs.isNotEmpty()) {
+                                    val updatedMeta = activeItem.mediaMetadata.buildUpon().apply {
+                                        if (shouldUpdateName) {
+                                            setTitle(resolvedName).setDisplayTitle(resolvedName)
+                                        }
+                                    }.build()
+                                    val updatedItemBuilder = activeItem.buildUpon().setMediaMetadata(updatedMeta)
+                                    if (newSubs.isNotEmpty()) {
+                                        updatedItemBuilder.setSubtitleConfigurations(existingConfigs + newSubs)
+                                    }
+                                    activePlayer.replaceMediaItem(activePlayer.currentMediaItemIndex, updatedItemBuilder.build())
+                                    if (shouldUpdateName) {
+                                        settings.markAsOpened(decodedStr, resolvedName!!)
+                                    }
                                 }
                             }
                         }
@@ -226,14 +264,24 @@ class PlayerActivity : ComponentActivity() {
             } catch (e: Exception) { newUri }
             val resolved = resolveFastUriOnce(Uri.parse(decodedNew))
             val finalNewUri = if (resolved.toString() != decodedNew) {
-                android.util.Base64.encodeToString(resolved.toString().toByteArray(), base64Flags)
+                encodeBase64Url(resolved.toString())
             } else newUri
 
-            if (finalNewUri != activeUriString) {
+            if (finalNewUri != activeUriString || PlayerManager.hasPendingQueue()) {
                 activeUriString = finalNewUri
                 preparePlaybackImmediately(finalNewUri, resolved)
             }
+        } else {
+            val activeItem = PlayerManager.exoPlayer?.currentMediaItem
+            val activeMediaUri = activeItem?.localConfiguration?.uri?.toString() ?: activeItem?.mediaId
+            if (!activeMediaUri.isNullOrBlank()) {
+                val encodedActive = encodeBase64Url(activeMediaUri)
+                if (encodedActive != activeUriString) {
+                    activeUriString = encodedActive
+                }
+            }
         }
+        PlayerManager.floatingSession.isMinimized = false
         shura.media.service.PlaybackService.hideOverlay(this)
     }
 
@@ -241,7 +289,23 @@ class PlayerActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         LogKeeper.init(this)
         persistUriPermissions(intent)
-        val rawEncoded = extractEncodedUri(intent)
+        var rawEncoded = extractEncodedUri(intent)
+        if (rawEncoded.isEmpty()) {
+            val activeItem = PlayerManager.exoPlayer?.currentMediaItem
+            val activeMediaUri = activeItem?.localConfiguration?.uri?.toString() ?: activeItem?.mediaId
+            if (!activeMediaUri.isNullOrBlank()) {
+                rawEncoded = encodeBase64Url(activeMediaUri)
+            } else if (!PlayerManager.hasStagedPlaybackRequest() && !PlayerManager.hasPendingQueue()) {
+                try {
+                    val mainIntent = Intent(this, shura.media.MainActivity::class.java).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    }
+                    startActivity(mainIntent)
+                } catch (_: Exception) {}
+                finish()
+                return
+            }
+        }
         val base64Flags = android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING
         val decodedStr = try {
             val decoded = String(android.util.Base64.decode(rawEncoded, base64Flags))
@@ -251,7 +315,7 @@ class PlayerActivity : ComponentActivity() {
             resolveFastUriOnce(Uri.parse(decodedStr))
         } else null
         activeUriString = if (resolvedUri != null && resolvedUri.toString() != decodedStr) {
-            android.util.Base64.encodeToString(resolvedUri.toString().toByteArray(), base64Flags)
+            encodeBase64Url(resolvedUri.toString())
         } else rawEncoded
 
         if (decodedStr.startsWith("content://")) {
@@ -259,8 +323,16 @@ class PlayerActivity : ComponentActivity() {
                 grantUriPermission(packageName, Uri.parse(decodedStr), Intent.FLAG_GRANT_READ_URI_PERMISSION)
             } catch (e: Exception) {}
         }
-        PlayerManager.initialize(applicationContext, false)
+        lifecycleScope.launch {
+            PlayerManager.playbackEndedCloseEvent.collect {
+                if (!isFinishing && !isDestroyed) {
+                    finish()
+                }
+            }
+        }
+        PlayerManager.floatingSession.isMinimized = false
         shura.media.service.PlaybackService.hideOverlay(this)
+        PlayerManager.isPlayerScreenVisible = true
         preparePlaybackImmediately(activeUriString, resolvedUri)
 
         enableEdgeToEdge(

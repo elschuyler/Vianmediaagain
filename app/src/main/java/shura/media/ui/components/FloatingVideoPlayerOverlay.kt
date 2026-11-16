@@ -332,6 +332,9 @@ fun FloatingVideoPlayerOverlay(
                                 view.resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
                                 view.keepScreenOn = keepScreenAwake && isPlaying
                             },
+                            onRelease = { view ->
+                                view.player = null
+                            },
                             modifier = Modifier.fillMaxSize().pointerInput(Unit) {
                                 detectTapGestures(
                                     onTap = {
@@ -541,7 +544,7 @@ fun FloatingVideoPlayerOverlay(
                                                         else -> Player.REPEAT_MODE_OFF
                                                     }
                                                     controller.repeatMode = nextMode
-                                                    ((controller as? androidx.media3.exoplayer.ExoPlayer) ?: shura.media.service.PlayerManager.exoPlayer)?.pauseAtEndOfMediaItems =
+                                                    shura.media.service.PlayerManager.exoPlayer?.pauseAtEndOfMediaItems =
                                                         (nextMode == Player.REPEAT_MODE_OFF)
                                                     repeatMode = nextMode
                                                 }

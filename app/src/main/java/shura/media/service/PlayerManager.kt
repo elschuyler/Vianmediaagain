@@ -61,8 +61,23 @@ data class FloatingPlayerSessionState(
     }
 }
 
+data class PendingPlaybackRequest(
+    val mediaItems: List<MediaItem>,
+    val startIndex: Int,
+    val startPositionMs: Long,
+    val isImplicit: Boolean,
+    val appendIfActive: Boolean = false,
+    val createdAtMs: Long = System.currentTimeMillis()
+)
+
 object PlayerManager {
+    @Volatile
     var exoPlayer: ExoPlayer? = null
+        internal set
+
+    private val _ownedPlayerFlow = MutableStateFlow<ExoPlayer?>(null)
+    val ownedPlayerFlow: StateFlow<ExoPlayer?> = _ownedPlayerFlow.asStateFlow()
+
     var loudnessEnhancer: LoudnessEnhancer? = null
     var equalizer: Equalizer? = null
     var dynamicsProcessing: DynamicsProcessing? = null
@@ -93,6 +108,37 @@ object PlayerManager {
     private var pendingAutoEndedTitle: String? = null
     @Volatile
     private var pendingAutoEndedDuration: Long = 0L
+    @Volatile
+    private var isHandlingNaturalEnd: Boolean = false
+
+    @Volatile
+    private var stagedPlaybackRequest: PendingPlaybackRequest? = null
+
+    fun stagePlaybackRequest(
+        mediaItems: List<MediaItem>,
+        startIndex: Int = 0,
+        startPositionMs: Long = 0L,
+        isImplicit: Boolean = true,
+        appendIfActive: Boolean = false
+    ) {
+        if (mediaItems.isEmpty()) return
+        stagedPlaybackRequest = PendingPlaybackRequest(
+            mediaItems = mediaItems,
+            startIndex = startIndex.coerceIn(0, mediaItems.size - 1),
+            startPositionMs = startPositionMs.coerceAtLeast(0L),
+            isImplicit = isImplicit,
+            appendIfActive = appendIfActive
+        )
+        shura.media.LogKeeper.log("PlayerManager: Staged playback request (${mediaItems.size} items, idx=$startIndex, append=$appendIfActive)", "PlayerManager")
+    }
+
+    internal fun consumeStagedPlaybackRequest(): PendingPlaybackRequest? {
+        val req = stagedPlaybackRequest
+        stagedPlaybackRequest = null
+        return req
+    }
+
+    fun hasStagedPlaybackRequest(): Boolean = stagedPlaybackRequest != null
 
     fun isAudioOnlyHint(context: Context, uri: android.net.Uri?): Boolean {
         if (uri == null) return false
@@ -128,15 +174,51 @@ object PlayerManager {
     private val _playbackState = MutableStateFlow(PlayerSnapshot())
     val playbackState: StateFlow<PlayerSnapshot> = _playbackState.asStateFlow()
 
+    private val _playbackEndedCloseEvent = kotlinx.coroutines.flow.MutableSharedFlow<Long>(extraBufferCapacity = 4)
+    val playbackEndedCloseEvent: kotlinx.coroutines.flow.SharedFlow<Long> = _playbackEndedCloseEvent.asSharedFlow()
+
+    private val _playbackErrorEvent = kotlinx.coroutines.flow.MutableSharedFlow<String>(extraBufferCapacity = 4)
+    val playbackErrorEvent: kotlinx.coroutines.flow.SharedFlow<String> = _playbackErrorEvent.asSharedFlow()
+
+    internal fun notifyPlaybackError(message: String) {
+        if (message.isNotBlank()) {
+            _playbackErrorEvent.tryEmit(message)
+        }
+    }
+
     private val playerScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO + kotlinx.coroutines.SupervisorJob())
     private var progressTickerJob: Job? = null
     private var appContext: Context? = null
 
-    fun initialize(context: Context, skipSilence: Boolean = false) {
-        if (exoPlayer != null) return
+    private fun handleNaturalItemCompletion(
+        ctx: Context,
+        uriStr: String?,
+        title: String?,
+        durationMs: Long
+    ) {
+        if (isHandlingNaturalEnd) return
+        isHandlingNaturalEnd = true
+        pendingAutoEndedFromIndex = -1
+        pendingAutoEndedMediaId = null
+        pendingAutoEndedTitle = null
+        pendingAutoEndedDuration = 0L
+        stopProgressTicker()
+        if (!uriStr.isNullOrBlank()) {
+            val resolvedTitle = title?.takeIf { it.isNotBlank() } ?: uriStr.substringAfterLast('/')
+            shura.media.data.SettingsManager.getInstance(ctx)
+                .markAsFinished(uriStr, resolvedTitle, durationMs.coerceAtLeast(1000L))
+        }
+        _playbackEndedCloseEvent.tryEmit(System.nanoTime())
+    }
+
+    internal fun initializeOwnedPlayer(context: Context, skipSilence: Boolean = false): ExoPlayer {
+        exoPlayer?.let { existing ->
+            _ownedPlayerFlow.value = existing
+            return existing
+        }
         val appCtx = context.applicationContext
         appContext = appCtx
-        shura.media.LogKeeper.log("Initializing PlayerManager ExoPlayer", "PlayerManager")
+        shura.media.LogKeeper.log("PlaybackService creating single owned ExoPlayer", "PlayerManager")
         
         val baseDataSourceFactory = DefaultDataSource.Factory(appCtx)
         val dataSourceFactory = androidx.media3.datasource.DataSource.Factory {
@@ -160,22 +242,22 @@ object PlayerManager {
                 }
             }
         }
-        val mediaSourceFactory = DefaultMediaSourceFactory(context)
+        val mediaSourceFactory = DefaultMediaSourceFactory(appCtx)
             .setDataSourceFactory(dataSourceFactory)
             
         val loadControl = DefaultLoadControl.Builder()
             .setAllocator(androidx.media3.exoplayer.upstream.DefaultAllocator(true, C.DEFAULT_BUFFER_SEGMENT_SIZE))
             .setBufferDurationsMs(
-                DefaultLoadControl.DEFAULT_MIN_BUFFER_MS,
-                DefaultLoadControl.DEFAULT_MAX_BUFFER_MS,
-                DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS,
-                DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS
+                15_000,
+                30_000,
+                1_500,
+                3_000
             )
-            .setTargetBufferBytes(C.LENGTH_UNSET)
+            .setTargetBufferBytes(24 * 1024 * 1024)
             .setPrioritizeTimeOverSizeThresholds(false)
             .build()
 
-        val settings = shura.media.data.SettingsManager.getInstance(context.applicationContext)
+        val settings = shura.media.data.SettingsManager.getInstance(appCtx)
         val customMediaCodecSelector = androidx.media3.exoplayer.mediacodec.MediaCodecSelector { mimeType, requiresSecure, requiresTunneling ->
             val decoders = androidx.media3.exoplayer.mediacodec.MediaCodecSelector.DEFAULT.getDecoderInfos(
                 mimeType,
@@ -189,7 +271,7 @@ object PlayerManager {
             }
         }
 
-        val renderersFactory = object : androidx.media3.exoplayer.DefaultRenderersFactory(context.applicationContext) {
+        val renderersFactory = object : androidx.media3.exoplayer.DefaultRenderersFactory(appCtx) {
             override fun buildAudioSink(
                 context: android.content.Context,
                 enableFloatOutput: Boolean,
@@ -212,7 +294,7 @@ object PlayerManager {
                 }
             )
 
-        exoPlayer = ExoPlayer.Builder(context.applicationContext)
+        val player = ExoPlayer.Builder(appCtx)
             .setRenderersFactory(renderersFactory)
             .setMediaSourceFactory(mediaSourceFactory)
             .setLoadControl(loadControl)
@@ -228,21 +310,23 @@ object PlayerManager {
             .setHandleAudioBecomingNoisy(true)
             .setSkipSilenceEnabled(skipSilence)
             .build()
+        exoPlayer = player
+        _ownedPlayerFlow.value = player
         
-        exoPlayer?.let { p ->
-            p.pauseAtEndOfMediaItems = (p.repeatMode == Player.REPEAT_MODE_OFF)
-        }
+        player.pauseAtEndOfMediaItems = (player.repeatMode == Player.REPEAT_MODE_OFF)
         
         exoPlayer?.addListener(object : androidx.media3.common.Player.Listener {
             override fun onRepeatModeChanged(repeatMode: Int) {
                 exoPlayer?.pauseAtEndOfMediaItems = (repeatMode == Player.REPEAT_MODE_OFF)
                 if (repeatMode != Player.REPEAT_MODE_OFF) {
                     pendingAutoEndedFromIndex = -1
+                    isHandlingNaturalEnd = false
                 }
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (playbackState == Player.STATE_BUFFERING) {
+                    isHandlingNaturalEnd = false
                     if (overlayTickerActive) startProgressTicker()
                 } else if (playbackState == Player.STATE_IDLE || playbackState == Player.STATE_ENDED) {
                     stopProgressTicker()
@@ -250,19 +334,19 @@ object PlayerManager {
                         val p = exoPlayer
                         if (p != null && p.repeatMode == Player.REPEAT_MODE_OFF) {
                             val currentItem = p.currentMediaItem
-                            val uriStr = currentItem?.localConfiguration?.uri?.toString() ?: currentItem?.mediaId
-                            if (!uriStr.isNullOrBlank()) {
-                                val title = currentItem?.mediaMetadata?.title?.toString()
-                                    ?: uriStr.substringAfterLast('/')
-                                val dur = p.duration.takeIf { it > 0L }
-                                    ?: lastObservedDuration.takeIf { it > 0L }
-                                    ?: 1000L
-                                shura.media.data.SettingsManager.getInstance(appCtx)
-                                    .markAsFinished(uriStr, title, dur)
-                            }
+                            val uriStr = currentItem?.localConfiguration?.uri?.toString()
+                                ?: currentItem?.mediaId
+                                ?: lastObservedMediaId
+                            val title = currentItem?.mediaMetadata?.title?.toString()
+                                ?: lastObservedTitle
+                                ?: uriStr?.substringAfterLast('/')
+                            val dur = p.duration.takeIf { it > 0L }
+                                ?: lastObservedDuration.takeIf { it > 0L }
+                                ?: 1000L
+                            handleNaturalItemCompletion(appCtx, uriStr, title, dur)
                         }
                     }
-                } else if (playbackState == Player.STATE_READY && pendingAutoEndedFromIndex == -1) {
+                } else if (playbackState == Player.STATE_READY && pendingAutoEndedFromIndex == -1 && !isHandlingNaturalEnd) {
                     val p = exoPlayer
                     val item = p?.currentMediaItem
                     if (p != null && item != null) {
@@ -278,10 +362,13 @@ object PlayerManager {
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 if (isPlaying) {
+                    isHandlingNaturalEnd = false
                     if (overlayTickerActive) startProgressTicker()
                 } else {
                     stopProgressTicker()
-                    flushProgressToStorage()
+                    if (!isHandlingNaturalEnd) {
+                        flushProgressToStorage()
+                    }
                 }
             }
 
@@ -291,18 +378,23 @@ object PlayerManager {
                     if (p != null && p.repeatMode == Player.REPEAT_MODE_OFF) {
                         val endedIdx = pendingAutoEndedFromIndex
                         if (endedIdx in 0 until p.mediaItemCount && endedIdx != p.currentMediaItemIndex) {
-                            val endedId = pendingAutoEndedMediaId
-                            val endedTitle = pendingAutoEndedTitle
-                            val endedDur = pendingAutoEndedDuration.coerceAtLeast(1000L)
-                            pendingAutoEndedFromIndex = -1
-                            if (!endedId.isNullOrBlank()) {
-                                shura.media.data.SettingsManager.getInstance(appCtx)
-                                    .markAsFinished(endedId, endedTitle, endedDur)
-                            }
-                            p.playWhenReady = false
-                            p.seekTo(endedIdx, 0L)
+                            handleNaturalItemCompletion(
+                                appCtx,
+                                pendingAutoEndedMediaId,
+                                pendingAutoEndedTitle,
+                                pendingAutoEndedDuration
+                            )
                         } else {
-                            pendingAutoEndedFromIndex = -1
+                            val curItem = p.currentMediaItem
+                            val curUri = curItem?.localConfiguration?.uri?.toString()
+                                ?: curItem?.mediaId
+                                ?: lastObservedMediaId
+                            val curTitle = curItem?.mediaMetadata?.title?.toString()
+                                ?: lastObservedTitle
+                            val curDur = p.duration.takeIf { it > 0L }
+                                ?: lastObservedDuration.takeIf { it > 0L }
+                                ?: 1000L
+                            handleNaturalItemCompletion(appCtx, curUri, curTitle, curDur)
                         }
                     }
                 }
@@ -310,6 +402,9 @@ object PlayerManager {
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 val p = exoPlayer
+                if (mediaItem != null && reason != Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
+                    isHandlingNaturalEnd = false
+                }
                 if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO &&
                     p != null &&
                     p.repeatMode == Player.REPEAT_MODE_OFF &&
@@ -322,10 +417,12 @@ object PlayerManager {
                     pendingAutoEndedDuration = lastObservedDuration.coerceAtLeast(1000L)
                 } else {
                     pendingAutoEndedFromIndex = -1
-                    // When transitioning between items, persist the previous item's progress
-                    flushProgressToStorage()
+                    // When transitioning between items manually/on playlist load, persist the previous item's progress
+                    if (!isHandlingNaturalEnd) {
+                        flushProgressToStorage()
+                    }
                 }
-                if (p != null) {
+                if (p != null && !isHandlingNaturalEnd) {
                     lastObservedItemIndex = p.currentMediaItemIndex
                     lastObservedMediaId = mediaItem?.localConfiguration?.uri?.toString() ?: mediaItem?.mediaId
                     lastObservedTitle = mediaItem?.mediaMetadata?.title?.toString()
@@ -381,8 +478,9 @@ object PlayerManager {
         })
 
         updateSnapshot(rebuildPlaylist = true)
-        val initialSettings = shura.media.data.SettingsManager.getInstance(context.applicationContext)
+        val initialSettings = shura.media.data.SettingsManager.getInstance(appCtx)
         applyAudioEffects(initialSettings)
+        return player
     }
 
     
@@ -648,6 +746,7 @@ object PlayerManager {
 
     fun flushProgressToStorage(targetPlayer: ExoPlayer? = exoPlayer) {
         try {
+            if (isHandlingNaturalEnd) return
             val player = targetPlayer ?: return
             val currentItem = player.currentMediaItem ?: return
             val uri = currentItem.localConfiguration?.uri ?: currentItem.mediaId.let { android.net.Uri.parse(it) } ?: return
@@ -671,14 +770,14 @@ object PlayerManager {
         }
     }
 
-    fun releasePlayer() = release()
-
-    fun release() {
+    internal fun releaseOwnedPlayer() {
+        stagedPlaybackRequest = null
         pendingQueueItems = null
         pendingQueueIndex = 0
         progressTickerJob?.cancel()
         progressTickerJob = null
         _playbackState.value = PlayerSnapshot()
+        _ownedPlayerFlow.value = null
         val player = exoPlayer
         exoPlayer = null
         if (player != null) {
@@ -730,6 +829,7 @@ object PlayerManager {
         pendingAutoEndedMediaId = null
         pendingAutoEndedTitle = null
         pendingAutoEndedDuration = 0L
+        isHandlingNaturalEnd = false
         pendingQueueItems = null
         pendingQueueIndex = 0
         pendingQueueIsImplicit = true

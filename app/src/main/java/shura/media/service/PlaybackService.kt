@@ -14,8 +14,10 @@ import android.os.Looper
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import coil.Coil
 import coil.request.ImageRequest
 import android.graphics.drawable.Drawable
@@ -54,7 +56,20 @@ override val savedStateRegistry: SavedStateRegistry get() = savedStateRegistryCo
 private var mediaSession: MediaSession? = null
 private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 private var decoderServiceRetryCount = 0
+@Volatile
+private var isRecoveringCodecError = false
+private var codecRecoveryJob: Job? = null
 private var isOverlayVideoMode by androidx.compose.runtime.mutableStateOf(false)
+private var isClosingOnEnd = false
+@Volatile
+private var isServiceStopping = false
+@Volatile
+private var isServiceDestroying = false
+
+private fun requestStopSelf() {
+    isServiceStopping = true
+    stopSelf()
+}
 
 private fun isSelfController(controller: MediaSession.ControllerInfo): Boolean {
     return controller.packageName == packageName || controller.uid == android.os.Process.myUid()
@@ -83,34 +98,112 @@ private fun safeUpdateViewLayout(cv: ComposeView, lp: WindowManager.LayoutParams
     }
 }
 
-private fun ensureFallbackForegroundNotification() {
+private fun cancelLegacyFallbackNotification() {
     try {
+        val nm = getSystemService(android.content.Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager
+        nm?.cancel(1002)
+    } catch (_: Exception) {}
+}
+
+private fun cancelMediaNotifications() {
+    try {
+        val nm = getSystemService(android.content.Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager
+        nm?.cancel(androidx.media3.session.DefaultMediaNotificationProvider.DEFAULT_NOTIFICATION_ID)
+        nm?.cancel(1002)
+    } catch (_: Exception) {}
+}
+
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+private fun promoteSessionNotificationNow(forceForeground: Boolean = false) {
+    cancelLegacyFallbackNotification()
+    val session = mediaSession ?: return
+    val player = PlayerManager.exoPlayer
+    if (player == null || player.mediaItemCount == 0) return
+    try {
+        if (forceForeground) {
+            try {
+                onUpdateNotification(session, true)
+            } catch (_: Exception) {
+                triggerNotificationUpdate()
+            }
+        } else {
+            triggerNotificationUpdate()
+        }
+    } catch (e: Exception) {
+        shura.media.LogKeeper.log("PlaybackService: Notification update handled (${e.message})", "PlaybackService")
+    }
+}
+
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+private fun ensureForegroundNotificationSlotForOverlayStart(abortAfterSatisfyingContract: Boolean = false) {
+    cancelLegacyFallbackNotification()
+    val session = mediaSession
+    val player = PlayerManager.exoPlayer
+    if (!abortAfterSatisfyingContract && session != null && player != null && player.mediaItemCount > 0) {
+        promoteSessionNotificationNow(forceForeground = true)
+        return
+    }
+    try {
+        val channelId = androidx.media3.session.DefaultMediaNotificationProvider.DEFAULT_CHANNEL_ID
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
             val nm = getSystemService(android.content.Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager
-            if (nm != null && nm.getNotificationChannel("playback_fgs_channel") == null) {
+            if (nm != null && nm.getNotificationChannel(channelId) == null) {
                 nm.createNotificationChannel(
                     android.app.NotificationChannel(
-                        "playback_fgs_channel",
-                        "Media Playback Overlay",
+                        channelId,
+                        "Media Playback",
                         android.app.NotificationManager.IMPORTANCE_LOW
                     )
                 )
             }
         }
-        val notification = androidx.core.app.NotificationCompat.Builder(this, "playback_fgs_channel")
+        val contentText = if (player != null && player.mediaItemCount > 0) {
+            player.currentMediaItem?.mediaMetadata?.title?.toString() ?: "Playback ready"
+        } else {
+            "Player ready"
+        }
+        val notification = androidx.core.app.NotificationCompat.Builder(this, channelId)
             .setContentTitle("Vian Media")
-            .setContentText("Floating player ready")
+            .setContentText(contentText)
             .setSmallIcon(shura.media.R.drawable.ic_widget_play)
             .setOngoing(true)
             .build()
+        val notifId = androidx.media3.session.DefaultMediaNotificationProvider.DEFAULT_NOTIFICATION_ID
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-            startForeground(1002, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+            startForeground(notifId, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
         } else {
-            startForeground(1002, notification)
+            startForeground(notifId, notification)
+        }
+        if (abortAfterSatisfyingContract) {
+            androidx.core.app.ServiceCompat.stopForeground(this, androidx.core.app.ServiceCompat.STOP_FOREGROUND_REMOVE)
+            cancelMediaNotifications()
         }
     } catch (e: Exception) {
-        shura.media.LogKeeper.logError("PlaybackService", "Failed starting fallback foreground notification", e)
+        shura.media.LogKeeper.logError("PlaybackService", "Failed ensuring foreground notification slot", e)
     }
+}
+
+internal fun applyStagedPlaybackRequest() {
+    val req = PlayerManager.consumeStagedPlaybackRequest() ?: return
+    val player = PlayerManager.exoPlayer ?: return
+    if (req.mediaItems.isEmpty()) return
+    isServiceStopping = false
+    isClosingOnEnd = false
+    decoderServiceRetryCount = 0
+    isRecoveringCodecError = false
+    codecRecoveryJob?.cancel()
+    if (req.appendIfActive && player.mediaItemCount > 0) {
+        PlayerManager.appendOrTransitionQueue(applicationContext, req.mediaItems)
+    } else {
+        player.setMediaItems(req.mediaItems, req.startIndex, req.startPositionMs)
+        player.pauseAtEndOfMediaItems = (player.repeatMode == Player.REPEAT_MODE_OFF)
+        player.prepare()
+        player.play()
+        PlayerManager.isImplicitFolderQueue = req.isImplicit
+        PlayerManager.updateSnapshot(rebuildPlaylist = true)
+    }
+    promoteSessionNotificationNow(forceForeground = true)
+    updateWidgetUI()
 }
 
 // In-session memory for floating window dimensions and positions (remembered while open, reset on close)
@@ -162,6 +255,8 @@ fun resetSessionFloatingState() {
 
 override fun onCreate() {
 super.onCreate()
+isServiceStopping = false
+isServiceDestroying = false
 instance = this
 savedStateRegistryController.performRestore(null)
 lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
@@ -243,8 +338,17 @@ setMediaNotificationProvider(defaultProvider)
 shura.media.LogKeeper.logError("PlaybackService", "Failed to set up MediaNotificationProvider", e)
 }
 
-val settings = shura.media.data.SettingsManager.getInstance(this)
-PlayerManager.initialize(this, false)
+cancelLegacyFallbackNotification()
+val rawPlayer = PlayerManager.initializeOwnedPlayer(this, false)
+isClosingOnEnd = false
+decoderServiceRetryCount = 0
+isRecoveringCodecError = false
+
+serviceScope.launch {
+    PlayerManager.playbackEndedCloseEvent.collect {
+        handleNaturalPlaybackEndClose()
+    }
+}
 
 val filter = android.content.IntentFilter("shura.media.ACTION_WIDGET_COMMAND")
 filter.addAction("shura.media.ACTION_UPDATE_NOTIFICATION")
@@ -258,6 +362,12 @@ androidx.core.content.ContextCompat.registerReceiver(
 PlayerManager.exoPlayer?.addListener(object : Player.Listener {
 override fun onIsPlayingChanged(isPlaying: Boolean) {
     shura.media.LogKeeper.log("PlaybackService: onIsPlayingChanged = $isPlaying", "PlaybackService")
+    if (isPlaying) {
+        isClosingOnEnd = false
+        if ((PlayerManager.exoPlayer?.mediaItemCount ?: 0) > 0) {
+            promoteSessionNotificationNow(forceForeground = false)
+        }
+    }
     updateWidgetUI()
 }
 override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
@@ -270,7 +380,12 @@ override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?,
     }
     shura.media.LogKeeper.log("PlaybackService: onMediaItemTransition (reason: $reasonStr)", "PlaybackService")
     decoderServiceRetryCount = 0
+    isRecoveringCodecError = false
+    codecRecoveryJob?.cancel()
     updateWidgetUI()
+    if (mediaItem != null && PlayerManager.exoPlayer?.playWhenReady == true) {
+        promoteSessionNotificationNow(forceForeground = true)
+    }
 }
 override fun onRepeatModeChanged(repeatMode: Int) {
     shura.media.LogKeeper.log("PlaybackService: onRepeatModeChanged = $repeatMode", "PlaybackService")
@@ -304,23 +419,54 @@ override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
         shura.media.LogKeeper.log("PlaybackService: Timeout caught during surface detachment or release - ignored gracefully", "PlaybackService")
         return
     }
-    var isPermissionOrNotFound = error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NO_PERMISSION ||
-        error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND
+    var isPermissionError = error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NO_PERMISSION
+    var isNotFoundError = error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND
     var currentCause: Throwable? = error.cause
     var securityCauseMessage: String? = null
-    while (currentCause != null && !isPermissionOrNotFound) {
-        if (currentCause is SecurityException || currentCause is java.io.FileNotFoundException ||
+    while (currentCause != null && !isPermissionError && !isNotFoundError) {
+        if (currentCause is SecurityException ||
             currentCause.message?.contains("SecurityException", ignoreCase = true) == true ||
             currentCause.message?.contains("Permission Denial", ignoreCase = true) == true) {
-            isPermissionOrNotFound = true
+            isPermissionError = true
+            securityCauseMessage = currentCause.message
+            break
+        }
+        if (currentCause is java.io.FileNotFoundException) {
+            isNotFoundError = true
             securityCauseMessage = currentCause.message
             break
         }
         currentCause = currentCause.cause
     }
-    if (isPermissionOrNotFound) {
-        shura.media.LogKeeper.log("PlaybackService: Cannot read media URI (${error.errorCodeName}) - skipping item gracefully: ${securityCauseMessage ?: error.message}", "PlaybackService")
+    if (isPermissionError) {
         val player = PlayerManager.exoPlayer
+        val currentItem = player?.currentMediaItem
+        val currentUri = currentItem?.localConfiguration?.uri
+        if (player != null && currentUri != null) {
+            val recoveredUri = shura.media.data.MediaUriResolver.resolveToPlayableUri(this@PlaybackService, currentUri)
+            if (recoveredUri != currentUri) {
+                shura.media.LogKeeper.log("PlaybackService: Recovered playable URI on SecurityException -> $recoveredUri", "PlaybackService")
+                val updatedItem = currentItem.buildUpon().setUri(recoveredUri).build()
+                val curPos = player.currentPosition.coerceAtLeast(0L)
+                player.setMediaItem(updatedItem, curPos)
+                player.prepare()
+                player.play()
+                return
+            }
+        }
+        shura.media.LogKeeper.log("PlaybackService: Cannot read media URI (${error.errorCodeName}) - skipping item gracefully: ${securityCauseMessage ?: error.message}", "PlaybackService")
+        PlayerManager.notifyPlaybackError("Cannot read file: Permission denied")
+        if (player != null && player.hasNextMediaItem()) {
+            player.seekToNextMediaItem()
+        } else {
+            player?.pause()
+        }
+        return
+    }
+    if (isNotFoundError) {
+        val player = PlayerManager.exoPlayer
+        shura.media.LogKeeper.log("PlaybackService: File not found (${error.errorCodeName}) - skipping item gracefully: ${securityCauseMessage ?: error.message}", "PlaybackService")
+        PlayerManager.notifyPlaybackError("Cannot read file: File not found")
         if (player != null && player.hasNextMediaItem()) {
             player.seekToNextMediaItem()
         } else {
@@ -346,19 +492,35 @@ override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
             PlayerManager.blacklistDecoder(failedCodecName)
         }
 
-        if (decoderServiceRetryCount < 2) {
+        if (!isRecoveringCodecError && decoderServiceRetryCount < 2) {
+            isRecoveringCodecError = true
             decoderServiceRetryCount++
-            val currentPos = player.currentPosition
-            shura.media.LogKeeper.log("PlaybackService: Decoder error detected, preparing player with fallback (attempt $decoderServiceRetryCount)...", "PlaybackService")
-            player.prepare()
-            if (currentPos > 0) {
-                player.seekTo(currentPos)
+            val currentPos = player.currentPosition.coerceAtLeast(0L)
+            shura.media.LogKeeper.log("PlaybackService: Debounced codec recovery (attempt $decoderServiceRetryCount)...", "PlaybackService")
+            try { player.stop() } catch (_: Exception) {}
+            codecRecoveryJob?.cancel()
+            codecRecoveryJob = serviceScope.launch(Dispatchers.Main) {
+                delay(150L)
+                val activePlayer = PlayerManager.exoPlayer
+                if (instance == this@PlaybackService && !isServiceDestroying && activePlayer != null && activePlayer.mediaItemCount > 0 && !isClosingOnEnd) {
+                    isRecoveringCodecError = false
+                    activePlayer.prepare()
+                    if (currentPos > 0L) {
+                        activePlayer.seekTo(currentPos)
+                    }
+                    activePlayer.play()
+                } else {
+                    isRecoveringCodecError = false
+                }
             }
-            player.play()
-        } else {
+        } else if (decoderServiceRetryCount >= 2) {
+            isRecoveringCodecError = false
             shura.media.LogKeeper.log("PlaybackService: Decoder error exceeded retry limit, pausing player.", "PlaybackService")
             player.pause()
+            PlayerManager.notifyPlaybackError("Playback failed: unable to decode video/audio stream")
         }
+    } else {
+        PlayerManager.notifyPlaybackError(error.message ?: "Playback error occurred")
     }
 }
 override fun onPlaybackStateChanged(playbackState: Int) {
@@ -370,42 +532,39 @@ override fun onPlaybackStateChanged(playbackState: Int) {
         else -> "UNKNOWN"
     }
     shura.media.LogKeeper.log("Playback state changed to: $stateName", "PlaybackService")
-    if (playbackState == Player.STATE_ENDED) {
+    if (playbackState == Player.STATE_READY) {
+        isRecoveringCodecError = false
+        isClosingOnEnd = false
+    } else if (playbackState == Player.STATE_BUFFERING) {
+        isClosingOnEnd = false
+    } else if (playbackState == Player.STATE_ENDED) {
+        isRecoveringCodecError = false
         val player = PlayerManager.exoPlayer
         if (player?.repeatMode == Player.REPEAT_MODE_ALL) {
             shura.media.LogKeeper.log("Playback ended with repeatMode ALL -> restarting from first item", "PlaybackService")
             player.seekTo(0, 0L)
             player.play()
         } else if (player?.repeatMode == Player.REPEAT_MODE_OFF) {
-            if (!PlayerManager.isFloatingVideoActive && composeView == null && !PlayerManager.isPlayerScreenVisible) {
-                shura.media.LogKeeper.log("Playback ended with repeatMode OFF and no overlay -> stopping service & removing notification", "PlaybackService")
-                try {
-                    androidx.core.app.ServiceCompat.stopForeground(this@PlaybackService, androidx.core.app.ServiceCompat.STOP_FOREGROUND_REMOVE)
-                    val notificationManager = getSystemService(android.content.Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager
-                    notificationManager?.cancelAll()
-                } catch (e: Exception) {
-                    shura.media.LogKeeper.logError("PlaybackService", "Error stopping foreground on STATE_ENDED", e)
-                }
-                stopSelf()
-            } else {
-                shura.media.LogKeeper.log("Playback ended while overlay active -> retaining overlay & media item for replay", "PlaybackService")
-            }
+            shura.media.LogKeeper.log("Playback ended with repeatMode OFF -> closing player/overlay/service", "PlaybackService")
+            handleNaturalPlaybackEndClose()
         }
-    } else if (playbackState == Player.STATE_IDLE) {
+    } else if (playbackState == Player.STATE_IDLE && !isRecoveringCodecError) {
         val player = PlayerManager.exoPlayer
-        if (player != null && player.mediaItemCount == 0 && !PlayerManager.isFloatingVideoActive && composeView == null) {
-            shura.media.LogKeeper.log("Playback IDLE with 0 items and no overlay -> stopping service & removing notification", "PlaybackService")
+        if (player != null && player.mediaItemCount == 0 && !PlayerManager.isFloatingVideoActive && composeView == null && !PlayerManager.isPlayerScreenVisible) {
+            shura.media.LogKeeper.log("Playback IDLE with 0 items and no UI -> stopping service & removing notification", "PlaybackService")
             try {
                 androidx.core.app.ServiceCompat.stopForeground(this@PlaybackService, androidx.core.app.ServiceCompat.STOP_FOREGROUND_REMOVE)
-                val notificationManager = getSystemService(android.content.Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager
-                notificationManager?.cancelAll()
+                cancelMediaNotifications()
             } catch (e: Exception) {}
-            stopSelf()
+            requestStopSelf()
         }
     }
 }
 override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
     shura.media.LogKeeper.log("PlaybackService: onPlayWhenReadyChanged = $playWhenReady, reason = $reason", "PlaybackService")
+    if (playWhenReady && (PlayerManager.exoPlayer?.mediaItemCount ?: 0) > 0) {
+        promoteSessionNotificationNow(forceForeground = true)
+    }
 }
 })
 
@@ -417,8 +576,6 @@ val pendingIntent = android.app.PendingIntent.getActivity(
 this, 0, intent,
 android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT
 )
-
-val rawPlayer = PlayerManager.exoPlayer!!
 val forwardingPlayer = object : androidx.media3.common.ForwardingPlayer(rawPlayer) {
     override fun getAvailableCommands(): androidx.media3.common.Player.Commands {
         return super.getAvailableCommands().buildUpon()
@@ -497,6 +654,10 @@ if (isSelfController(controller)) {
         .add(androidx.media3.session.SessionCommand("ACTION_MORE", android.os.Bundle.EMPTY))
         .add(androidx.media3.session.SessionCommand("ACTION_LESS", android.os.Bundle.EMPTY))
         .add(androidx.media3.session.SessionCommand("ACTION_PIP", android.os.Bundle.EMPTY))
+        .add(androidx.media3.session.SessionCommand("ACTION_VIDEO_OVERLAY", android.os.Bundle.EMPTY))
+        .add(androidx.media3.session.SessionCommand("ACTION_MINIPLAYER", android.os.Bundle.EMPTY))
+        .add(androidx.media3.session.SessionCommand("ACTION_HIDE_OVERLAY", android.os.Bundle.EMPTY))
+        .add(androidx.media3.session.SessionCommand("ACTION_APPLY_STAGED_PLAYBACK", android.os.Bundle.EMPTY))
 }
 val playerCommands = defaultResult.availablePlayerCommands.buildUpon()
     .add(androidx.media3.common.Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
@@ -578,10 +739,33 @@ if (customCommand.customAction == "SET_BOOST_GAIN") {
 
 if (customCommand.customAction == "ACTION_CLOSE") {
     val player = session.player
+    player.playWhenReady = false
     player.stop()
     player.clearMediaItems()
+    resetSessionFloatingState()
     hideOverlay()
+    try {
+        androidx.core.app.ServiceCompat.stopForeground(this@PlaybackService, androidx.core.app.ServiceCompat.STOP_FOREGROUND_REMOVE)
+        cancelMediaNotifications()
+    } catch (_: Exception) {}
+    updateWidgetUI()
     stopSelf()
+    return Futures.immediateFuture(androidx.media3.session.SessionResult(androidx.media3.session.SessionResult.RESULT_SUCCESS))
+}
+
+if (customCommand.customAction == "ACTION_APPLY_STAGED_PLAYBACK") {
+    if (!isSelfController(controller)) {
+        return Futures.immediateFuture(androidx.media3.session.SessionResult(androidx.media3.session.SessionResult.RESULT_ERROR_PERMISSION_DENIED))
+    }
+    applyStagedPlaybackRequest()
+    return Futures.immediateFuture(androidx.media3.session.SessionResult(androidx.media3.session.SessionResult.RESULT_SUCCESS))
+}
+
+if (customCommand.customAction == "ACTION_HIDE_OVERLAY") {
+    if (!isSelfController(controller)) {
+        return Futures.immediateFuture(androidx.media3.session.SessionResult(androidx.media3.session.SessionResult.RESULT_ERROR_PERMISSION_DENIED))
+    }
+    hideOverlay()
     return Futures.immediateFuture(androidx.media3.session.SessionResult(androidx.media3.session.SessionResult.RESULT_SUCCESS))
 }
 
@@ -597,13 +781,15 @@ if (customCommand.customAction == "ACTION_LOOP") {
     updateCustomLayout()
     return Futures.immediateFuture(androidx.media3.session.SessionResult(androidx.media3.session.SessionResult.RESULT_SUCCESS))
 }
-if (customCommand.customAction == "ACTION_OVERLAY") {
+if (customCommand.customAction == "ACTION_OVERLAY" || customCommand.customAction == "ACTION_MINIPLAYER") {
     if (!android.provider.Settings.canDrawOverlays(this@PlaybackService)) {
         val intent = android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:$packageName"))
         intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
         startActivity(intent)
     } else {
-        if (composeView == null) {
+        if (customCommand.customAction == "ACTION_MINIPLAYER") {
+            showOverlay(false)
+        } else if (composeView == null) {
             showOverlay(false)
         } else {
             hideOverlay()
@@ -611,7 +797,7 @@ if (customCommand.customAction == "ACTION_OVERLAY") {
     }
     return Futures.immediateFuture(androidx.media3.session.SessionResult(androidx.media3.session.SessionResult.RESULT_SUCCESS))
 }
-if (customCommand.customAction == "ACTION_PIP") {
+if (customCommand.customAction == "ACTION_PIP" || customCommand.customAction == "ACTION_VIDEO_OVERLAY") {
     if (!isSelfController(controller)) {
         return Futures.immediateFuture(androidx.media3.session.SessionResult(androidx.media3.session.SessionResult.RESULT_ERROR_PERMISSION_DENIED))
     }
@@ -699,6 +885,7 @@ return Futures.immediateFuture(updatedMediaItems)
 updateCustomLayout()
 
 addSession(mediaSession!!)
+applyStagedPlaybackRequest()
 }
 
 override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
@@ -713,21 +900,20 @@ return mediaSession
         // Paused background playback must remain alive in the notification shade so the user can unpause.
         if (player != null && (player.mediaItemCount == 0 || (player.playbackState == androidx.media3.common.Player.STATE_ENDED && player.repeatMode == androidx.media3.common.Player.REPEAT_MODE_OFF))) {
             try {
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
-                    stopForeground(STOP_FOREGROUND_REMOVE)
-                }
-                val notificationManager = getSystemService(android.content.Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager
-                notificationManager?.cancelAll()
+                androidx.core.app.ServiceCompat.stopForeground(this, androidx.core.app.ServiceCompat.STOP_FOREGROUND_REMOVE)
+                cancelMediaNotifications()
             } catch (e: Exception) {}
             player.stop()
             resetSessionFloatingState()
-            stopSelf()
+            requestStopSelf()
         }
     }
 
 
 @SuppressLint("ClickableViewAccessibility")
 private fun showOverlay(startInVideoMode: Boolean = false) {
+if (isServiceDestroying) return
+isServiceStopping = false
 shura.media.service.PlayerManager.flushProgressToStorage()
 isOverlayVideoMode = startInVideoMode
 val activePlayer = PlayerManager.exoPlayer
@@ -940,12 +1126,7 @@ if (isVideoMode) {
 shura.media.ui.components.FloatingVideoPlayerOverlay(
 player = shura.media.service.PlayerManager.exoPlayer,
 onClose = {
-val player = shura.media.service.PlayerManager.exoPlayer
-player?.stop()
-player?.clearMediaItems()
-resetSessionFloatingState()
-hideOverlay()
-stopSelf()
+stopPlaybackAndRelease(this@PlaybackService)
 },
 onMinimize = {
     handleMinimizeToggle(true)
@@ -1061,12 +1242,7 @@ onAspectRatioChanged = updateWindowForAspectRatio
 shura.media.ui.components.MiniPlayerOverlay(
 player = shura.media.service.PlayerManager.exoPlayer,
 onClose = {
-val player = shura.media.service.PlayerManager.exoPlayer
-player?.stop()
-player?.clearMediaItems()
-resetSessionFloatingState()
-hideOverlay()
-stopSelf()
+stopPlaybackAndRelease(this@PlaybackService)
 },
 onMinimize = {
     handleMinimizeToggle(true)
@@ -1239,52 +1415,83 @@ composeView = null
     }
 
     override fun onStartCommand(intent: android.content.Intent?, flags: Int, startId: Int): Int {
+        isServiceStopping = false
+        applyStagedPlaybackRequest()
         val cmd = intent?.getStringExtra("command")
         shura.media.LogKeeper.log("PlaybackService onStartCommand with command: $cmd", "PlaybackService")
-        val isActivelyPlaying = PlayerManager.exoPlayer?.let { it.mediaItemCount > 0 && it.isPlaying } == true
         if (cmd == "ACTION_VIDEO_OVERLAY") {
             if (android.provider.Settings.canDrawOverlays(this)) {
-                if (!isActivelyPlaying) ensureFallbackForegroundNotification()
+                ensureForegroundNotificationSlotForOverlayStart(abortAfterSatisfyingContract = false)
                 showOverlay(true)
             } else {
-                ensureFallbackForegroundNotification()
-                androidx.core.app.ServiceCompat.stopForeground(this, androidx.core.app.ServiceCompat.STOP_FOREGROUND_REMOVE)
+                ensureForegroundNotificationSlotForOverlayStart(abortAfterSatisfyingContract = true)
+                isServiceStopping = true
                 stopSelfResult(startId)
                 return START_NOT_STICKY
             }
         } else if (cmd == "ACTION_MINIPLAYER" || cmd == "ACTION_OVERLAY") {
             if (android.provider.Settings.canDrawOverlays(this)) {
-                if (!isActivelyPlaying) ensureFallbackForegroundNotification()
+                ensureForegroundNotificationSlotForOverlayStart(abortAfterSatisfyingContract = false)
                 showOverlay(false)
             } else {
-                ensureFallbackForegroundNotification()
-                androidx.core.app.ServiceCompat.stopForeground(this, androidx.core.app.ServiceCompat.STOP_FOREGROUND_REMOVE)
+                ensureForegroundNotificationSlotForOverlayStart(abortAfterSatisfyingContract = true)
+                isServiceStopping = true
                 stopSelfResult(startId)
                 return START_NOT_STICKY
             }
         } else if (cmd == "ACTION_HIDE_OVERLAY") {
             hideOverlay()
+        } else if ((PlayerManager.exoPlayer?.mediaItemCount ?: 0) > 0 && PlayerManager.exoPlayer?.playWhenReady == true) {
+            promoteSessionNotificationNow(forceForeground = true)
         }
         return super.onStartCommand(intent, flags, startId)
     }
 
+    private fun handleNaturalPlaybackEndClose() {
+        if (isClosingOnEnd) return
+        isClosingOnEnd = true
+        isRecoveringCodecError = false
+        codecRecoveryJob?.cancel()
+        shura.media.LogKeeper.log("Playback ended with repeatMode OFF -> closing overlay/service & resetting widget", "PlaybackService")
+        hideOverlay()
+        resetSessionFloatingState()
+        val player = PlayerManager.exoPlayer
+        try { player?.playWhenReady = false } catch (_: Exception) {}
+        try { player?.stop() } catch (_: Exception) {}
+        try { player?.clearVideoSurface() } catch (_: Exception) {}
+        try { player?.clearMediaItems() } catch (_: Exception) {}
+        try {
+            androidx.core.app.ServiceCompat.stopForeground(this@PlaybackService, androidx.core.app.ServiceCompat.STOP_FOREGROUND_REMOVE)
+            cancelMediaNotifications()
+        } catch (e: Exception) {
+            shura.media.LogKeeper.logError("PlaybackService", "Error stopping foreground on natural end", e)
+        }
+        updateWidgetUI()
+        requestStopSelf()
+    }
+
     override fun onDestroy() {
-        shura.media.LogKeeper.log("PlaybackService onDestroy: cleaning up notification and session", "PlaybackService")
+        shura.media.LogKeeper.log("PlaybackService onDestroy: cleaning up notification, session, and owned player", "PlaybackService")
+        isServiceDestroying = true
+        isServiceStopping = true
+        codecRecoveryJob?.cancel()
+        codecRecoveryJob = null
+        isRecoveringCodecError = false
         try { unregisterReceiver(widgetCommandReceiver) } catch (e: Exception) {}
         hideOverlay()
         resetSessionFloatingState()
         try {
             androidx.core.app.ServiceCompat.stopForeground(this, androidx.core.app.ServiceCompat.STOP_FOREGROUND_REMOVE)
-            val notificationManager = getSystemService(android.content.Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager
-            notificationManager?.cancelAll()
+            cancelMediaNotifications()
         } catch (e: Exception) {
             shura.media.LogKeeper.logError("PlaybackService", "Error stopping foreground on onDestroy", e)
         }
         mediaSession?.run {
-            release()
+            try { release() } catch (_: Exception) {}
             mediaSession = null
         }
-        PlayerManager.release()
+        PlayerManager.releaseOwnedPlayer()
+        updateWidgetUI()
         lifecycleRegistry.handleLifecycleEvent(androidx.lifecycle.Lifecycle.Event.ON_DESTROY)
         try {
             serviceScope.cancel()
@@ -1301,15 +1508,28 @@ composeView = null
         val componentName = android.content.ComponentName(this, shura.media.widget.MediaWidgetProvider::class.java)
         val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
         if (appWidgetIds.isNotEmpty()) {
-            val player = PlayerManager.exoPlayer ?: return
+            val player = PlayerManager.exoPlayer
+            val hasActiveItem = player != null && player.mediaItemCount > 0 && player.currentMediaItem != null
+            val defaultColor = android.graphics.Color.parseColor("#19202D")
             for (appWidgetId in appWidgetIds) {
                 val views = android.widget.RemoteViews(packageName, shura.media.R.layout.widget_media)
-                views.setTextViewText(shura.media.R.id.widget_title, player.currentMediaItem?.mediaMetadata?.title?.toString() ?: "No Media")
-                views.setImageViewResource(shura.media.R.id.widget_btn_play, if (player.isPlaying) shura.media.R.drawable.ic_widget_pause else shura.media.R.drawable.ic_widget_play)
-                val duration = player.duration.coerceAtLeast(1)
-                val position = player.currentPosition
-                val progress = if (duration > 0) ((position.toFloat() / duration.toFloat()) * 100).toInt() else 0
-                views.setProgressBar(shura.media.R.id.widget_progress, 100, progress, false)
+                if (hasActiveItem && player != null) {
+                    views.setTextViewText(shura.media.R.id.widget_title, player.currentMediaItem?.mediaMetadata?.title?.toString() ?: "No Media")
+                    views.setImageViewResource(shura.media.R.id.widget_btn_play, if (player.isPlaying) shura.media.R.drawable.ic_widget_pause else shura.media.R.drawable.ic_widget_play)
+                    val duration = player.duration
+                    val position = player.currentPosition.coerceAtLeast(0L)
+                    val progress = if (duration > 0L && duration != androidx.media3.common.C.TIME_UNSET) {
+                        ((position.toFloat() / duration.toFloat()) * 100).toInt().coerceIn(0, 100)
+                    } else 0
+                    views.setProgressBar(shura.media.R.id.widget_progress, 100, progress, false)
+                } else {
+                    views.setTextViewText(shura.media.R.id.widget_title, "No Media")
+                    views.setImageViewResource(shura.media.R.id.widget_btn_play, shura.media.R.drawable.ic_widget_play)
+                    views.setProgressBar(shura.media.R.id.widget_progress, 100, 0, false)
+                    views.setImageViewResource(shura.media.R.id.widget_btn_loop, shura.media.R.drawable.ic_widget_loop)
+                    views.setInt(shura.media.R.id.widget_btn_loop, "setColorFilter", defaultColor)
+                    views.setInt(shura.media.R.id.widget_btn_shuffle, "setColorFilter", defaultColor)
+                }
 
                 appWidgetManager.partiallyUpdateAppWidget(appWidgetId, views)
                 appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetId, shura.media.R.id.widget_list)
@@ -1321,6 +1541,7 @@ composeView = null
         override fun onReceive(context: android.content.Context, intent: android.content.Intent) {
             if (intent.action == "shura.media.ACTION_UPDATE_NOTIFICATION") {
                 updateCustomLayout()
+                promoteSessionNotificationNow(forceForeground = false)
                 return
             }
             val player = PlayerManager.exoPlayer ?: return
@@ -1333,17 +1554,16 @@ composeView = null
                 "ACTION_CLOSE" -> {
                     shura.media.LogKeeper.log("ACTION_CLOSE received -> stopping and removing notification", "PlaybackService")
                     try {
-                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
-                            stopForeground(STOP_FOREGROUND_REMOVE)
-                        }
-                        val notificationManager = getSystemService(android.content.Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager
-                        notificationManager?.cancelAll()
+                        androidx.core.app.ServiceCompat.stopForeground(this@PlaybackService, androidx.core.app.ServiceCompat.STOP_FOREGROUND_REMOVE)
+                        cancelMediaNotifications()
                     } catch (e: Exception) {}
+                    player.playWhenReady = false
                     player.stop()
+                    player.clearVideoSurface()
                     player.clearMediaItems()
                     resetSessionFloatingState()
                     hideOverlay()
-                    stopSelf()
+                    requestStopSelf()
                 }
                 "ACTION_PLAY_PAUSE" -> if (player.isPlaying) player.pause() else player.play()
                 "ACTION_PREV" -> {
@@ -1418,7 +1638,72 @@ composeView = null
 
     companion object {
         @Volatile
-        private var instance: PlaybackService? = null
+        internal var instance: PlaybackService? = null
+
+        fun applyStagedPlaybackOrStart(context: android.content.Context) {
+            val runBlock = {
+                val inst = instance
+                if (inst != null && !inst.isServiceDestroying) {
+                    if (inst.isServiceStopping) {
+                        inst.isServiceStopping = false
+                        try {
+                            val intent = android.content.Intent(context.applicationContext, PlaybackService::class.java).apply {
+                                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+                            context.applicationContext.startService(intent)
+                        } catch (_: Exception) {}
+                    }
+                    inst.applyStagedPlaybackRequest()
+                } else {
+                    try {
+                        val intent = android.content.Intent(context.applicationContext, PlaybackService::class.java).apply {
+                            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        context.applicationContext.startService(intent)
+                    } catch (_: Exception) {}
+                }
+            }
+            if (Looper.myLooper() == Looper.getMainLooper()) {
+                runBlock()
+            } else {
+                Handler(Looper.getMainLooper()).post { runBlock() }
+            }
+        }
+
+        fun openOverlay(context: android.content.Context, videoMode: Boolean) {
+            val runBlock = {
+                val cmd = if (videoMode) "ACTION_VIDEO_OVERLAY" else "ACTION_MINIPLAYER"
+                val inst = instance
+                if (inst != null && !inst.isServiceDestroying) {
+                    if (inst.isServiceStopping) {
+                        inst.isServiceStopping = false
+                        try {
+                            val serviceIntent = android.content.Intent(context.applicationContext, PlaybackService::class.java).apply {
+                                putExtra("command", cmd)
+                                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+                            androidx.core.content.ContextCompat.startForegroundService(context.applicationContext, serviceIntent)
+                        } catch (_: Exception) {}
+                    }
+                    inst.applyStagedPlaybackRequest()
+                    inst.showOverlay(videoMode)
+                    inst.promoteSessionNotificationNow(forceForeground = true)
+                } else {
+                    try {
+                        val serviceIntent = android.content.Intent(context.applicationContext, PlaybackService::class.java).apply {
+                            putExtra("command", cmd)
+                            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        androidx.core.content.ContextCompat.startForegroundService(context.applicationContext, serviceIntent)
+                    } catch (_: Exception) {}
+                }
+            }
+            if (Looper.myLooper() == Looper.getMainLooper()) {
+                runBlock()
+            } else {
+                Handler(Looper.getMainLooper()).post { runBlock() }
+            }
+        }
 
         fun hideOverlay(context: android.content.Context) {
             val inst = instance
@@ -1428,14 +1713,6 @@ composeView = null
                 } else {
                     Handler(Looper.getMainLooper()).post { inst.hideOverlay() }
                 }
-            } else {
-                try {
-                    val broadcastIntent = android.content.Intent("shura.media.ACTION_WIDGET_COMMAND").apply {
-                        putExtra("command", "ACTION_HIDE_OVERLAY")
-                        setPackage(context.packageName)
-                    }
-                    context.sendBroadcast(broadcastIntent)
-                } catch (_: Exception) {}
             }
         }
 
@@ -1444,29 +1721,33 @@ composeView = null
                 val inst = instance
                 if (inst != null) {
                     try {
+                        inst.codecRecoveryJob?.cancel()
+                        inst.isRecoveringCodecError = false
                         inst.hideOverlay()
                         inst.resetSessionFloatingState()
+                        val player = PlayerManager.exoPlayer
+                        try { player?.playWhenReady = false } catch (_: Exception) {}
+                        try { player?.stop() } catch (_: Exception) {}
+                        try { player?.clearVideoSurface() } catch (_: Exception) {}
+                        try { player?.clearMediaItems() } catch (_: Exception) {}
                         androidx.core.app.ServiceCompat.stopForeground(inst, androidx.core.app.ServiceCompat.STOP_FOREGROUND_REMOVE)
-                        val nm = inst.getSystemService(android.content.Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager
-                        nm?.cancelAll()
-                        inst.mediaSession?.let { session ->
-                            try { session.release() } catch (_: Exception) {}
-                            inst.mediaSession = null
-                        }
-                        PlayerManager.release()
-                        inst.stopSelf()
+                        inst.cancelMediaNotifications()
+                        inst.updateWidgetUI()
+                        inst.requestStopSelf()
                     } catch (e: Exception) {
                         shura.media.LogKeeper.logError("PlaybackService", "Error in stopPlaybackAndRelease", e)
-                        PlayerManager.release()
+                        shura.media.widget.MediaWidgetProvider.resetAllWidgetsToIdle(context)
                     }
                 } else {
                     try {
                         val nm = context.getSystemService(android.content.Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager
-                        nm?.cancelAll()
+                        nm?.cancel(androidx.media3.session.DefaultMediaNotificationProvider.DEFAULT_NOTIFICATION_ID)
+                        nm?.cancel(1002)
                     } catch (_: Exception) {}
                     PlayerManager.isFloatingVideoActive = false
                     PlayerManager.floatingSession.reset()
-                    PlayerManager.release()
+                    PlayerManager.releaseOwnedPlayer()
+                    shura.media.widget.MediaWidgetProvider.resetAllWidgetsToIdle(context)
                     try {
                         context.stopService(android.content.Intent(context, PlaybackService::class.java))
                     } catch (_: Exception) {}

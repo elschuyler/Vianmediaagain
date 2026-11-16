@@ -12,7 +12,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import coil.imageLoader
 import coil.request.ImageRequest
-import coil.request.videoFrameMillis
 
 class MyBitmapLoader(val context: Context) : BitmapLoader {
     override fun supportsMimeType(mimeType: String) = true
@@ -62,10 +61,13 @@ class MyBitmapLoader(val context: Context) : BitmapLoader {
                     }
                 } catch (_: Exception) {}
 
-                // 2. Try ContentResolver loadThumbnail on Android 10+ (fastest OS thumbnail)
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                val scheme = uri.scheme?.lowercase()
+                val isLocalUri = scheme == null || scheme == "content" || scheme == "file"
+
+                // 2. Try ContentResolver loadThumbnail on Android 10+ (OS media thumbnail store, no app-side video decoder)
+                if (isLocalUri && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
                     try {
-                        val thumb = context.contentResolver.loadThumbnail(uri, android.util.Size(320, 320), null)
+                        val thumb = context.contentResolver.loadThumbnail(uri, android.util.Size(256, 256), null)
                         if (thumb != null) {
                             future.set(thumb)
                             return@launch
@@ -73,36 +75,23 @@ class MyBitmapLoader(val context: Context) : BitmapLoader {
                     } catch (_: Exception) {}
                 }
 
-                // 3. Try MediaMetadataRetriever (embedded audio artwork or video frame fallback)
-                val retriever = android.media.MediaMetadataRetriever()
-                try {
-                    retriever.setDataSource(context, uri)
-                    val pic = retriever.embeddedPicture
-                    if (pic != null) {
-                        val bmp = decodeDownsampledBitmap(pic, 320)
-                        if (bmp != null) {
-                            future.set(bmp)
-                            return@launch
+                // 3. Try MediaMetadataRetriever strictly for local/content audio embedded album art
+                if (isLocalUri && shura.media.service.PlayerManager.isAudioOnlyHint(context, uri)) {
+                    val retriever = android.media.MediaMetadataRetriever()
+                    try {
+                        retriever.setDataSource(context, uri)
+                        val pic = retriever.embeddedPicture
+                        if (pic != null) {
+                            val bmp = decodeDownsampledBitmap(pic, 256)
+                            if (bmp != null) {
+                                future.set(bmp)
+                                return@launch
+                            }
                         }
+                    } catch (_: Exception) {
+                    } finally {
+                        try { retriever.release() } catch (_: Exception) {}
                     }
-                    val frame = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O_MR1) {
-                        retriever.getScaledFrameAtTime(0L, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 320, 320)
-                            ?: retriever.frameAtTime
-                    } else {
-                        retriever.frameAtTime
-                    }
-                    if (frame != null) {
-                        val scaled = if (frame.width > 320 || frame.height > 320) {
-                            Bitmap.createScaledBitmap(frame, 320, (320f * frame.height / frame.width).toInt().coerceAtLeast(1), true)
-                        } else {
-                            frame
-                        }
-                        future.set(scaled)
-                        return@launch
-                    }
-                } catch (_: Exception) {
-                } finally {
-                    try { retriever.release() } catch (_: Exception) {}
                 }
 
                 future.setException(Exception("No bitmap available for $uri"))

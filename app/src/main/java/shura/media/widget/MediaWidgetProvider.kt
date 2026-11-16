@@ -87,20 +87,26 @@ class MediaWidgetProvider : AppWidgetProvider() {
         
         views.setOnClickPendingIntent(R.id.widget_btn_back, getPendingIntent(context, "ACTION_BACK_FOLDER"))
         
-        // Play icon update
+        // Play icon, title & progress update
         val player = shura.media.service.PlayerManager.exoPlayer
-        if (player != null) {
+        val primaryColor = android.graphics.Color.parseColor("#3F51B5")
+        val defaultColor = android.graphics.Color.parseColor("#19202D")
+        if (player != null && player.mediaItemCount > 0 && player.currentMediaItem != null) {
+            views.setTextViewText(R.id.widget_title, player.currentMediaItem?.mediaMetadata?.title?.toString() ?: "No Media")
             if (player.isPlaying) {
                 views.setImageViewResource(R.id.widget_btn_play, R.drawable.ic_widget_pause)
             } else {
                 views.setImageViewResource(R.id.widget_btn_play, R.drawable.ic_widget_play)
             }
-            
+            val dur = player.duration
+            val pos = player.currentPosition.coerceAtLeast(0L)
+            val progress = if (dur > 0L && dur != androidx.media3.common.C.TIME_UNSET) {
+                ((pos.toFloat() / dur.toFloat()) * 100).toInt().coerceIn(0, 100)
+            } else 0
+            views.setProgressBar(R.id.widget_progress, 100, progress, false)
+
             // Loop icon
             val loopMode = player.repeatMode
-            val primaryColor = android.graphics.Color.parseColor("#3F51B5")
-            val defaultColor = android.graphics.Color.parseColor("#19202D")
-            
             if (loopMode == androidx.media3.common.Player.REPEAT_MODE_ONE) {
                 views.setImageViewResource(R.id.widget_btn_loop, R.drawable.ic_widget_loop_one)
                 views.setInt(R.id.widget_btn_loop, "setColorFilter", primaryColor)
@@ -111,18 +117,20 @@ class MediaWidgetProvider : AppWidgetProvider() {
                 views.setImageViewResource(R.id.widget_btn_loop, R.drawable.ic_widget_loop)
                 views.setInt(R.id.widget_btn_loop, "setColorFilter", defaultColor)
             }
-            
+
             // Shuffle icon
             if (player.shuffleModeEnabled) {
                 views.setInt(R.id.widget_btn_shuffle, "setColorFilter", primaryColor)
             } else {
                 views.setInt(R.id.widget_btn_shuffle, "setColorFilter", defaultColor)
             }
-            
         } else {
+            views.setTextViewText(R.id.widget_title, "No Media")
+            views.setProgressBar(R.id.widget_progress, 100, 0, false)
             views.setImageViewResource(R.id.widget_btn_play, R.drawable.ic_widget_play)
-            views.setInt(R.id.widget_btn_loop, "setColorFilter", android.graphics.Color.parseColor("#19202D"))
-            views.setInt(R.id.widget_btn_shuffle, "setColorFilter", android.graphics.Color.parseColor("#19202D"))
+            views.setImageViewResource(R.id.widget_btn_loop, R.drawable.ic_widget_loop)
+            views.setInt(R.id.widget_btn_loop, "setColorFilter", defaultColor)
+            views.setInt(R.id.widget_btn_shuffle, "setColorFilter", defaultColor)
         }
 
         // Hierarchy UI Update
@@ -220,6 +228,30 @@ class MediaWidgetProvider : AppWidgetProvider() {
             }
         }
 
+        fun resetAllWidgetsToIdle(context: Context) {
+            if (!hasInstalledWidgets(context)) return
+            try {
+                val appCtx = context.applicationContext
+                val mgr = AppWidgetManager.getInstance(appCtx)
+                val cn = android.content.ComponentName(appCtx, MediaWidgetProvider::class.java)
+                val ids = mgr.getAppWidgetIds(cn)
+                if (ids.isNotEmpty()) {
+                    val defaultColor = android.graphics.Color.parseColor("#19202D")
+                    for (id in ids) {
+                        val views = RemoteViews(appCtx.packageName, R.layout.widget_media)
+                        views.setTextViewText(R.id.widget_title, "No Media")
+                        views.setImageViewResource(R.id.widget_btn_play, R.drawable.ic_widget_play)
+                        views.setProgressBar(R.id.widget_progress, 100, 0, false)
+                        views.setImageViewResource(R.id.widget_btn_loop, R.drawable.ic_widget_loop)
+                        views.setInt(R.id.widget_btn_loop, "setColorFilter", defaultColor)
+                        views.setInt(R.id.widget_btn_shuffle, "setColorFilter", defaultColor)
+                        mgr.partiallyUpdateAppWidget(id, views)
+                        mgr.notifyAppWidgetViewDataChanged(id, R.id.widget_list)
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+
         private fun getWidgetToken(context: Context): String {
             val prefs = context.getSharedPreferences("widget_prefs", Context.MODE_PRIVATE)
             return prefs.getString(KEY_WIDGET_TOKEN, null) ?: synchronized(tokenLock) {
@@ -294,10 +326,8 @@ class MediaWidgetProvider : AppWidgetProvider() {
             }
             return
         }
-        if (action == "ACTION_STOP") {
-            val player = shura.media.service.PlayerManager.exoPlayer
-            player?.stop()
-            player?.clearMediaItems()
+        if (action == "ACTION_STOP" || action == "ACTION_CLOSE") {
+            shura.media.service.PlaybackService.stopPlaybackAndRelease(context)
             updateWidgets(context)
             return
         }
@@ -358,7 +388,7 @@ class MediaWidgetProvider : AppWidgetProvider() {
 
         // Media controller commands
         val widgetAction = intent.getStringExtra("WIDGET_ACTION")
-        val isMediaCommand = action in listOf("ACTION_PLAY_PAUSE", "ACTION_PREV", "ACTION_NEXT", "ACTION_LOOP", "ACTION_SHUFFLE", "ACTION_MINIPLAYER", "ACTION_CLOSE", "ACTION_PIP") || 
+        val isMediaCommand = action in listOf("ACTION_PLAY_PAUSE", "ACTION_PREV", "ACTION_NEXT", "ACTION_LOOP", "ACTION_SHUFFLE", "ACTION_MINIPLAYER", "ACTION_PIP") || 
                              (action == "ACTION_PLAY_ITEM" && (widgetAction == "PLAY_FILE" || widgetAction == "PLAYLIST_ITEM" || widgetAction == null))
 
         if (isMediaCommand) {
@@ -384,24 +414,30 @@ class MediaWidgetProvider : AppWidgetProvider() {
                         controller.repeatMode = nextMode
                     } else if (action == "ACTION_SHUFFLE") {
                         controller.shuffleModeEnabled = !controller.shuffleModeEnabled
-                    } else if (action == "ACTION_CLOSE") {
-                        controller.stop()
-                        controller.clearMediaItems()
-                        // send broadcast to close service
-                        val serviceIntent = Intent("shura.media.ACTION_WIDGET_COMMAND")
-                        serviceIntent.setPackage(context.packageName)
-                        serviceIntent.putExtra("command", action)
-                        context.sendBroadcast(serviceIntent)
                     } else if (action == "ACTION_MINIPLAYER") {
-                        val serviceIntent = Intent("shura.media.ACTION_WIDGET_COMMAND")
-                        serviceIntent.setPackage(context.packageName)
-                        serviceIntent.putExtra("command", "ACTION_MINIPLAYER")
-                        context.sendBroadcast(serviceIntent)
+                        if (android.provider.Settings.canDrawOverlays(context)) {
+                            shura.media.service.PlaybackService.openOverlay(context, videoMode = false)
+                        } else {
+                            val permIntent = Intent(
+                                android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                android.net.Uri.parse("package:${context.packageName}")
+                            ).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            context.startActivity(permIntent)
+                        }
                     } else if (action == "ACTION_PIP") {
-                        val serviceIntent = Intent("shura.media.ACTION_WIDGET_COMMAND")
-                        serviceIntent.setPackage(context.packageName)
-                        serviceIntent.putExtra("command", "ACTION_VIDEO_OVERLAY")
-                        context.sendBroadcast(serviceIntent)
+                        if (android.provider.Settings.canDrawOverlays(context)) {
+                            shura.media.service.PlaybackService.openOverlay(context, videoMode = true)
+                        } else {
+                            val permIntent = Intent(
+                                android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                android.net.Uri.parse("package:${context.packageName}")
+                            ).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            context.startActivity(permIntent)
+                        }
                     } else if (action == "ACTION_PLAY_ITEM") {
                         if (widgetAction == "PLAY_FILE") {
                             val uriStr = intent.getStringExtra("MEDIA_URI")

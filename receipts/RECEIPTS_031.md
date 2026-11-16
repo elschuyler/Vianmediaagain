@@ -216,3 +216,68 @@
 * How it was verified: Static verification only — Python `ElementTree` parse and duplicate-ID scan across all XML files under `app/src/main/res/` confirmed zero duplicate IDs and valid XML; `grep` confirmed `@+id/widget_btn_refresh` appears once in `widget_media.xml`; security scan was clean; `compile_applet` and `lint_applet` executed for workspace toolchain verification. Local `./gradlew` / Android SDK is absent; CI `:app:lintVitalMinifiedDebug` & `assembleMinifiedDebug` awaits GitHub push and on-device testing has not run.
 * Any deviation from what was requested: None (Option 1A implemented as approved).
 * Any known issue or follow-up needed: Export/push to GitHub to run CI `assembleDebug` and `assembleMinifiedDebug` (including `:app:lintVitalMinifiedDebug`) and verify widget refresh tap behavior on-device.
+
+## Phase 145: Option 1 End-of-Playback Auto-Close Across All 5 Targets (`REPEAT_MODE_OFF`)
+* Timestamp: 2026-11-15T22:23:01Z
+* One-line summary: Implemented Option 1 end-of-playback auto-close across Main Player, Floating Video Overlay, Mini Player Overlay, Background Audio Service/Notification, and Home Screen Widget reset when `repeatMode == Player.REPEAT_MODE_OFF`, marking finished media `DONE` cleanly without sticking or rewinding paused at `0:00`.
+* Files touched:
+  - BLUEPRINT.md
+  - app/src/main/java/shura/media/service/PlayerManager.kt
+  - app/src/main/java/shura/media/service/PlaybackService.kt
+  - app/src/main/java/shura/media/ui/PlayerActivity.kt
+  - app/src/main/java/shura/media/ui/screens/PlayerScreen.kt
+  - app/src/main/java/shura/media/ui/components/MiniPlayerOverlay.kt
+  - app/src/main/java/shura/media/widget/MediaWidgetProvider.kt
+  - receipts/RECEIPTS_031.md
+* What was actually done:
+  - `PlayerManager.kt`: Added `isHandlingNaturalEnd` guard, `playbackEndedCloseEvent: SharedFlow<Long>`, and `handleNaturalItemCompletion(...)` triggered on both `Player.STATE_ENDED` and `PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM` when `repeatMode == Player.REPEAT_MODE_OFF` (including non-last items with `pauseAtEndOfMediaItems = true`), marking the true finished item via `SettingsManager.markAsFinished(...)`, guarding `flushProgressToStorage()` while `isHandlingNaturalEnd` is active, and emitting `playbackEndedCloseEvent` instead of rewinding paused to `0:00`.
+  - `PlayerActivity.kt` & `PlayerScreen.kt`: Added `playbackEndedCloseEvent` collectors in both `PlayerActivity` (`finish()`) and `PlayerScreen` (`playerViewRef.value?.player = null`, orientation reset, `PlaybackService.stopPlaybackAndRelease(context)`, `onNavigateBack()`), guarded `PlayerScreen` periodic/lifecycle/back `savePlaybackState` calls with `!settings.isFinished(...)`, and guarded `ON_RESUME` against finishing/destroyed activities.
+  - `PlaybackService.kt`: Collected `playbackEndedCloseEvent` and handled `STATE_ENDED` under `REPEAT_MODE_OFF` via `handleNaturalPlaybackEndClose()` (`hideOverlay()`, `resetSessionFloatingState()`, stop/clear `exoPlayer`, `stopForeground` + `cancelAll()`, `mediaSession.release()`, `PlayerManager.release()`, `updateWidgetUI()`, `stopSelf()`), reset `isClosingOnEnd = false` on `STATE_BUFFERING`/`isPlaying == true`, and updated notification `ACTION_CLOSE` to reset floating state and update widget UI.
+  - `MiniPlayerOverlay.kt`: Added `isScrubbing` / `scrubProgress` / `wasPlayingBeforeScrub` drag protection pausing during slider seek and clamping preview seeks to `(duration - 100L).coerceAtLeast(0L)` so right-edge drags do not prematurely close the overlay prior to finger release.
+  - `MediaWidgetProvider.kt` & `PlaybackService.kt`: Added `MediaWidgetProvider.resetAllWidgetsToIdle(context)` and updated `updateAppWidget()` / `updateWidgetUI()` to clear `widget_title` to `"No Media"`, reset `widget_progress` to `0`, restore `ic_widget_play`, and reset loop/shuffle icon tints when idle/empty. Preserved `REPEAT_MODE_ALL`, `REPEAT_MODE_ONE`, manual Next/Prev, editor preview players, and `LogKeeper`/`LogCatcher`.
+* How it was verified: Static verification only — Python delimiter tokenizer returned balanced `curly=0, paren=0, bracket=0` across all 6 edited `.kt` files; targeted `grep` sweep confirmed removal of Phase 143 pause-on-end messages, verified all `PlayerScreen.kt` `savePlaybackState` call sites are guarded with `!settings.isFinished(...)`, and confirmed `playbackEndedCloseEvent` / `resetAllWidgetsToIdle` / `LogKeeper` integrity; workspace security scan was clean; `compile_applet` and `lint_applet` executed for workspace toolchain verification. Local `./gradlew` / Android SDK is absent; Android CI compilation (`assembleDebug` / `assembleMinifiedDebug`) and on-device runtime behavior are not tested locally and await GitHub Actions / on-device verification.
+* Any deviation from what was requested: None (Option 1 implemented across all 5 targets).
+* Any known issue or follow-up needed: Push/export to GitHub Actions to run `assembleDebug` and `assembleMinifiedDebug` and run the On-Device Verification Guide across Main Player, Floating Video Overlay, Mini Player Overlay, Background Audio Service/Notification, and Home Screen Widget.
+
+## Phase 146: Single-Owner `PlaybackService`, Unified Notification (`1001`), and Option 1 Codec/OOM/Surface Stability
+* Timestamp: 2026-11-16T09:33:30Z
+* One-line summary: Refactored ExoPlayer ownership exclusively into `PlaybackService : MediaSessionService`, removed Notification `1002` (`"Floating player ready"`) so a single system Media Notification (`1001`) persists across Main/Floating/Mini/Bubble/Background modes, and fixed the `c2.unisoc.vp9.decoder` released-state crash, Launcher OOM buffer spike, and mid-init `replaceMediaItem`/surface races.
+* Files touched:
+  - BLUEPRINT.md
+  - app/src/main/java/shura/media/MyBitmapLoader.kt
+  - app/src/main/java/shura/media/service/PlayerManager.kt
+  - app/src/main/java/shura/media/service/PlaybackService.kt
+  - app/src/main/java/shura/media/ui/PlayerActivity.kt
+  - app/src/main/java/shura/media/ui/screens/PlayerScreen.kt
+  - app/src/main/java/shura/media/MainActivity.kt
+  - app/src/main/java/shura/media/ui/components/FloatingVideoPlayerOverlay.kt
+  - app/src/main/java/shura/media/widget/MediaWidgetProvider.kt
+  - receipts/RECEIPTS_031.md
+* What was actually done:
+  - `MyBitmapLoader.kt`: Removed `MediaMetadataRetriever` video frame decoding (`getScaledFrameAtTime` / `frameAtTime`) while retaining Coil cache (`imageLoader`), `contentResolver.loadThumbnail`, and audio `embeddedPicture` extraction so `MyBitmapLoader` never spawns a second HW video decoder alongside ExoPlayer.
+  - `PlayerManager.kt`: Restricted `ExoPlayer` creation/teardown to `internal fun initializeOwnedPlayer` / `releaseOwnedPlayer`; added `ownedPlayerFlow`, `PendingPlaybackRequest` + `stagePlaybackRequest(...)`, and `playbackErrorEvent`; capped `DefaultLoadControl` (`15_000ms`/`30_000ms`, `24MB` targetBufferBytes, `prioritizeTimeOverSizeThresholds = false`).
+  - `PlaybackService.kt`: Removed legacy `1002` fallback notification and `"playback_fgs_channel"`; added `applyStagedPlaybackRequest()`, `promoteSessionNotificationNow()`, `ensureForegroundNotificationSlotForOverlayStart()` (`1001` on `DEFAULT_CHANNEL_ID` only), `applyStagedPlaybackOrStart()`, and `openOverlay()`; moved debounced codec recovery (`blacklistDecoder` -> `stop()` -> `150ms` delay -> `prepare()/seekTo()/play()`) solely into `PlaybackService.onPlayerError`; kept `mediaSession` alive until `onDestroy()`.
+  - `PlayerActivity.kt`, `PlayerScreen.kt`, `MainActivity.kt`, `MediaWidgetProvider.kt`, `FloatingVideoPlayerOverlay.kt`: Migrated all `PlayerManager.initialize()` / `release()` and raw overlay broadcast callers to `stagePlaybackRequest()` + `PlaybackService.applyStagedPlaybackOrStart()` / `openOverlay()` / `stopPlaybackAndRelease()`; bound `MediaController` via `SessionToken` in `PlayerScreen`; removed `PlayerScreen`'s duplicate `onPlayerError` retry loop and `nm?.cancelAll()`; deferred `replaceMediaItem` subtitle/name enrichment until `STATE_READY`; detached `PlayerView.player = null` in `FloatingVideoPlayerOverlay.onRelease` and Main Player transitions before switching overlays.
+* How it was verified: Static verification only — Python delimiter tokenizer verified `curly=0, paren=0, bracket=0` across all 8 edited `.kt` files; repo-wide `grep` confirmed zero remaining `PlayerManager.initialize(`, `PlayerManager.release(`, `playback_fgs_channel`, `"Floating player ready"`, or `nm?.cancelAll` calls; clean workspace security scan; `compile_applet` and `lint_applet` executed for workspace toolchain verification. Local `./gradlew` / Android SDK is absent; Android CI build (`assembleDebug` / `assembleMinifiedDebug`) awaits GitHub push and on-device runtime testing has not run.
+* Any deviation from what was requested: Withheld `io.github.anilbeesetti:nextlib-media3ext` (`NextRenderersFactory`) binary dependency as agreed under Condition 2 (*"Unless it would interfere with features of app. That is working and stable"*) because `nextlib-media3ext` bundles `libavcodec.so` (Media3 `1.7.x+`), which collides with `ffmpeg-kit-android-16kb-lts-full-gpl:v1.0.7`'s `pickFirsts` `libavcodec.so` in `app/build.gradle.kts`; adopted NextPlayer's single-owner `PlaybackService : MediaSessionService` + matured `DefaultRenderersFactory` architecture instead.
+* Any known issue or follow-up needed: Push/export to GitHub Actions to run `assembleDebug` & `assembleMinifiedDebug` and run the On-Device Verification Guide (especially VP9 decoder fallback, launcher stability on HD videos, notification persistence across overlay/Main switches, and swipe-away restore).
+
+## Phase 147: Single-Owner Playback Audit Gap Fixes (Reentry, Stop/Restart Race, Codec Retry Reset, Overlay & Widget Hygiene)
+* Timestamp: 2026-11-16T18:22:00Z
+* One-line summary: Resolved all 7 High/Medium logic bugs and 2 minor hygiene items surfaced by the post-Phase-146 code audit across `PlaybackService`, `PlayerActivity`, `PlayerScreen`, `MiniPlayerOverlay`, `MediaWidgetProvider`, and `MyBitmapLoader`.
+* Files touched:
+  - BLUEPRINT.md
+  - app/src/main/java/shura/media/service/PlaybackService.kt
+  - app/src/main/java/shura/media/ui/PlayerActivity.kt
+  - app/src/main/java/shura/media/ui/screens/PlayerScreen.kt
+  - app/src/main/java/shura/media/ui/components/MiniPlayerOverlay.kt
+  - app/src/main/java/shura/media/widget/MediaWidgetProvider.kt
+  - app/src/main/java/shura/media/MyBitmapLoader.kt
+  - receipts/RECEIPTS_031.md
+* What was actually done:
+  - `PlaybackService.kt`: Added `isServiceStopping`, `isServiceDestroying`, and `requestStopSelf()`; updated `applyStagedPlaybackOrStart()` and `openOverlay()` to re-issue `startService`/`startForegroundService` when `isServiceStopping == true` so pending `stopSelf()` calls are cancelled and delayed `MediaController` unbinds cannot destroy newly started playback; reset `isRecoveringCodecError = false` immediately before `activePlayer.prepare()` inside `codecRecoveryJob` so Attempt 2 executes if Attempt 1 fails before `STATE_READY`.
+  - `PlayerActivity.kt` & `PlayerScreen.kt`: Resolved empty-URI (`ACTION_OPEN_PLAYER` notification/widget) launches by recovering the active `exoPlayer?.currentMediaItem` URI or redirecting to `MainActivity` when idle, and guarded `PlayerScreen` against staging an empty `MediaItem`; seeded `tracksVideoSupport` and active title/URI from `controller.currentTracks` / `currentMediaItem` on mount; ensured `pendingQueue` is consumed even when matching the currently active `mediaId`; set `PlayerManager.isPlayerScreenVisible = true` before `preparePlaybackImmediately` and cleared `sessionIsMinimized = false` on Main Player open/reentry; added synchronous `file://` sibling subtitle check and `activeItem.mediaMetadata` copying in `PlayerActivity` while removing the redundant duplicate `content://` `DISPLAY_NAME`/subtitle `replaceMediaItem` block in `PlayerScreen`.
+  - `MiniPlayerOverlay.kt`, `MediaWidgetProvider.kt`, `MyBitmapLoader.kt`: Removed stale `onMinimize()` from `MiniPlayerOverlay` expand-to-main action, replaced `player?.stop(); clearMediaItems()` in Stop with `flushProgressToStorage(); onClose()`, and updated folder (`isImplicitFolderQueue = true`) / playlist (`false`) item clicks + `updateSnapshot`; moved `MediaWidgetProvider` `ACTION_CLOSE` before `MediaController.Builder` binding; cleaned unused `videoFrameMillis` import and restricted `MyBitmapLoader` `MediaMetadataRetriever` fallback to local/content audio URIs.
+* How it was verified: Static verification only — Python delimiter tokenizer verified balanced `curly=0, paren=0, bracket=0` across all 6 edited `.kt` files; targeted `grep` confirmed expected symbols and clean workspace security scan; `compile_applet` and `lint_applet` verified the workspace toolchain. Local `./gradlew` / Android SDK is absent; Android Gradle compilation (`assembleDebug` / `assembleMinifiedDebug`) runs on GitHub Actions CI after export and on-device testing has not run.
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: Push/export to GitHub Actions to verify `:app:compileDebugKotlin`, `assembleDebug`, and `assembleMinifiedDebug`, then run the On-Device Verification Guide across notification/widget reentry, rapid stop-to-replay, overlay switches, and codec fallback.

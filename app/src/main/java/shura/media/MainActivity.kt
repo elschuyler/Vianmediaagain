@@ -144,57 +144,49 @@ class MainActivity : ComponentActivity() {
                   .build()
           }
 
-          shura.media.service.PlayerManager.initialize(this, false)
-          val player = shura.media.service.PlayerManager.exoPlayer
-          val hasActivePlayback = player != null && player.mediaItemCount > 0
+          val existingPlayer = shura.media.service.PlayerManager.exoPlayer
+          val hasActivePlayback = existingPlayer != null && existingPlayer.mediaItemCount > 0
+          val startPos = if (hasActivePlayback) {
+              android.widget.Toast.makeText(this, "Added ${mediaItems.size} item(s) to queue", android.widget.Toast.LENGTH_SHORT).show()
+              0L
+          } else {
+              val settings = shura.media.data.SettingsManager.getInstance(applicationContext)
+              val firstUriStr = uris.first()
+              val firstFastName = mediaItems.first().mediaMetadata.title?.toString() ?: "Media"
+              val lastPos = settings.getPlaybackPosition(firstUriStr, firstFastName)
+              if (lastPos > 0 && !settings.isFinished(firstUriStr, firstFastName)) lastPos else 0L
+          }
 
-          if (player != null) {
-              if (hasActivePlayback) {
-                  shura.media.service.PlayerManager.appendOrTransitionQueue(this, mediaItems)
-                  android.widget.Toast.makeText(this, "Added ${mediaItems.size} item(s) to queue", android.widget.Toast.LENGTH_SHORT).show()
-              } else {
-                  val settings = shura.media.data.SettingsManager.getInstance(applicationContext)
-                  val firstUriStr = uris.first()
-                  val firstFastName = mediaItems.first().mediaMetadata.title?.toString() ?: "Media"
-                  val lastPos = settings.getPlaybackPosition(firstUriStr, firstFastName)
-                  val startPos = if (lastPos > 0 && !settings.isFinished(firstUriStr, firstFastName)) lastPos else 0L
-                  player.setMediaItems(mediaItems, 0, startPos)
-                  player.pauseAtEndOfMediaItems = (player.repeatMode == androidx.media3.common.Player.REPEAT_MODE_OFF)
-                  player.prepare()
-                  player.play()
+          val existingUrisSnapshot = if (existingPlayer != null && hasActivePlayback) {
+              val base = mutableListOf<String>()
+              for (i in 0 until existingPlayer.mediaItemCount) {
+                  base.add(existingPlayer.getMediaItemAt(i).mediaId)
               }
+              base + uris
+          } else {
+              uris
           }
 
           // Auto-save playlist snapshot to Room database
           kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
               try {
-                  val allUris = mutableListOf<String>()
-                  if (player != null) {
-                      for (i in 0 until player.mediaItemCount) {
-                          player.getMediaItemAt(i).mediaId.let { allUris.add(it) }
-                      }
-                  } else {
-                      allUris.addAll(uris)
-                  }
                   val db = shura.media.data.AppDatabase.getDatabase(applicationContext)
                   val playlistRepo = shura.media.data.PlaylistRepository(db.playlistDao())
-                  playlistRepo.saveOrUpdateTemporaryPlaylist(allUris)
+                  playlistRepo.saveOrUpdateTemporaryPlaylist(existingUrisSnapshot)
               } catch (e: Exception) {
                   shura.media.LogKeeper.logError("MainActivity", "Error auto-saving temporary playlist", e)
               }
           }
 
           if (android.provider.Settings.canDrawOverlays(this)) {
-              val serviceIntent = android.content.Intent(this, shura.media.service.PlaybackService::class.java).apply {
-                  putExtra("command", "ACTION_MINIPLAYER")
-                  addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-              }
-              if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                  startForegroundService(serviceIntent)
-              } else {
-                  startService(serviceIntent)
-              }
-
+              shura.media.service.PlayerManager.stagePlaybackRequest(
+                  mediaItems = mediaItems,
+                  startIndex = 0,
+                  startPositionMs = startPos,
+                  isImplicit = false,
+                  appendIfActive = hasActivePlayback
+              )
+              shura.media.service.PlaybackService.openOverlay(this, videoMode = false)
               finish()
               return true
           } else {
@@ -234,26 +226,18 @@ class MainActivity : ComponentActivity() {
                   )
                   .build()
 
-              shura.media.service.PlayerManager.initialize(this, false)
-              val player = shura.media.service.PlayerManager.exoPlayer
               val settings = shura.media.data.SettingsManager.getInstance(applicationContext)
               val lastPos = settings.getPlaybackPosition(targetUriStr, displayName)
               val startPos = if (lastPos > 0 && !settings.isFinished(targetUriStr, displayName)) lastPos else 0L
-              player?.setMediaItem(mediaItem, startPos)
-              player?.let { it.pauseAtEndOfMediaItems = (it.repeatMode == androidx.media3.common.Player.REPEAT_MODE_OFF) }
-              player?.prepare()
-              player?.play()
 
-              val serviceIntent = android.content.Intent(this, shura.media.service.PlaybackService::class.java).apply {
-                  putExtra("command", "ACTION_VIDEO_OVERLAY")
-                  addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-              }
-              if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                  startForegroundService(serviceIntent)
-              } else {
-                  startService(serviceIntent)
-              }
-
+              shura.media.service.PlayerManager.stagePlaybackRequest(
+                  mediaItems = listOf(mediaItem),
+                  startIndex = 0,
+                  startPositionMs = startPos,
+                  isImplicit = true,
+                  appendIfActive = false
+              )
+              shura.media.service.PlaybackService.openOverlay(this, videoMode = true)
               finish()
               return true
           } else {

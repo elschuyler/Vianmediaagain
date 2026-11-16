@@ -88,10 +88,16 @@ fun MiniPlayerOverlay(
         }
     }
 
-    LaunchedEffect(playerSnapshot) {
+    var isScrubbing by remember { mutableStateOf(false) }
+    var scrubProgress by remember { mutableFloatStateOf(0f) }
+    var wasPlayingBeforeScrub by remember { mutableStateOf(false) }
+
+    LaunchedEffect(playerSnapshot, isScrubbing) {
         isPlaying = playerSnapshot.isPlaying
-        currentPosition = playerSnapshot.currentPosition
-        duration = playerSnapshot.duration
+        if (!isScrubbing) {
+            currentPosition = playerSnapshot.currentPosition
+            duration = playerSnapshot.duration
+        }
         if (playerSnapshot.currentTitle.isNotEmpty()) {
             title = playerSnapshot.currentTitle
         }
@@ -242,7 +248,6 @@ fun MiniPlayerOverlay(
                             flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP
                         }
                         context.startActivity(intent)
-                        onMinimize()
                     }, modifier = Modifier.size(32.dp)) {
                         Icon(Icons.Filled.OpenInFull, contentDescription = "Main Player", tint = Color(0xFF37474F), modifier = Modifier.size(20.dp))
                     }
@@ -256,14 +261,29 @@ fun MiniPlayerOverlay(
                     .padding(horizontal = 8.dp, vertical = 4.dp)
             ) {
                 // Progress bar
-                val progress = if (duration > 0) (currentPosition.toFloat() / duration.toFloat()).coerceIn(0f, 1f) else 0f
+                val progress = if (isScrubbing) scrubProgress else if (duration > 0) (currentPosition.toFloat() / duration.toFloat()).coerceIn(0f, 1f) else 0f
                 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
                 Slider(
                     value = progress,
                     onValueChange = { newVal ->
-                        val newPos = (newVal * duration).toLong()
-                        player?.seekTo(newPos)
-                        currentPosition = newPos
+                        if (!isScrubbing) {
+                            wasPlayingBeforeScrub = player?.isPlaying == true
+                            player?.pause()
+                            isScrubbing = true
+                        }
+                        scrubProgress = newVal
+                        val clampedPreview = (newVal * duration).toLong().coerceIn(0L, (duration - 100L).coerceAtLeast(0L))
+                        player?.seekTo(clampedPreview)
+                        currentPosition = clampedPreview
+                    },
+                    onValueChangeFinished = {
+                        val finalPos = (scrubProgress * duration).toLong().coerceIn(0L, duration.coerceAtLeast(0L))
+                        player?.seekTo(finalPos)
+                        currentPosition = finalPos
+                        isScrubbing = false
+                        if (wasPlayingBeforeScrub) {
+                            player?.play()
+                        }
                     },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -358,7 +378,10 @@ fun MiniPlayerOverlay(
                     }) {
                         Icon(Icons.Filled.SkipNext, "Next", tint = Color(0xFF121212))
                     }
-                    IconButton(onClick = { player?.stop(); player?.clearMediaItems(); onClose() }) {
+                    IconButton(onClick = {
+                        shura.media.service.PlayerManager.flushProgressToStorage()
+                        onClose()
+                    }) {
                         Icon(Icons.Filled.Stop, "Stop", tint = Color(0xFF121212))
                     }
                 }
@@ -597,6 +620,8 @@ fun MiniPlayerOverlay(
                                                     p.pauseAtEndOfMediaItems = (p.repeatMode == Player.REPEAT_MODE_OFF)
                                                     p.prepare()
                                                     p.play()
+                                                    shura.media.service.PlayerManager.isImplicitFolderQueue = true
+                                                    shura.media.service.PlayerManager.updateSnapshot(rebuildPlaylist = true)
                                                 }
                                             }
                                         }
@@ -689,6 +714,8 @@ fun MiniPlayerOverlay(
                                                     p.pauseAtEndOfMediaItems = (p.repeatMode == Player.REPEAT_MODE_OFF)
                                                     p.prepare()
                                                     p.play()
+                                                    shura.media.service.PlayerManager.isImplicitFolderQueue = false
+                                                    shura.media.service.PlayerManager.updateSnapshot(rebuildPlaylist = true)
                                                 }
                                             }
                                         }
