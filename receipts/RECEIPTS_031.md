@@ -281,3 +281,21 @@
 * How it was verified: Static verification only — Python delimiter tokenizer verified balanced `curly=0, paren=0, bracket=0` across all 6 edited `.kt` files; targeted `grep` confirmed expected symbols and clean workspace security scan; `compile_applet` and `lint_applet` verified the workspace toolchain. Local `./gradlew` / Android SDK is absent; Android Gradle compilation (`assembleDebug` / `assembleMinifiedDebug`) runs on GitHub Actions CI after export and on-device testing has not run.
 * Any deviation from what was requested: None.
 * Any known issue or follow-up needed: Push/export to GitHub Actions to verify `:app:compileDebugKotlin`, `assembleDebug`, and `assembleMinifiedDebug`, then run the On-Device Verification Guide across notification/widget reentry, rapid stop-to-replay, overlay switches, and codec fallback.
+
+## Phase 148: CI `:app:compileDebugKotlin` Compilation Fix (`PlaybackService`, `PlayerManager`, `PlayerScreen`)
+* Timestamp: 2026-11-16T19:08:00Z
+* One-line summary: Resolved all 6 `:app:compileDebugKotlin` unresolved reference errors reported by the GitHub Actions CI build (`4343742d6cb1c212fc6148521af8d236513f9258`).
+* Files touched:
+  - BLUEPRINT.md
+  - app/src/main/java/shura/media/service/PlaybackService.kt
+  - app/src/main/java/shura/media/service/PlayerManager.kt
+  - app/src/main/java/shura/media/ui/screens/PlayerScreen.kt
+  - receipts/RECEIPTS_031.md
+* What was actually done:
+  - `app/src/main/java/shura/media/service/PlaybackService.kt`: Replaced the `if (forceForeground)` / `triggerNotificationUpdate()` calls (`L123-131`) in `promoteSessionNotificationNow` with `onUpdateNotification(session, forceForeground)` (compatible with `androidx.media3:media3-session:1.5.1`).
+  - `app/src/main/java/shura/media/service/PlayerManager.kt`: Added `import kotlinx.coroutines.flow.asSharedFlow` (`L5`) to resolve `playbackEndedCloseEvent` and `playbackErrorEvent` `.asSharedFlow()` calls.
+  - `app/src/main/java/shura/media/ui/screens/PlayerScreen.kt`: Moved the `LaunchedEffect(Unit)` `playbackEndedCloseEvent` collector (`L368-381`) immediately after `val playerViewRef` (`L438`, shifted to `L437-452`) so `wasPlayingBeforePause` and `playerViewRef` are in lexical scope.
+* How it was verified: Static verification only — Python delimiter tokenizer verified `curly=0, paren=0, bracket=0` across `PlaybackService.kt`, `PlayerManager.kt`, and `PlayerScreen.kt`; `grep` confirmed zero remaining `triggerNotificationUpdate` references and clean workspace security scan; `compile_applet` and `lint_applet` executed for workspace toolchain verification. Local `./gradlew` / Android SDK is absent; CI `:app:compileDebugKotlin`, `assembleDebug`, and `assembleMinifiedDebug` run on GitHub Actions after export, and on-device runtime testing has not run.
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: Push/export to GitHub Actions to run `assembleDebug` and `assembleMinifiedDebug` (including R8 + `lintVitalMinifiedDebug`), then run the On-Device Verification Guide on the resulting APK.
+

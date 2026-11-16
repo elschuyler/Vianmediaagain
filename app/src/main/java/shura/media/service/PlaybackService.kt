@@ -120,15 +120,7 @@ private fun promoteSessionNotificationNow(forceForeground: Boolean = false) {
     val player = PlayerManager.exoPlayer
     if (player == null || player.mediaItemCount == 0) return
     try {
-        if (forceForeground) {
-            try {
-                onUpdateNotification(session, true)
-            } catch (_: Exception) {
-                triggerNotificationUpdate()
-            }
-        } else {
-            triggerNotificationUpdate()
-        }
+        onUpdateNotification(session, forceForeground)
     } catch (e: Exception) {
         shura.media.LogKeeper.log("PlaybackService: Notification update handled (${e.message})", "PlaybackService")
     }

@@ -364,21 +364,6 @@ fun PlayerScreen(
         shura.media.service.PlayerManager.isFloatingVideoActive = false
         shura.media.service.PlaybackService.hideOverlay(context)
     }
-
-    LaunchedEffect(Unit) {
-        shura.media.service.PlayerManager.playbackEndedCloseEvent.collect {
-            shura.media.LogKeeper.log("Playback ended with repeatMode OFF -> closing PlayerScreen", "PlayerScreen")
-            wasPlayingBeforePause = false
-            showControls = false
-            shura.media.service.PlayerManager.isPlayerScreenVisible = false
-            try { playerViewRef.value?.player = null } catch (_: Exception) {}
-            try {
-                context.findActivity()?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-            } catch (_: Exception) {}
-            shura.media.service.PlaybackService.stopPlaybackAndRelease(context)
-            onNavigateBack()
-        }
-    }
     
     LaunchedEffect(showPlayPauseFlash) {
         if (showPlayPauseFlash) {
@@ -436,6 +421,21 @@ fun PlayerScreen(
     }
 
     val playerViewRef = remember { mutableStateOf<PlayerView?>(null) }
+
+    LaunchedEffect(Unit) {
+        shura.media.service.PlayerManager.playbackEndedCloseEvent.collect {
+            shura.media.LogKeeper.log("Playback ended with repeatMode OFF -> closing PlayerScreen", "PlayerScreen")
+            wasPlayingBeforePause = false
+            showControls = false
+            shura.media.service.PlayerManager.isPlayerScreenVisible = false
+            try { playerViewRef.value?.player = null } catch (_: Exception) {}
+            try {
+                context.findActivity()?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            } catch (_: Exception) {}
+            shura.media.service.PlaybackService.stopPlaybackAndRelease(context)
+            onNavigateBack()
+        }
+    }
     LaunchedEffect(isAudioOnly, mediaController, tracksVideoSupport) {
         if (isAudioOnly) {
             try { playerViewRef.value?.player = null } catch (e: Exception) {}

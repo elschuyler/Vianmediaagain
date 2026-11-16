@@ -708,3 +708,8 @@
     - Removed stale `onMinimize()` from `MiniPlayerOverlay` `OpenInFull` expand and cleared `sessionIsMinimized = false` when entering `PlayerActivity`; updated `MiniPlayerOverlay` Stop to flush progress before `onClose()` and synced `isImplicitFolderQueue` + `updateSnapshot` on folder/playlist item clicks.
     - Short-circuited `MediaWidgetProvider` `ACTION_CLOSE` alongside `ACTION_STOP` before `MediaController.Builder` binding, and restricted `MyBitmapLoader` `MediaMetadataRetriever` fallback strictly to local/content audio URIs.
 
+- [x] **Phase 148: CI `:app:compileDebugKotlin` Compilation Fix (`PlaybackService`, `PlayerManager`, `PlayerScreen`)**
+  - `PlaybackService.kt` (`promoteSessionNotificationNow`, `L122-126`): Replaced nonexistent `MediaSessionService.triggerNotificationUpdate()` calls (`L127, L130`) with `onUpdateNotification(session, forceForeground)` supported by Media3 `1.5.1`.
+  - `PlayerManager.kt` (`L5`): Added missing `import kotlinx.coroutines.flow.asSharedFlow` for `playbackEndedCloseEvent` and `playbackErrorEvent`.
+  - `PlayerScreen.kt` (`L439-452`): Moved `LaunchedEffect(Unit)` `playbackEndedCloseEvent` collector below `wasPlayingBeforePause` (`L403`) and `playerViewRef` (`L437`) declarations to eliminate Kotlin forward-reference errors.
+
