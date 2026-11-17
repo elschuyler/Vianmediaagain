@@ -180,13 +180,7 @@ fun formatTime(ms: Long): String {
 enum class GestureType { NONE, SEEK, BRIGHTNESS, VOLUME, ZOOM_PAN }
 
 fun getFastImmediateName(uri: Uri): String {
-    val decodedSegment = try {
-        val last = uri.lastPathSegment
-        if (last != null) Uri.decode(last) else null
-    } catch (e: Exception) { uri.lastPathSegment }
-    val segment = decodedSegment?.substringBeforeLast('.')?.ifBlank { null }
-        ?: uri.lastPathSegment?.substringBeforeLast('.')?.ifBlank { null }
-    return segment ?: "Video"
+    return shura.media.data.MediaUriResolver.extractCleanTitleFromUri(uri, "Video")
 }
 
 fun getDisplayNameFromUri(context: android.content.Context, uri: Uri): String {
@@ -379,8 +373,11 @@ fun PlayerScreen(
         }
     }
     val decodedUri = remember(uriString) { Uri.parse(decodedUriString) }
+    val playerSnapshot by shura.media.service.PlayerManager.playbackState.collectAsState()
     var currentMediaTitle by remember {
-        val initialTitle = shura.media.service.PlayerManager.exoPlayer?.mediaMetadata?.title?.toString()
+        val activeItem = shura.media.service.PlayerManager.exoPlayer?.currentMediaItem
+        val initialTitle = shura.media.service.PlayerManager.getResolvedTitleForItem(activeItem)
+            ?: playerSnapshot.currentTitle.takeIf { it.isNotBlank() }
         mutableStateOf(initialTitle ?: getFastImmediateName(decodedUri))
     }
     var currentMediaUri by remember { mutableStateOf(decodedUri) }
@@ -388,11 +385,15 @@ fun PlayerScreen(
     val isAudioOnly = tracksVideoSupport?.let { !it }
         ?: shura.media.service.PlayerManager.isAudioOnlyHint(context, currentMediaUri)
 
-    val playerSnapshot by shura.media.service.PlayerManager.playbackState.collectAsState()
     var isPlaying by remember { mutableStateOf(playerSnapshot.isPlaying) }
 
     LaunchedEffect(playerSnapshot.isPlaying) {
         isPlaying = playerSnapshot.isPlaying
+    }
+    LaunchedEffect(playerSnapshot.currentTitle) {
+        if (playerSnapshot.currentTitle.isNotBlank()) {
+            currentMediaTitle = playerSnapshot.currentTitle
+        }
     }
     
     var abRepeatStart by remember { mutableStateOf<Long?>(null) }
@@ -406,7 +407,7 @@ fun PlayerScreen(
     var offsetX by remember { mutableFloatStateOf(0f) }
     var offsetY by remember { mutableFloatStateOf(0f) }
     var rotationAngle by remember { mutableFloatStateOf(0f) }
-    var backgroundPlayEnabled by remember { mutableStateOf(false) }
+    val backgroundPlayEnabled by shura.media.service.PlayerManager.backgroundPlayEnabled.collectAsState()
     val backgroundPlayEnabledRef = androidx.compose.runtime.rememberUpdatedState(backgroundPlayEnabled)
     val forceBackgroundPlay = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
 
@@ -490,7 +491,8 @@ fun PlayerScreen(
 
             override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
                 if (mediaItem != null) {
-                    val title = mediaItem.mediaMetadata.title?.toString()
+                    val title = shura.media.service.PlayerManager.getResolvedTitleForItem(mediaItem)
+                        ?: mediaItem.mediaMetadata.title?.toString()
                         ?: mediaItem.mediaMetadata.displayTitle?.toString()
                     if (!title.isNullOrBlank()) {
                         currentMediaTitle = title
@@ -502,7 +504,8 @@ fun PlayerScreen(
             }
 
             override fun onMediaMetadataChanged(mediaMetadata: androidx.media3.common.MediaMetadata) {
-                val title = mediaMetadata.title?.toString() ?: mediaMetadata.displayTitle?.toString()
+                val activeTitle = shura.media.service.PlayerManager.getResolvedTitleForItem(controller.currentMediaItem)
+                val title = activeTitle ?: mediaMetadata.title?.toString() ?: mediaMetadata.displayTitle?.toString()
                 if (!title.isNullOrBlank()) {
                     currentMediaTitle = title
                 }
@@ -510,7 +513,8 @@ fun PlayerScreen(
         }
         controller.addListener(listener)
         isPlaying = controller.isPlaying
-        controller.mediaMetadata.title?.toString()?.takeIf { it.isNotBlank() }?.let {
+        (shura.media.service.PlayerManager.getResolvedTitleForItem(controller.currentMediaItem)
+            ?: controller.mediaMetadata.title?.toString()?.takeIf { it.isNotBlank() })?.let {
             currentMediaTitle = it
         }
 
@@ -735,19 +739,22 @@ fun PlayerScreen(
         }
     }
 
-    LaunchedEffect(decodedUri) {
+    LaunchedEffect(decodedUri, tracksVideoSupport) {
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             if (decodedUri.scheme == "content") {
                 try {
                     context.grantUriPermission(context.packageName, decodedUri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 } catch (e: Exception) {}
             }
-            val mimeType = try { context.contentResolver.getType(decodedUri) } catch (e: Exception) { null }
-            val isAudio = mimeType?.startsWith("audio/") == true
+            val isAudio = (tracksVideoSupport == false) ||
+                shura.media.service.PlayerManager.isAudioOnlyHint(context, decodedUri)
             if (isAudio) {
                 val settingsManager = shura.media.data.SettingsManager.getInstance(context)
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                    backgroundPlayEnabled = settingsManager.defaultAudioBackgroundPlay
+                    shura.media.service.PlayerManager.applyDefaultAudioBackgroundPlayIfUnset(
+                        decodedUri.toString(),
+                        settingsManager.defaultAudioBackgroundPlay
+                    )
                 }
             }
         }
@@ -764,7 +771,8 @@ fun PlayerScreen(
         ) {
             controller?.currentMediaItem?.let { activeItem ->
                 activeItem.localConfiguration?.uri?.let { currentMediaUri = it }
-                val activeTitle = activeItem.mediaMetadata.title?.toString()
+                val activeTitle = shura.media.service.PlayerManager.getResolvedTitleForItem(activeItem)
+                    ?: activeItem.mediaMetadata.title?.toString()
                     ?: activeItem.mediaMetadata.displayTitle?.toString()
                 if (!activeTitle.isNullOrBlank()) {
                     currentMediaTitle = activeTitle
@@ -777,12 +785,22 @@ fun PlayerScreen(
             shura.media.service.PlayerManager.consumePendingQueueWithImplicitFlag()
         } else null
 
-        if ((pendingQueue != null && pendingQueue.first.isNotEmpty()) ||
-            controller == null ||
-            controller.currentMediaItem?.mediaId != decodedUri.toString()
-        ) {
+        val activeItemNow = controller?.currentMediaItem
+        val matchesActiveInScreen = activeItemNow != null && (
+            activeItemNow.mediaId == decodedUri.toString() ||
+                activeItemNow.localConfiguration?.uri?.toString() == decodedUri.toString()
+            )
+        if ((pendingQueue != null && pendingQueue.first.isNotEmpty()) || !matchesActiveInScreen) {
             if (!shura.media.service.PlayerManager.hasStagedPlaybackRequest()) {
                 val fileName = getFastImmediateName(decodedUri)
+                val sessionUri = pendingQueue?.first?.getOrNull(pendingQueue.second)?.localConfiguration?.uri ?: decodedUri
+                val sessionMediaId = pendingQueue?.first?.getOrNull(pendingQueue.second)?.mediaId ?: decodedUri.toString()
+                val isAudioStart = shura.media.service.PlayerManager.isAudioOnlyHint(context, sessionUri)
+                shura.media.service.PlayerManager.initSessionBackgroundPlayForNewMedia(
+                    isAudioStart,
+                    settingsManager.defaultAudioBackgroundPlay,
+                    sessionMediaId
+                )
 
                 if (pendingQueue != null && pendingQueue.first.isNotEmpty()) {
                     val (queueItems, queueIndex, isImplicit) = pendingQueue
@@ -942,7 +960,8 @@ fun PlayerScreen(
         }
         controller.currentMediaItem?.let { activeItem ->
             activeItem.localConfiguration?.uri?.let { currentMediaUri = it }
-            val activeTitle = activeItem.mediaMetadata.title?.toString()
+            val activeTitle = shura.media.service.PlayerManager.getResolvedTitleForItem(activeItem)
+                ?: activeItem.mediaMetadata.title?.toString()
                 ?: activeItem.mediaMetadata.displayTitle?.toString()
             if (!activeTitle.isNullOrBlank()) {
                 currentMediaTitle = activeTitle
@@ -1016,7 +1035,8 @@ fun PlayerScreen(
                     else -> "UNKNOWN($reason)"
                 }
                 val uri = mediaItem?.localConfiguration?.uri ?: mediaItem?.mediaId?.let { Uri.parse(it) }
-                val title = mediaItem?.mediaMetadata?.title?.toString()
+                val title = shura.media.service.PlayerManager.getResolvedTitleForItem(mediaItem)
+                    ?: mediaItem?.mediaMetadata?.title?.toString()
                 shura.media.LogKeeper.log("PlayerScreen: onMediaItemTransition (reason: $reasonStr)", "PlayerScreen")
                 if (uri != null) {
                     currentMediaUri = uri
@@ -1032,18 +1052,11 @@ fun PlayerScreen(
                     }
                     if (title == null && uri.scheme == "content") {
                         coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                            var resolved: String? = null
-                            try {
-                                context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
-                                    if (cursor.moveToFirst()) {
-                                        val idx = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-                                        if (idx != -1) resolved = cursor.getString(idx)
-                                    }
-                                }
-                            } catch (e: Exception) {}
+                            val resolved = shura.media.data.MediaUriResolver.queryCleanDisplayName(context, uri)
                             if (!resolved.isNullOrBlank()) {
                                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                    currentMediaTitle = resolved!!
+                                    shura.media.service.PlayerManager.updateActiveTitleOverride(uri.toString(), resolved)
+                                    currentMediaTitle = resolved
                                 }
                             }
                         }
@@ -1275,7 +1288,9 @@ fun PlayerScreen(
                     } else if (controller.playbackState == androidx.media3.common.Player.STATE_IDLE || controller.mediaItemCount == 0 || controller.currentMediaItem == null) {
                         shura.media.LogKeeper.log("PlayerScreen ON_RESUME: Controller is in STATE_IDLE or empty, staging re-prepare", "PlayerScreen")
                         val mediaMetadataBuilder = androidx.media3.common.MediaMetadata.Builder()
-                        val fileName = currentMediaTitle.ifEmpty { decodedUri.lastPathSegment ?: "Media" }
+                        val fileName = currentMediaTitle.ifEmpty {
+                            shura.media.data.MediaUriResolver.extractCleanTitleFromUri(decodedUri, "Media")
+                        }
                         mediaMetadataBuilder.setTitle(fileName)
                         mediaMetadataBuilder.setDisplayTitle(fileName)
                         mediaMetadataBuilder.setArtworkUri(decodedUri)
@@ -1897,9 +1912,10 @@ fun PlayerScreen(
                     },
                     backgroundPlayEnabled = backgroundPlayEnabled,
                     onBackgroundPlayClick = {
-                        backgroundPlayEnabled = !backgroundPlayEnabled
-                        shura.media.LogKeeper.log("Background play toggled -> $backgroundPlayEnabled", "PlayerScreen")
-                        Toast.makeText(context, "Background play " + if (backgroundPlayEnabled) "enabled" else "disabled", Toast.LENGTH_SHORT).show()
+                        val nextBg = !backgroundPlayEnabled
+                        shura.media.service.PlayerManager.setBackgroundPlayEnabled(nextBg, userInitiated = true)
+                        shura.media.LogKeeper.log("Background play toggled -> $nextBg", "PlayerScreen")
+                        Toast.makeText(context, "Background play " + if (nextBg) "enabled" else "disabled", Toast.LENGTH_SHORT).show()
                     },
                     resizeMode = resizeMode,
                     onResizeModeClick = {
@@ -2021,7 +2037,7 @@ fun PlayerScreen(
                             shura.media.service.PlayerManager.isPlayerScreenVisible = false
                             shura.media.service.PlayerManager.isFloatingVideoActive = false
                             forceBackgroundPlay.set(true)
-                            backgroundPlayEnabled = true
+                            shura.media.service.PlayerManager.setBackgroundPlayEnabled(true)
                             shura.media.service.PlaybackService.openOverlay(context, videoMode = false)
                             onNavigateBack()
                         } else {
@@ -2036,7 +2052,7 @@ fun PlayerScreen(
                             shura.media.service.PlayerManager.isPlayerScreenVisible = false
                             shura.media.service.PlayerManager.isFloatingVideoActive = !isAudioOnly
                             forceBackgroundPlay.set(true)
-                            backgroundPlayEnabled = true
+                            shura.media.service.PlayerManager.setBackgroundPlayEnabled(true)
                             shura.media.service.PlaybackService.openOverlay(context, videoMode = true)
                             onNavigateBack()
                         } else {

@@ -92,7 +92,7 @@ class MediaWidgetProvider : AppWidgetProvider() {
         val primaryColor = android.graphics.Color.parseColor("#3F51B5")
         val defaultColor = android.graphics.Color.parseColor("#19202D")
         if (player != null && player.mediaItemCount > 0 && player.currentMediaItem != null) {
-            views.setTextViewText(R.id.widget_title, player.currentMediaItem?.mediaMetadata?.title?.toString() ?: "No Media")
+            views.setTextViewText(R.id.widget_title, shura.media.service.PlayerManager.getResolvedTitleForItem(player.currentMediaItem) ?: "No Media")
             if (player.isPlaying) {
                 views.setImageViewResource(R.id.widget_btn_play, R.drawable.ic_widget_pause)
             } else {
@@ -442,12 +442,22 @@ class MediaWidgetProvider : AppWidgetProvider() {
                         if (widgetAction == "PLAY_FILE") {
                             val uriStr = intent.getStringExtra("MEDIA_URI")
                             if (uriStr != null) {
+                                val parsedUri = android.net.Uri.parse(uriStr)
+                                val cleanTitle = shura.media.data.MediaUriResolver.extractCleanTitleFromUri(parsedUri, "Media")
+                                val settings = shura.media.data.SettingsManager.getInstance(context.applicationContext)
+                                val isAudio = shura.media.service.PlayerManager.isAudioOnlyHint(context.applicationContext, parsedUri)
+                                shura.media.service.PlayerManager.initSessionBackgroundPlayForNewMedia(
+                                    isAudio,
+                                    settings.defaultAudioBackgroundPlay,
+                                    uriStr
+                                )
                                 val mediaItem = androidx.media3.common.MediaItem.Builder()
                                     .setUri(uriStr)
                                     .setMediaId(uriStr)
                                     .setMediaMetadata(
                                         androidx.media3.common.MediaMetadata.Builder()
-                                            .setTitle(android.net.Uri.parse(uriStr).lastPathSegment ?: "Unknown")
+                                            .setTitle(cleanTitle)
+                                            .setDisplayTitle(cleanTitle)
                                             .build()
                                     )
                                     .build()

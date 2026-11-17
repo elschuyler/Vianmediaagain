@@ -112,6 +112,82 @@ object PlayerManager {
     @Volatile
     private var isHandlingNaturalEnd: Boolean = false
 
+    private val _backgroundPlayEnabled = MutableStateFlow(false)
+    val backgroundPlayEnabled: StateFlow<Boolean> = _backgroundPlayEnabled.asStateFlow()
+
+    @Volatile
+    private var userOverrodeBackgroundPlay: Boolean = false
+    @Volatile
+    private var appliedAutoBackgroundMediaId: String? = null
+    @Volatile
+    private var activeTitleOverrideMediaId: String? = null
+    @Volatile
+    private var activeTitleOverrideValue: String? = null
+
+    fun initSessionBackgroundPlayForNewMedia(isAudio: Boolean, defaultAudioBackgroundPlay: Boolean, mediaId: String) {
+        userOverrodeBackgroundPlay = false
+        appliedAutoBackgroundMediaId = if (isAudio) mediaId else null
+        val target = if (isAudio) defaultAudioBackgroundPlay else false
+        if (_backgroundPlayEnabled.value != target) {
+            _backgroundPlayEnabled.value = target
+            shura.media.LogKeeper.log("PlayerManager: initSessionBackgroundPlayForNewMedia(isAudio=$isAudio) -> $target", "PlayerManager")
+        }
+    }
+
+    fun applyDefaultAudioBackgroundPlayIfUnset(mediaId: String, defaultAudioBackgroundPlay: Boolean) {
+        if (!userOverrodeBackgroundPlay && appliedAutoBackgroundMediaId != mediaId) {
+            appliedAutoBackgroundMediaId = mediaId
+            if (defaultAudioBackgroundPlay && !_backgroundPlayEnabled.value) {
+                _backgroundPlayEnabled.value = true
+                shura.media.LogKeeper.log("PlayerManager: auto-enabled audio background play", "PlayerManager")
+            }
+        }
+    }
+
+    fun setBackgroundPlayEnabled(enabled: Boolean, userInitiated: Boolean = false) {
+        if (userInitiated) {
+            userOverrodeBackgroundPlay = true
+        }
+        if (_backgroundPlayEnabled.value != enabled) {
+            _backgroundPlayEnabled.value = enabled
+            shura.media.LogKeeper.log("PlayerManager: backgroundPlayEnabled -> $enabled (user=$userInitiated)", "PlayerManager")
+        }
+    }
+
+    fun resetSessionBackgroundPlay() {
+        _backgroundPlayEnabled.value = false
+        userOverrodeBackgroundPlay = false
+        appliedAutoBackgroundMediaId = null
+    }
+
+    fun updateActiveTitleOverride(mediaId: String, cleanTitle: String) {
+        if (mediaId.isBlank() || cleanTitle.isBlank()) return
+        activeTitleOverrideMediaId = mediaId
+        activeTitleOverrideValue = cleanTitle
+        val current = _playbackState.value
+        val currentId = current.mediaItem?.mediaId ?: exoPlayer?.currentMediaItem?.mediaId
+        if (currentId == mediaId && current.currentTitle != cleanTitle) {
+            _playbackState.value = current.copy(currentTitle = cleanTitle)
+        }
+    }
+
+    fun getResolvedTitleForItem(item: MediaItem?): String? {
+        if (item == null) return null
+        val overrideId = activeTitleOverrideMediaId
+        val overrideVal = activeTitleOverrideValue
+        if (!overrideId.isNullOrBlank() && !overrideVal.isNullOrBlank() && item.mediaId == overrideId) {
+            return overrideVal
+        }
+        val metaTitle = item.mediaMetadata.title?.toString()?.takeIf { it.isNotBlank() }
+            ?: item.mediaMetadata.displayTitle?.toString()?.takeIf { it.isNotBlank() }
+        if (metaTitle != null) return metaTitle
+        val uri = item.localConfiguration?.uri ?: item.mediaId.takeIf { it.isNotBlank() }?.let {
+            try { android.net.Uri.parse(it) } catch (_: Exception) { null }
+        }
+        return shura.media.data.MediaUriResolver.extractCleanTitleFromUri(uri, "")
+            .takeIf { it.isNotBlank() }
+    }
+
     @Volatile
     private var stagedPlaybackRequest: PendingPlaybackRequest? = null
 
@@ -205,7 +281,9 @@ object PlayerManager {
         pendingAutoEndedDuration = 0L
         stopProgressTicker()
         if (!uriStr.isNullOrBlank()) {
-            val resolvedTitle = title?.takeIf { it.isNotBlank() } ?: uriStr.substringAfterLast('/')
+            val parsedUri = try { android.net.Uri.parse(uriStr) } catch (_: Exception) { null }
+            val resolvedTitle = title?.takeIf { it.isNotBlank() }
+                ?: shura.media.data.MediaUriResolver.extractCleanTitleFromUri(parsedUri, "Media")
             shura.media.data.SettingsManager.getInstance(ctx)
                 .markAsFinished(uriStr, resolvedTitle, durationMs.coerceAtLeast(1000L))
         }
@@ -338,9 +416,9 @@ object PlayerManager {
                             val uriStr = currentItem?.localConfiguration?.uri?.toString()
                                 ?: currentItem?.mediaId
                                 ?: lastObservedMediaId
-                            val title = currentItem?.mediaMetadata?.title?.toString()
+                            val title = getResolvedTitleForItem(currentItem)
                                 ?: lastObservedTitle
-                                ?: uriStr?.substringAfterLast('/')
+                                ?: uriStr?.let { shura.media.data.MediaUriResolver.cleanDisplayName(it, "Media") }
                             val dur = p.duration.takeIf { it > 0L }
                                 ?: lastObservedDuration.takeIf { it > 0L }
                                 ?: 1000L
@@ -353,8 +431,8 @@ object PlayerManager {
                     if (p != null && item != null) {
                         lastObservedItemIndex = p.currentMediaItemIndex
                         lastObservedMediaId = item.localConfiguration?.uri?.toString() ?: item.mediaId
-                        lastObservedTitle = item.mediaMetadata.title?.toString()
-                            ?: lastObservedMediaId?.substringAfterLast('/')
+                        lastObservedTitle = getResolvedTitleForItem(item)
+                            ?: lastObservedMediaId?.let { shura.media.data.MediaUriResolver.cleanDisplayName(it, "Media") }
                         val dur = p.duration
                         if (dur > 0L) lastObservedDuration = dur
                     }
@@ -426,8 +504,8 @@ object PlayerManager {
                 if (p != null && !isHandlingNaturalEnd) {
                     lastObservedItemIndex = p.currentMediaItemIndex
                     lastObservedMediaId = mediaItem?.localConfiguration?.uri?.toString() ?: mediaItem?.mediaId
-                    lastObservedTitle = mediaItem?.mediaMetadata?.title?.toString()
-                        ?: lastObservedMediaId?.substringAfterLast('/')
+                    lastObservedTitle = getResolvedTitleForItem(mediaItem)
+                        ?: lastObservedMediaId?.let { shura.media.data.MediaUriResolver.cleanDisplayName(it, "Media") }
                     lastObservedDuration = p.duration.takeIf { it > 0L } ?: 0L
                 }
             }
@@ -664,11 +742,11 @@ object PlayerManager {
             return
         }
         val currentItem = player.currentMediaItem
-        val uri = currentItem?.localConfiguration?.uri ?: currentItem?.mediaId?.let { android.net.Uri.parse(it) }
-        val title = currentItem?.mediaMetadata?.title?.toString()
-            ?: currentItem?.mediaMetadata?.displayTitle?.toString()
-            ?: uri?.lastPathSegment
-            ?: ""
+        val uri = currentItem?.localConfiguration?.uri ?: currentItem?.mediaId?.let {
+            try { android.net.Uri.parse(it) } catch (_: Exception) { null }
+        }
+        val title = getResolvedTitleForItem(currentItem)
+            ?: shura.media.data.MediaUriResolver.extractCleanTitleFromUri(uri, "")
 
         val previous = _playbackState.value
         val playlist = if (rebuildPlaylist || previous.playlist.size != player.mediaItemCount) {
@@ -754,7 +832,8 @@ object PlayerManager {
             val uriStr = uri.toString()
             val pos = player.currentPosition
             val dur = player.duration
-            val title = currentItem.mediaMetadata.title?.toString() ?: uri.lastPathSegment ?: ""
+            val title = getResolvedTitleForItem(currentItem)
+                ?: shura.media.data.MediaUriResolver.extractCleanTitleFromUri(uri, "")
             val ctx = appContext ?: return
 
             if (pos > 0L) {
@@ -834,6 +913,9 @@ object PlayerManager {
         pendingQueueItems = null
         pendingQueueIndex = 0
         pendingQueueIsImplicit = true
+        activeTitleOverrideMediaId = null
+        activeTitleOverrideValue = null
+        resetSessionBackgroundPlay()
     }
 
     private var pendingQueueItems: List<MediaItem>? = null

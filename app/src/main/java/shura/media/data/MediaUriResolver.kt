@@ -16,6 +16,113 @@ import java.io.InputStream
 
 object MediaUriResolver {
 
+    private val SAF_VOLUME_PREFIX_REGEX = Regex(
+        """^(?:primary|home|raw|document|documents|tree|msf|downloads|video|audio|image|[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}):(.*)$""",
+        RegexOption.IGNORE_CASE
+    )
+
+    private val EXTRA_STRIP_EXTENSIONS: Set<String> = setOf(
+        "m4r", "mpg4", "mpeg4", "mpe", "mpv", "nsv", "roq", "svi", "viv", "yuv",
+        "mka", "mks", "tta", "wv", "mpc", "ofr", "ofs", "spx", "tak", "weba",
+        "bin", "tmp", "part", "crdownload", "download"
+    )
+
+    fun cleanDisplayName(rawName: String?, fallback: String = "Media"): String {
+        if (rawName.isNullOrBlank()) return fallback
+        var cleaned = try {
+            Uri.decode(rawName)
+        } catch (_: Exception) {
+            rawName
+        }.trim()
+        cleaned = cleaned.substringBefore('?').substringBefore('#').trim()
+
+        val prefixMatch = SAF_VOLUME_PREFIX_REGEX.matchEntire(cleaned)
+        if (prefixMatch != null) {
+            cleaned = prefixMatch.groupValues[1]
+        }
+        cleaned = cleaned.substringAfterLast('/').substringAfterLast('\\').trim()
+
+        val innerPrefixMatch = SAF_VOLUME_PREFIX_REGEX.matchEntire(cleaned)
+        if (innerPrefixMatch != null) {
+            cleaned = innerPrefixMatch.groupValues[1].trim()
+        }
+        if (cleaned.isBlank()) return fallback
+
+        val lastDot = cleaned.lastIndexOf('.')
+        if (lastDot > 0 && lastDot < cleaned.length - 1) {
+            val extLower = cleaned.substring(lastDot + 1).lowercase(java.util.Locale.ROOT)
+            val isKnownExt = extLower in COMMON_VIDEO_EXTENSIONS ||
+                extLower in COMMON_AUDIO_EXTENSIONS ||
+                extLower in COMMON_IMAGE_EXTENSIONS ||
+                extLower in COMMON_SUBTITLE_EXTENSIONS ||
+                extLower in EXTRA_STRIP_EXTENSIONS
+            if (isKnownExt) {
+                val base = cleaned.substring(0, lastDot).trim()
+                if (base.isNotEmpty()) {
+                    cleaned = base
+                }
+            }
+        }
+        return cleaned.ifBlank { fallback }
+    }
+
+    fun extractCleanTitleFromUri(uri: Uri?, fallback: String = "Media"): String {
+        if (uri == null) return fallback
+        val scheme = uri.scheme?.lowercase(java.util.Locale.ROOT)
+        if (scheme == "file" || scheme == null || uri.path?.startsWith("/") == true) {
+            val path = try { Uri.decode(uri.path ?: "") } catch (_: Exception) { uri.path ?: "" }
+            if (path.isNotBlank()) {
+                return cleanDisplayName(path, fallback)
+            }
+        }
+        val lastSeg = uri.lastPathSegment
+        if (!lastSeg.isNullOrBlank()) {
+            val candidate = cleanDisplayName(lastSeg, "")
+            if (candidate.isNotBlank()) return candidate
+        }
+        val path = uri.path
+        if (!path.isNullOrBlank()) {
+            val candidate = cleanDisplayName(path, "")
+            if (candidate.isNotBlank()) return candidate
+        }
+        return uri.host?.takeIf { it.isNotBlank() } ?: fallback
+    }
+
+    fun queryCleanDisplayName(context: Context, uri: Uri?): String? {
+        if (uri == null) return null
+        val scheme = uri.scheme?.lowercase(java.util.Locale.ROOT)
+        if (scheme == "file" || scheme == null || uri.path?.startsWith("/") == true) {
+            val decodedPath = try { Uri.decode(uri.path ?: "") } catch (_: Exception) { uri.path ?: "" }
+            val fileName = File(decodedPath).name
+            if (fileName.isNotBlank()) {
+                return cleanDisplayName(fileName)
+            }
+        }
+        if (scheme == "content") {
+            val columns = arrayOf(
+                OpenableColumns.DISPLAY_NAME,
+                MediaStore.MediaColumns.DISPLAY_NAME,
+                DocumentsContract.Document.COLUMN_DISPLAY_NAME
+            )
+            for (col in columns) {
+                try {
+                    context.contentResolver.query(uri, arrayOf(col), null, null, null)?.use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            val idx = cursor.getColumnIndex(col)
+                            if (idx != -1) {
+                                val raw = cursor.getString(idx)
+                                if (!raw.isNullOrBlank()) {
+                                    return cleanDisplayName(raw)
+                                }
+                            }
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+        }
+        return null
+    }
+
     /**
      * Checks whether the given URI can be opened directly by ContentResolver.
      */

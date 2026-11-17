@@ -299,3 +299,25 @@
 * Any deviation from what was requested: None.
 * Any known issue or follow-up needed: Push/export to GitHub Actions to run `assembleDebug` and `assembleMinifiedDebug` (including R8 + `lintVitalMinifiedDebug`), then run the On-Device Verification Guide on the resulting APK.
 
+## Phase 149: PlaybackService Loop OOM Fix, LogCatcher Bounded Rotation (Option B), 5-Min Pause Grace, Background Play Persistence & External Filename Cleanup
+* Timestamp: 2026-11-17T09:55:00Z
+* One-line summary: Eliminated the `PlaybackService.onStartCommand` `cmd == null` feedback OOM crash loop, hardened `LogCatcher` with bounded batched disk I/O + coalescing + Option B capped error-preserving Downloads rotation, added 5-minute paused notification foreground grace, persisted session `backgroundPlayEnabled` across notification/overlay transitions, and cleaned external URIs to display filenames without extensions.
+* Files touched:
+  - BLUEPRINT.md
+  - app/src/main/java/shura/media/LogCatcher.kt
+  - app/src/main/java/shura/media/data/MediaUriResolver.kt
+  - app/src/main/java/shura/media/service/PlayerManager.kt
+  - app/src/main/java/shura/media/service/PlaybackService.kt
+  - app/src/main/java/shura/media/ui/PlayerActivity.kt
+  - app/src/main/java/shura/media/ui/screens/PlayerScreen.kt
+  - app/src/main/java/shura/media/MainActivity.kt
+  - app/src/main/java/shura/media/widget/MediaWidgetProvider.kt
+  - receipts/RECEIPTS_031.md
+* What was actually done:
+  - `PlaybackService.kt`: Removed the `else if (... playWhenReady == true) promoteSessionNotificationNow(true)` fallback branch for `cmd == null` inside `onStartCommand()`, gated `onStartCommand` logging to non-null commands, tagged `applyStagedPlaybackOrStart()` intents with `"ACTION_APPLY_STAGED"`, added 5-minute `pauseGraceJob` (`PAUSE_GRACE_DURATION_MS = 300_000L`) with `onUpdateNotification(session, startInForegroundRequired)` override keeping paused notifications foregrounded for 5 minutes before clean detachment/stop, reset session background play on close/natural end/timer expiry, and used `PlayerManager.getResolvedTitleForItem` / `MediaUriResolver.extractCleanTitleFromUri` for notification, widget, and `ACTION_PLAY_FILE`.
+  - `LogCatcher.kt` (Option B): Replaced per-line `diskScope.launch` + `toList()` allocations with bounded `Channel<LogEntry>(capacity = 512, DROP_OLDEST)`, single `BufferedWriter` batch loop (`DISK_BATCH_MAX = 64`), 2000ms consecutive duplicate coalescing + 250ms UI flow throttling, 2 MB compaction preserving `ERROR`/`CRASH` blocks ±15 lines + 250-block tail, 10s auto-dump cooldown with in-place compaction, and Downloads auto-dump capping (`MAX_AUTO_DUMP_FILES = 3`, hard cap `6` when all contain errors; never deleting `Vianbrplay_crash_*` or manual `Vianbrplay_logs_*`).
+  - `MediaUriResolver.kt`, `PlayerManager.kt`, `PlayerActivity.kt`, `PlayerScreen.kt`, `MainActivity.kt`, `MediaWidgetProvider.kt`: Added `cleanDisplayName`, `extractCleanTitleFromUri`, and `queryCleanDisplayName` (decoding URIs, stripping SAF volume prefixes & directories, and hiding known media extensions); hoisted `backgroundPlayEnabled: StateFlow<Boolean>` and `updateActiveTitleOverride` into `PlayerManager`; updated audio detection to check `isAudioOnlyHint` / `tracksVideoSupport == false` (`file://` audio included); prioritized active `mediaId` on notification/widget reentry so Background Play persists across Main <-> Floating <-> Mini <-> Notification transitions; and dispatched immediate UI title updates on IO resolution without waiting 2s for `STATE_READY`.
+* How it was verified: Static verification only — Python delimiter tokenizer verified balanced `curly=0, paren=0, bracket=0` across all 8 modified `.kt` files; targeted `grep` audit verified removal of the `cmd == null` `promoteSessionNotificationNow` feedback branch, presence of 5-minute grace timer, Option B LogCatcher methods, hoisted `backgroundPlayEnabled` Flow, and clean workspace security scan; `compile_applet` and `lint_applet` executed for workspace toolchain verification. Local `./gradlew` / Android SDK is absent; Android Gradle compilation (`assembleDebug` / `assembleMinifiedDebug`) runs on GitHub Actions CI after export and on-device testing has not run.
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: Push/export to GitHub Actions to verify `assembleDebug` & `assembleMinifiedDebug` and run the On-Device Verification Guide across `LogCatcher` memory/Downloads retention, 5-minute paused notification window, Background Play reentry persistence, and external SAF/content URI filenames.
+

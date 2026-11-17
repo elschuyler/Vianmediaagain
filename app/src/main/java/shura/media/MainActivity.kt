@@ -127,10 +127,7 @@ class MainActivity : ComponentActivity() {
       if (isMini) {
           val mediaItems = uris.map { uriStr ->
               val uri = android.net.Uri.parse(uriStr)
-              val fastName = try {
-                  val seg = uri.lastPathSegment?.let { android.net.Uri.decode(it) }
-                  seg?.substringBeforeLast('.')?.ifBlank { null } ?: "Media"
-              } catch (_: Exception) { "Media" }
+              val fastName = shura.media.data.MediaUriResolver.extractCleanTitleFromUri(uri, "Media")
               androidx.media3.common.MediaItem.Builder()
                   .setUri(uri)
                   .setMediaId(uriStr)
@@ -168,9 +165,10 @@ class MainActivity : ComponentActivity() {
           }
 
           // Auto-save playlist snapshot to Room database
+          val appCtx = applicationContext
           kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
               try {
-                  val db = shura.media.data.AppDatabase.getDatabase(applicationContext)
+                  val db = shura.media.data.AppDatabase.getDatabase(appCtx)
                   val playlistRepo = shura.media.data.PlaylistRepository(db.playlistDao())
                   playlistRepo.saveOrUpdateTemporaryPlaylist(existingUrisSnapshot)
               } catch (e: Exception) {
@@ -179,6 +177,7 @@ class MainActivity : ComponentActivity() {
           }
 
           if (android.provider.Settings.canDrawOverlays(this)) {
+              shura.media.service.PlayerManager.setBackgroundPlayEnabled(true)
               shura.media.service.PlayerManager.stagePlaybackRequest(
                   mediaItems = mediaItems,
                   startIndex = 0,
@@ -187,6 +186,46 @@ class MainActivity : ComponentActivity() {
                   appendIfActive = hasActivePlayback
               )
               shura.media.service.PlaybackService.openOverlay(this, videoMode = false)
+
+              val firstItem = mediaItems.first()
+              val firstUri = firstItem.localConfiguration?.uri
+              val firstFastName = firstItem.mediaMetadata.title?.toString() ?: "Media"
+              if (firstUri?.scheme == "content") {
+                  kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                      val resolvedName = shura.media.data.MediaUriResolver.queryCleanDisplayName(appCtx, firstUri)
+                      if (!resolvedName.isNullOrBlank() && resolvedName != firstFastName) {
+                          kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                              shura.media.service.PlayerManager.updateActiveTitleOverride(firstItem.mediaId, resolvedName)
+                          }
+                          var waitedMs = 0L
+                          while (waitedMs < 2000L) {
+                              val ready = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                  val p = shura.media.service.PlayerManager.exoPlayer
+                                  p != null && p.currentMediaItem?.mediaId == firstItem.mediaId &&
+                                      p.playbackState == androidx.media3.common.Player.STATE_READY
+                              }
+                              if (ready) break
+                              kotlinx.coroutines.delay(100L)
+                              waitedMs += 100L
+                          }
+                          kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                              val p = shura.media.service.PlayerManager.exoPlayer
+                              val cur = p?.currentMediaItem
+                              if (p != null && cur?.mediaId == firstItem.mediaId) {
+                                  val updatedMeta = cur.mediaMetadata.buildUpon()
+                                      .setTitle(resolvedName)
+                                      .setDisplayTitle(resolvedName)
+                                      .build()
+                                  p.replaceMediaItem(
+                                      p.currentMediaItemIndex,
+                                      cur.buildUpon().setMediaMetadata(updatedMeta).build()
+                                  )
+                              }
+                          }
+                      }
+                  }
+              }
+
               finish()
               return true
           } else {
@@ -208,10 +247,7 @@ class MainActivity : ComponentActivity() {
       } else if (isPip) {
           val targetUriStr = uris.first()
           val targetUri = android.net.Uri.parse(targetUriStr)
-          val displayName = try {
-              val seg = targetUri.lastPathSegment?.let { android.net.Uri.decode(it) }
-              seg?.substringBeforeLast('.')?.ifBlank { null } ?: "Video"
-          } catch (_: Exception) { "Video" }
+          val displayName = shura.media.data.MediaUriResolver.extractCleanTitleFromUri(targetUri, "Video")
 
           if (android.provider.Settings.canDrawOverlays(this)) {
               val mediaItem = androidx.media3.common.MediaItem.Builder()
@@ -230,6 +266,7 @@ class MainActivity : ComponentActivity() {
               val lastPos = settings.getPlaybackPosition(targetUriStr, displayName)
               val startPos = if (lastPos > 0 && !settings.isFinished(targetUriStr, displayName)) lastPos else 0L
 
+              shura.media.service.PlayerManager.setBackgroundPlayEnabled(true)
               shura.media.service.PlayerManager.stagePlaybackRequest(
                   mediaItems = listOf(mediaItem),
                   startIndex = 0,
@@ -238,6 +275,44 @@ class MainActivity : ComponentActivity() {
                   appendIfActive = false
               )
               shura.media.service.PlaybackService.openOverlay(this, videoMode = true)
+
+              if (targetUri.scheme == "content") {
+                  val appCtx = applicationContext
+                  kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                      val resolvedName = shura.media.data.MediaUriResolver.queryCleanDisplayName(appCtx, targetUri)
+                      if (!resolvedName.isNullOrBlank() && resolvedName != displayName) {
+                          kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                              shura.media.service.PlayerManager.updateActiveTitleOverride(targetUriStr, resolvedName)
+                          }
+                          var waitedMs = 0L
+                          while (waitedMs < 2000L) {
+                              val ready = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                  val p = shura.media.service.PlayerManager.exoPlayer
+                                  p != null && p.currentMediaItem?.mediaId == targetUriStr &&
+                                      p.playbackState == androidx.media3.common.Player.STATE_READY
+                              }
+                              if (ready) break
+                              kotlinx.coroutines.delay(100L)
+                              waitedMs += 100L
+                          }
+                          kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                              val p = shura.media.service.PlayerManager.exoPlayer
+                              val cur = p?.currentMediaItem
+                              if (p != null && cur?.mediaId == targetUriStr) {
+                                  val updatedMeta = cur.mediaMetadata.buildUpon()
+                                      .setTitle(resolvedName)
+                                      .setDisplayTitle(resolvedName)
+                                      .build()
+                                  p.replaceMediaItem(
+                                      p.currentMediaItemIndex,
+                                      cur.buildUpon().setMediaMetadata(updatedMeta).build()
+                                  )
+                              }
+                          }
+                      }
+                  }
+              }
+
               finish()
               return true
           } else {

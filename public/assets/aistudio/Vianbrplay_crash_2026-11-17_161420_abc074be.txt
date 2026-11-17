@@ -1,0 +1,276 @@
+                    ==============================
+                    Vianbrplay Crash Dump - 2026-11-17_161420
+                    Message: Failed to allocate a 32 byte allocation with 1264240 free bytes and 1234KB until OOM, target footprint 134217728, growth limit 134217728; giving up on allocation because <1% of heap free after GC.
+                    ==============================
+                    Stacktrace:
+                    java.lang.OutOfMemoryError: Failed to allocate a 32 byte allocation with 1264240 free bytes and 1234KB until OOM, target footprint 134217728, growth limit 134217728; giving up on allocation because <1% of heap free after GC.
+	at sc.n(SourceFile:953)
+	at ck.e(SourceFile:8)
+	at p80.run(SourceFile:114)
+	at wp0.run(SourceFile:38)
+	at fq2.run(SourceFile:3)
+	at v10.run(SourceFile:88)
+	Suppressed: s70: [xk2{Cancelling}@fd98600, Dispatchers.IO]
+
+                    ==============================
+                    Recent Logs (250 entries):
+                    [16:14:09.229] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:09.238] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:09.246] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:09.253] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:09.261] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:09.270] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:09.279] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:09.288] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:09.298] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:09.306] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:09.717] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:09.730] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:09.787] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:09.809] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:09.834] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:09.846] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:09.853] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:09.872] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:09.896] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:09.918] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:09.927] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:09.939] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:09.950] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:09.961] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:09.969] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:09.984] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:09.997] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.010] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.021] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.031] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.048] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.058] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.069] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.078] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.087] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.095] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.106] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.116] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.125] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.136] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.615] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.660] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.682] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.697] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.714] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.732] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.757] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.770] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.784] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.797] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.807] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.815] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.825] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.838] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.851] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.863] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.873] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.883] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.893] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.903] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.912] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.921] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.930] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.940] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.949] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.958] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.968] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.978] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:10.993] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:11.004] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:11.490] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:11.639] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:11.652] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:11.662] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:11.671] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:11.683] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:11.691] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:11.701] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:11.722] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:11.732] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:11.741] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:11.753] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:11.762] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:11.772] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:11.784] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:11.794] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:11.803] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:11.812] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:12.317] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:12.471] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:12.482] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:12.493] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:12.504] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:12.513] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:12.523] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:12.533] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:12.543] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:12.551] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:12.560] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:12.569] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.348] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.377] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.391] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.413] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.426] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.440] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.457] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.471] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.502] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.515] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.525] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.539] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.552] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.572] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.587] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.605] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.615] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.626] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.639] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.649] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.660] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.676] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.687] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.698] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.708] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.722] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.736] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.753] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.762] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.771] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.784] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.803] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.813] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.821] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.833] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.844] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.854] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.863] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.874] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.888] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.897] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.905] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.913] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.921] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.929] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.937] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:13.944] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:14.575] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:14.587] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:14.604] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:14.614] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:14.624] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:14.638] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:14.651] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:14.668] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:14.688] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:14.711] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:14.724] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:14.743] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:14.757] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:14.770] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:14.780] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:14.787] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:14.801] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:14.817] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:14.827] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:14.837] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:14.850] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:14.862] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:14.875] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:14.889] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:14.900] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:14.915] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:14.932] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:14.942] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:14.954] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:14.964] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:14.974] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:14.982] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:14.994] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:15.006] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:15.017] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:15.026] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:15.036] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:15.045] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:15.054] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:15.063] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:15.073] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:15.084] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:15.095] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:15.106] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:15.115] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:15.123] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:15.133] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:15.143] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:15.736] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:15.796] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:15.834] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:15.852] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:15.871] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:15.889] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:15.904] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:15.917] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:15.929] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:15.943] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:15.968] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:15.980] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:15.996] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:16.010] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:16.022] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:16.034] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:16.045] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:16.056] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:16.067] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:16.082] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:16.096] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:16.109] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:16.122] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:16.136] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:16.149] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:16.164] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:16.176] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:16.697] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:17.590] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:17.606] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:17.632] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:17.645] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:17.665] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:17.678] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:18.057] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:18.071] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:18.155] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:18.173] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:19.750] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:19.762] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:19.788] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:19.809] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:19.821] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:19.831] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:19.840] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:19.856] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:19.864] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:19.873] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:19.882] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:19.891] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:19.908] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:19.925] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:19.937] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:19.948] [PlaybackService] PlaybackService onStartCommand with command: null
+[16:14:20.644] ERROR [CRASH]: Uncaught exception in thread DefaultDispatcher-worker-36
+java.lang.OutOfMemoryError: Failed to allocate a 32 byte allocation with 1264240 free bytes and 1234KB until OOM, target footprint 134217728, growth limit 134217728; giving up on allocation because <1% of heap free after GC.
+	at sc.n(SourceFile:953)
+	at ck.e(SourceFile:8)
+	at p80.run(SourceFile:114)
+	at wp0.run(SourceFile:38)
+	at fq2.run(SourceFile:3)
+	at v10.run(SourceFile:88)
+	Suppressed: s70: [xk2{Cancelling}@fd98600, Dispatchers.IO]
+
+                    ==============================

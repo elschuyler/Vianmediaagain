@@ -65,10 +65,82 @@ private var isClosingOnEnd = false
 private var isServiceStopping = false
 @Volatile
 private var isServiceDestroying = false
+private var pauseGraceJob: Job? = null
+@Volatile
+private var isWithinPauseGraceWindow: Boolean = false
 
 private fun requestStopSelf() {
     isServiceStopping = true
     stopSelf()
+}
+
+private fun cancelPauseGraceTimer() {
+    pauseGraceJob?.cancel()
+    pauseGraceJob = null
+    isWithinPauseGraceWindow = false
+}
+
+private fun startPauseGraceTimerIfNeeded() {
+    if (isServiceDestroying || isServiceStopping || isClosingOnEnd) return
+    val player = PlayerManager.exoPlayer ?: return
+    if (player.mediaItemCount == 0 ||
+        player.playbackState == Player.STATE_ENDED ||
+        player.playbackState == Player.STATE_IDLE ||
+        player.isPlaying ||
+        player.playWhenReady
+    ) {
+        return
+    }
+    if (pauseGraceJob?.isActive == true) return
+    isWithinPauseGraceWindow = true
+    shura.media.LogKeeper.log("PlaybackService: Starting 5-minute pause grace timer", "PlaybackService")
+    pauseGraceJob = serviceScope.launch(Dispatchers.Main) {
+        delay(PAUSE_GRACE_DURATION_MS)
+        pauseGraceJob = null
+        val currentPlayer = PlayerManager.exoPlayer
+        if (isServiceDestroying || isServiceStopping || isClosingOnEnd ||
+            currentPlayer == null || currentPlayer.mediaItemCount == 0 ||
+            currentPlayer.isPlaying || currentPlayer.playWhenReady
+        ) {
+            isWithinPauseGraceWindow = false
+            return@launch
+        }
+        if (PlayerManager.isPlayerScreenVisible || composeView != null) {
+            shura.media.LogKeeper.log("PlaybackService: 5-minute pause grace expired with UI active -> clearing foreground lock only", "PlaybackService")
+            isWithinPauseGraceWindow = false
+            promoteSessionNotificationNow(forceForeground = false)
+        } else {
+            shura.media.LogKeeper.log("PlaybackService: 5-minute pause grace expired in background -> releasing playback & notification", "PlaybackService")
+            isWithinPauseGraceWindow = false
+            PlayerManager.flushProgressToStorage()
+            PlayerManager.resetSessionBackgroundPlay()
+            resetSessionFloatingState()
+            try { currentPlayer.playWhenReady = false } catch (_: Exception) {}
+            try { currentPlayer.stop() } catch (_: Exception) {}
+            try { currentPlayer.clearVideoSurface() } catch (_: Exception) {}
+            try { currentPlayer.clearMediaItems() } catch (_: Exception) {}
+            try {
+                androidx.core.app.ServiceCompat.stopForeground(this@PlaybackService, androidx.core.app.ServiceCompat.STOP_FOREGROUND_REMOVE)
+                cancelMediaNotifications()
+            } catch (_: Exception) {}
+            updateWidgetUI()
+            requestStopSelf()
+        }
+    }
+}
+
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+override fun onUpdateNotification(session: MediaSession, startInForegroundRequired: Boolean) {
+    val player = PlayerManager.exoPlayer
+    val keepPausedForeground = isWithinPauseGraceWindow &&
+        !isServiceDestroying &&
+        !isServiceStopping &&
+        !isClosingOnEnd &&
+        player != null &&
+        player.mediaItemCount > 0 &&
+        player.playbackState != Player.STATE_IDLE &&
+        player.playbackState != Player.STATE_ENDED
+    super.onUpdateNotification(session, startInForegroundRequired || keepPausedForeground)
 }
 
 private fun isSelfController(controller: MediaSession.ControllerInfo): Boolean {
@@ -150,7 +222,7 @@ private fun ensureForegroundNotificationSlotForOverlayStart(abortAfterSatisfying
             }
         }
         val contentText = if (player != null && player.mediaItemCount > 0) {
-            player.currentMediaItem?.mediaMetadata?.title?.toString() ?: "Playback ready"
+            PlayerManager.getResolvedTitleForItem(player.currentMediaItem) ?: "Playback ready"
         } else {
             "Player ready"
         }
@@ -179,6 +251,7 @@ internal fun applyStagedPlaybackRequest() {
     val req = PlayerManager.consumeStagedPlaybackRequest() ?: return
     val player = PlayerManager.exoPlayer ?: return
     if (req.mediaItems.isEmpty()) return
+    cancelPauseGraceTimer()
     isServiceStopping = false
     isClosingOnEnd = false
     decoderServiceRetryCount = 0
@@ -355,10 +428,13 @@ PlayerManager.exoPlayer?.addListener(object : Player.Listener {
 override fun onIsPlayingChanged(isPlaying: Boolean) {
     shura.media.LogKeeper.log("PlaybackService: onIsPlayingChanged = $isPlaying", "PlaybackService")
     if (isPlaying) {
+        cancelPauseGraceTimer()
         isClosingOnEnd = false
         if ((PlayerManager.exoPlayer?.mediaItemCount ?: 0) > 0) {
             promoteSessionNotificationNow(forceForeground = false)
         }
+    } else if (PlayerManager.exoPlayer?.playWhenReady == false) {
+        startPauseGraceTimerIfNeeded()
     }
     updateWidgetUI()
 }
@@ -555,7 +631,10 @@ override fun onPlaybackStateChanged(playbackState: Int) {
 override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
     shura.media.LogKeeper.log("PlaybackService: onPlayWhenReadyChanged = $playWhenReady, reason = $reason", "PlaybackService")
     if (playWhenReady && (PlayerManager.exoPlayer?.mediaItemCount ?: 0) > 0) {
+        cancelPauseGraceTimer()
         promoteSessionNotificationNow(forceForeground = true)
+    } else if (!playWhenReady) {
+        startPauseGraceTimerIfNeeded()
     }
 }
 })
@@ -598,7 +677,8 @@ val forwardingPlayer = object : androidx.media3.common.ForwardingPlayer(rawPlaye
     override fun getMediaMetadata(): androidx.media3.common.MediaMetadata {
         val base = super.getMediaMetadata()
         val currentItem = currentMediaItem
-        val needsTitle = base.title.isNullOrBlank()
+        val resolvedTitle = PlayerManager.getResolvedTitleForItem(currentItem)
+        val needsTitle = base.title.isNullOrBlank() || (resolvedTitle != null && base.title.toString() != resolvedTitle)
         val needsArtwork = base.artworkUri == null && base.artworkData == null
         if (!needsTitle && !needsArtwork) {
             return base
@@ -607,10 +687,7 @@ val forwardingPlayer = object : androidx.media3.common.ForwardingPlayer(rawPlaye
             ?: currentItem?.mediaId?.let { id -> try { android.net.Uri.parse(id) } catch (_: Exception) { null } }
         val builder = base.buildUpon()
         if (needsTitle) {
-            val itemTitle = currentItem?.mediaMetadata?.title?.takeIf { !it.isNullOrBlank() }
-                ?: currentItem?.mediaMetadata?.displayTitle?.takeIf { !it.isNullOrBlank() }
-                ?: currentItem?.mediaId?.substringAfterLast('/')?.takeIf { it.isNotBlank() }
-                ?: "Vian Media"
+            val itemTitle = resolvedTitle ?: "Vian Media"
             builder.setTitle(itemTitle)
                 .setDisplayTitle(itemTitle)
                 .setArtist("Vian Media")
@@ -730,9 +807,13 @@ if (customCommand.customAction == "SET_BOOST_GAIN") {
 }
 
 if (customCommand.customAction == "ACTION_CLOSE") {
+    cancelPauseGraceTimer()
+    PlayerManager.flushProgressToStorage()
+    PlayerManager.resetSessionBackgroundPlay()
     val player = session.player
     player.playWhenReady = false
     player.stop()
+    player.clearVideoSurface()
     player.clearMediaItems()
     resetSessionFloatingState()
     hideOverlay()
@@ -741,7 +822,7 @@ if (customCommand.customAction == "ACTION_CLOSE") {
         cancelMediaNotifications()
     } catch (_: Exception) {}
     updateWidgetUI()
-    stopSelf()
+    requestStopSelf()
     return Futures.immediateFuture(androidx.media3.session.SessionResult(androidx.media3.session.SessionResult.RESULT_SUCCESS))
 }
 
@@ -1410,7 +1491,9 @@ composeView = null
         isServiceStopping = false
         applyStagedPlaybackRequest()
         val cmd = intent?.getStringExtra("command")
-        shura.media.LogKeeper.log("PlaybackService onStartCommand with command: $cmd", "PlaybackService")
+        if (cmd != null) {
+            shura.media.LogKeeper.log("PlaybackService onStartCommand with command: $cmd", "PlaybackService")
+        }
         if (cmd == "ACTION_VIDEO_OVERLAY") {
             if (android.provider.Settings.canDrawOverlays(this)) {
                 ensureForegroundNotificationSlotForOverlayStart(abortAfterSatisfyingContract = false)
@@ -1433,8 +1516,6 @@ composeView = null
             }
         } else if (cmd == "ACTION_HIDE_OVERLAY") {
             hideOverlay()
-        } else if ((PlayerManager.exoPlayer?.mediaItemCount ?: 0) > 0 && PlayerManager.exoPlayer?.playWhenReady == true) {
-            promoteSessionNotificationNow(forceForeground = true)
         }
         return super.onStartCommand(intent, flags, startId)
     }
@@ -1442,9 +1523,11 @@ composeView = null
     private fun handleNaturalPlaybackEndClose() {
         if (isClosingOnEnd) return
         isClosingOnEnd = true
+        cancelPauseGraceTimer()
         isRecoveringCodecError = false
         codecRecoveryJob?.cancel()
         shura.media.LogKeeper.log("Playback ended with repeatMode OFF -> closing overlay/service & resetting widget", "PlaybackService")
+        PlayerManager.resetSessionBackgroundPlay()
         hideOverlay()
         resetSessionFloatingState()
         val player = PlayerManager.exoPlayer
@@ -1466,6 +1549,7 @@ composeView = null
         shura.media.LogKeeper.log("PlaybackService onDestroy: cleaning up notification, session, and owned player", "PlaybackService")
         isServiceDestroying = true
         isServiceStopping = true
+        cancelPauseGraceTimer()
         codecRecoveryJob?.cancel()
         codecRecoveryJob = null
         isRecoveringCodecError = false
@@ -1506,7 +1590,7 @@ composeView = null
             for (appWidgetId in appWidgetIds) {
                 val views = android.widget.RemoteViews(packageName, shura.media.R.layout.widget_media)
                 if (hasActiveItem && player != null) {
-                    views.setTextViewText(shura.media.R.id.widget_title, player.currentMediaItem?.mediaMetadata?.title?.toString() ?: "No Media")
+                    views.setTextViewText(shura.media.R.id.widget_title, PlayerManager.getResolvedTitleForItem(player.currentMediaItem) ?: "No Media")
                     views.setImageViewResource(shura.media.R.id.widget_btn_play, if (player.isPlaying) shura.media.R.drawable.ic_widget_pause else shura.media.R.drawable.ic_widget_play)
                     val duration = player.duration
                     val position = player.currentPosition.coerceAtLeast(0L)
@@ -1545,6 +1629,9 @@ composeView = null
                 "ACTION_HIDE_OVERLAY" -> hideOverlay()
                 "ACTION_CLOSE" -> {
                     shura.media.LogKeeper.log("ACTION_CLOSE received -> stopping and removing notification", "PlaybackService")
+                    cancelPauseGraceTimer()
+                    PlayerManager.flushProgressToStorage()
+                    PlayerManager.resetSessionBackgroundPlay()
                     try {
                         androidx.core.app.ServiceCompat.stopForeground(this@PlaybackService, androidx.core.app.ServiceCompat.STOP_FOREGROUND_REMOVE)
                         cancelMediaNotifications()
@@ -1603,7 +1690,10 @@ composeView = null
                         } else {
                             val resolvedUri = shura.media.data.MediaUriResolver.resolveToPlayableUri(applicationContext, rawUri!!)
                             val resolvedStr = resolvedUri.toString()
-                            val fileName = rawUri.lastPathSegment ?: resolvedUri.lastPathSegment ?: "Unknown"
+                            val fileName = shura.media.data.MediaUriResolver.extractCleanTitleFromUri(
+                                rawUri,
+                                shura.media.data.MediaUriResolver.extractCleanTitleFromUri(resolvedUri, "Media")
+                            )
                             val mediaItem = androidx.media3.common.MediaItem.Builder()
                                 .setUri(resolvedUri)
                                 .setMediaId(resolvedStr)
@@ -1615,6 +1705,8 @@ composeView = null
                                 )
                                 .build()
                             val settings = shura.media.data.SettingsManager.getInstance(applicationContext)
+                            val isAudio = PlayerManager.isAudioOnlyHint(applicationContext, resolvedUri) || PlayerManager.isAudioOnlyHint(applicationContext, rawUri)
+                            PlayerManager.initSessionBackgroundPlayForNewMedia(isAudio, settings.defaultAudioBackgroundPlay, resolvedStr)
                             val lastPos = settings.getPlaybackPosition(resolvedStr, fileName)
                             val startPos = if (lastPos > 0 && !settings.isFinished(resolvedStr, fileName)) lastPos else 0L
                             player.setMediaItem(mediaItem, startPos)
@@ -1629,6 +1721,8 @@ composeView = null
     }
 
     companion object {
+        private const val PAUSE_GRACE_DURATION_MS = 5 * 60 * 1000L
+
         @Volatile
         internal var instance: PlaybackService? = null
 
@@ -1640,6 +1734,7 @@ composeView = null
                         inst.isServiceStopping = false
                         try {
                             val intent = android.content.Intent(context.applicationContext, PlaybackService::class.java).apply {
+                                putExtra("command", "ACTION_APPLY_STAGED")
                                 addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                             }
                             context.applicationContext.startService(intent)
@@ -1649,6 +1744,7 @@ composeView = null
                 } else {
                     try {
                         val intent = android.content.Intent(context.applicationContext, PlaybackService::class.java).apply {
+                            putExtra("command", "ACTION_APPLY_STAGED")
                             addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                         }
                         context.applicationContext.startService(intent)
@@ -1713,8 +1809,10 @@ composeView = null
                 val inst = instance
                 if (inst != null) {
                     try {
+                        inst.cancelPauseGraceTimer()
                         inst.codecRecoveryJob?.cancel()
                         inst.isRecoveringCodecError = false
+                        PlayerManager.resetSessionBackgroundPlay()
                         inst.hideOverlay()
                         inst.resetSessionFloatingState()
                         val player = PlayerManager.exoPlayer
