@@ -41,13 +41,13 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         folders.flatMap { it.mediaItems }
     }.stateIn(
         scope = viewModelScope,
-        started = SharingStarted.Eagerly,
+        started = SharingStarted.WhileSubscribed(5000L),
         initialValue = emptyList()
     )
 
     val playlists: StateFlow<List<Playlist>> = playlistRepository.allPlaylists.stateIn(
         scope = viewModelScope,
-        started = SharingStarted.Eagerly,
+        started = SharingStarted.WhileSubscribed(5000L),
         initialValue = emptyList()
     )
 
@@ -90,14 +90,19 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     init {
-        val cached = repository.getCachedMediaFolders()
-        if (!cached.isNullOrEmpty()) {
-            _mediaFolders.value = cached
-            _isLoading.value = false
-        }
-        // Auto-refresh once a day (24h cooldown), otherwise preserve cached library
-        if (repository.isCacheStale()) {
-            loadMedia(forceRefresh = true, silent = !cached.isNullOrEmpty())
+        viewModelScope.launch(Dispatchers.IO) {
+            val cached = repository.getCachedMediaFolders()
+            if (!cached.isNullOrEmpty()) {
+                _mediaFolders.value = cached
+                _isLoading.value = false
+            }
+            shura.media.data.SettingsManager.getInstance(getApplication()).ensureHistoryLoaded()
+            // Auto-refresh once a day (24h cooldown), otherwise preserve cached library and sync tags
+            if (repository.isCacheStale()) {
+                loadMedia(forceRefresh = true, silent = !cached.isNullOrEmpty())
+            } else if (!cached.isNullOrEmpty()) {
+                syncPlaybackTags()
+            }
         }
     }
 
@@ -128,11 +133,13 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         if (isSuspended) {
             isSuspended = false
             if (_mediaFolders.value.isEmpty()) {
-                val cached = repository.getCachedMediaFolders()
-                if (!cached.isNullOrEmpty()) {
-                    _mediaFolders.value = cached
-                } else {
-                    loadMedia(forceRefresh = true)
+                viewModelScope.launch(Dispatchers.IO) {
+                    val cached = repository.getCachedMediaFolders()
+                    if (!cached.isNullOrEmpty()) {
+                        _mediaFolders.value = cached
+                    } else {
+                        loadMedia(forceRefresh = true)
+                    }
                 }
             }
         }
@@ -180,7 +187,9 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.Default) {
             val currentFolders = _mediaFolders.value
             if (currentFolders.isEmpty()) return@launch
-            val lookup = shura.media.data.SettingsManager.getInstance(getApplication()).createPlaybackLookup()
+            val settings = shura.media.data.SettingsManager.getInstance(getApplication())
+            settings.ensureHistoryLoaded()
+            val lookup = settings.createPlaybackLookup()
             val currentTime = System.currentTimeMillis()
             val fifteenDaysMs = 15L * 24 * 60 * 60 * 1000
             var anyChanged = false

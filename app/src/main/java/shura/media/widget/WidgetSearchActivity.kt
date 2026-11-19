@@ -21,8 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Search
+import shura.media.ui.icons.AppIcons
 import androidx.core.view.WindowCompat
 import shura.media.data.MediaRepository
 import shura.media.service.PlayerManager
@@ -71,7 +70,7 @@ class WidgetSearchActivity : ComponentActivity() {
                                 singleLine = true,
                                 trailingIcon = {
                                     IconButton(onClick = { performSearch(query) }) {
-                                        Icon(androidx.compose.material.icons.Icons.Default.Search, "Search")
+                                        Icon(AppIcons.Search, "Search")
                                     }
                                 }
                             )

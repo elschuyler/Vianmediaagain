@@ -52,7 +52,7 @@ fun Modifier.playerGestureDetector(
     onSingleTap: () -> Unit,
     onDoubleTap: () -> Unit,
     onSeekStart: () -> Unit,
-    onSeekUpdate: (seekOffsetMs: Long, seekSec: Int) -> Unit,
+    onSeekUpdate: (targetPosMs: Long, seekSec: Int) -> Unit,
     onSeekCommit: (targetPosMs: Long, resumePlay: Boolean) -> Unit,
     onBrightnessStart: () -> Unit,
     onBrightnessUpdate: (newBrightness: Float) -> Unit,
@@ -100,6 +100,7 @@ fun Modifier.playerGestureDetector(
             var dragDistanceX = 0f
             var dragDistanceY = 0f
             var lastSeekTime = 0L
+            var seekStartPositionMs = 0L
 
             val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
             val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
@@ -151,6 +152,7 @@ fun Modifier.playerGestureDetector(
                             if (hypot(dragDistanceX, dragDistanceY) > touchSlop) {
                                 if (abs(dragDistanceX) > abs(dragDistanceY)) {
                                     currentGesture = GestureType.SEEK
+                                    seekStartPositionMs = curStartPositionMs.coerceAtLeast(0L)
                                     wasPlayingBeforeSeek = curIsPlaying
                                     curOnSeekStart()
                                 } else {
@@ -172,10 +174,10 @@ fun Modifier.playerGestureDetector(
                                 val curDuration = curDurationMs.coerceAtLeast(1L)
                                 val seekOffsetMs = (dragDistanceX / size.width) * 120_000
                                 val seekSec = ((dragDistanceX / size.width) * 120).toInt()
-                                val targetPos = (curStartPositionMs + seekOffsetMs.toLong()).coerceIn(0L, curDuration)
+                                val targetPos = (seekStartPositionMs + seekOffsetMs.toLong()).coerceIn(0L, curDuration)
                                 val now = System.currentTimeMillis()
                                 if (now - lastSeekTime > 300) {
-                                    curOnSeekUpdate(seekOffsetMs.toLong(), seekSec)
+                                    curOnSeekUpdate(targetPos, seekSec)
                                     lastSeekTime = now
                                 }
                                 change.consume()
@@ -220,7 +222,7 @@ fun Modifier.playerGestureDetector(
             if (currentGesture == GestureType.SEEK) {
                 val curDuration = curDurationMs.coerceAtLeast(1L)
                 val seekOffsetMs = (dragDistanceX / size.width) * 120_000
-                val targetPos = (curStartPositionMs + seekOffsetMs.toLong()).coerceIn(0L, curDuration)
+                val targetPos = (seekStartPositionMs + seekOffsetMs.toLong()).coerceIn(0L, curDuration)
                 curOnSeekCommit(targetPos, wasPlayingBeforeSeek)
             } else if (currentGesture == GestureType.BRIGHTNESS) {
                 curOnBrightnessEnd(lastAppliedBrightness)

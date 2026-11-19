@@ -2,12 +2,36 @@ package shura.media.data
 
 import android.content.Context
 import android.net.Uri
+import android.os.Looper
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
+import java.util.concurrent.ConcurrentHashMap
 
 class SettingsManager private constructor(context: Context) {
-    private val prefs = context.getSharedPreferences("vianbr_settings", Context.MODE_PRIVATE)
+    private val appContext = context.applicationContext
+    private val prefs = appContext.getSharedPreferences("vianbr_settings", Context.MODE_PRIVATE)
+    private val historyDao by lazy { AppDatabase.getDatabase(appContext).playbackHistoryDao() }
+
+    private val historyLock = Any()
+    private val historyDbMutex = Mutex()
+    private val historyScope = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1))
+    private val initialLoadDeferred = CompletableDeferred<Unit>()
+    private val historyByUri = ConcurrentHashMap<String, PlaybackHistoryEntity>()
+    private val historyByFileName = ConcurrentHashMap<String, PlaybackHistoryEntity>()
+    private val dirtyUris = mutableSetOf<String>()
+    private val deletedUris = mutableSetOf<String>()
+    private val deletedFileNameKeys = mutableSetOf<String>()
+    private var writesSincePrune = 0
 
     private val _excludedFolders = MutableStateFlow<Set<String>>(emptySet())
     val excludedFolders: StateFlow<Set<String>> = _excludedFolders.asStateFlow()
@@ -20,6 +44,9 @@ class SettingsManager private constructor(context: Context) {
 
     private val _outputFolderUri = MutableStateFlow<String?>(null)
     val outputFolderUri: StateFlow<String?> = _outputFolderUri.asStateFlow()
+
+    private val _saveSingleEditsToOriginalFolder = MutableStateFlow(true)
+    val saveSingleEditsToOriginalFolder: StateFlow<Boolean> = _saveSingleEditsToOriginalFolder.asStateFlow()
 
     private val _showLoggerFab = MutableStateFlow(true)
     val showLoggerFab: StateFlow<Boolean> = _showLoggerFab.asStateFlow()
@@ -51,6 +78,7 @@ class SettingsManager private constructor(context: Context) {
         }
         
         _outputFolderUri.value = prefs.getString("output_folder_uri", null)
+        _saveSingleEditsToOriginalFolder.value = prefs.getBoolean("save_single_edits_to_original_folder", true)
         
         _showLoggerFab.value = prefs.getBoolean("show_logger_fab", true)
         _keepScreenAwake.value = prefs.getBoolean("keep_screen_awake", true)
@@ -72,6 +100,10 @@ class SettingsManager private constructor(context: Context) {
         }
         
         _extensions.value = exts
+
+        historyScope.launch {
+            initializeHistoryFromPrefsAndRoom()
+        }
     }
 
     fun addExcludedFolder(bucketId: String) {
@@ -133,6 +165,11 @@ class SettingsManager private constructor(context: Context) {
         }
     }
 
+    fun setSaveSingleEditsToOriginalFolder(enabled: Boolean) {
+        _saveSingleEditsToOriginalFolder.value = enabled
+        prefs.edit().putBoolean("save_single_edits_to_original_folder", enabled).apply()
+    }
+
     fun setShowLoggerFab(show: Boolean) {
         _showLoggerFab.value = show
         prefs.edit().putBoolean("show_logger_fab", show).apply()
@@ -159,34 +196,46 @@ class SettingsManager private constructor(context: Context) {
     }
 
 
-    private fun getFileNameVariants(fileName: String?, uri: String?): Set<String> {
-        val variants = mutableSetOf<String>()
-        fun addVariantsFor(raw: String) {
-            val trimmed = raw.trim()
-            if (trimmed.isNotBlank() && trimmed != "Unknown") {
-                variants.add(trimmed)
-                val dotIndex = trimmed.lastIndexOf('.')
-                if (dotIndex > 0) {
-                    val base = trimmed.substring(0, dotIndex).trim()
-                    if (base.isNotBlank()) variants.add(base)
-                }
-                try {
-                    val decoded = Uri.decode(trimmed)
-                    if (decoded.isNotBlank()) {
-                        variants.add(decoded)
-                        val decDot = decoded.lastIndexOf('.')
-                        if (decDot > 0) {
-                            val base = decoded.substring(0, decDot).trim()
-                            if (base.isNotBlank()) variants.add(base)
-                        }
-                    }
-                } catch (e: Exception) {}
+    private fun normalizeUriKey(rawUri: String): String {
+        val trimmed = rawUri.trim()
+        if (trimmed.isEmpty()) return ""
+        if (trimmed.startsWith("file://", ignoreCase = true)) {
+            val decodedPath = try {
+                Uri.parse(trimmed).path
+            } catch (_: Exception) {
+                null
+            }
+            if (!decodedPath.isNullOrBlank()) {
+                return "file://$decodedPath"
             }
         }
+        return trimmed
+    }
 
-        if (!fileName.isNullOrBlank()) {
-            addVariantsFor(fileName)
-        }
+    private fun normalizeFileNameStem(rawName: String?): String {
+        if (rawName.isNullOrBlank()) return ""
+        val trimmed = rawName.trim()
+        if (trimmed.equals("Unknown", ignoreCase = true)) return ""
+        val decoded = try {
+            Uri.decode(trimmed)
+        } catch (_: Exception) {
+            trimmed
+        }.trim()
+        if (decoded.isBlank() || decoded.equals("Unknown", ignoreCase = true)) return ""
+        val dotIndex = decoded.lastIndexOf('.')
+        val stem = if (dotIndex > 0) decoded.substring(0, dotIndex).trim() else decoded
+        return stem.lowercase(java.util.Locale.ROOT)
+    }
+
+    private fun isSafeFileNameKey(stem: String): Boolean {
+        if (stem.length < 4) return false
+        if (stem.all { it.isDigit() } && stem.length < 6) return false
+        return stem !in GENERIC_FILENAME_STEMS
+    }
+
+    private fun extractSafeFileNameKey(fileName: String?, uri: String?): String {
+        val fromName = normalizeFileNameStem(fileName)
+        if (isSafeFileNameKey(fromName)) return fromName
         if (!uri.isNullOrBlank()) {
             try {
                 val parsedUri = Uri.parse(uri)
@@ -194,82 +243,276 @@ class SettingsManager private constructor(context: Context) {
                 if (!lastPath.isNullOrBlank()) {
                     val seg = if (lastPath.contains('/')) lastPath.substringAfterLast('/') else lastPath
                     val segDoc = if (seg.contains(':')) seg.substringAfterLast(':') else seg
-                    addVariantsFor(segDoc)
+                    val fromUri = normalizeFileNameStem(segDoc)
+                    if (isSafeFileNameKey(fromUri)) return fromUri
                 }
-            } catch (e: Exception) {}
+            } catch (_: Exception) {}
         }
-        return variants
+        return ""
     }
 
-    private var saveCounter = 0
+    private fun indexFileNameLocked(entity: PlaybackHistoryEntity) {
+        val key = entity.fileNameKey
+        if (!isSafeFileNameKey(key)) return
+        val existing = historyByFileName[key]
+        if (existing == null || entity.lastPlayedTime >= existing.lastPlayedTime) {
+            historyByFileName[key] = entity
+        }
+    }
 
-    private fun trimPlaybackHistoryIfNeeded() {
-        saveCounter++
-        if (saveCounter % 50 != 0) return
+    private fun findHistoryEntityLocked(
+        normUri: String,
+        fileName: String?,
+        uriMap: Map<String, PlaybackHistoryEntity> = historyByUri,
+        fnMap: Map<String, PlaybackHistoryEntity> = historyByFileName
+    ): PlaybackHistoryEntity? {
+        if (normUri.isNotEmpty()) {
+            uriMap[normUri]?.let { return it }
+        }
+        val fnKey = extractSafeFileNameKey(fileName, normUri)
+        if (fnKey.isNotEmpty()) {
+            return fnMap[fnKey]
+        }
+        return null
+    }
+
+    suspend fun ensureHistoryLoaded() {
+        initialLoadDeferred.await()
+    }
+
+    fun awaitHistoryLoadedIfOffMain(timeoutMs: Long = 1500L) {
+        if (initialLoadDeferred.isCompleted || Looper.myLooper() == Looper.getMainLooper()) return
         try {
-            val all = prefs.all
-            val timeEntries = all.filterKeys { it.startsWith("time_") }
-            if (timeEntries.size <= 250) return
-
-            val sortedEntries = timeEntries.mapNotNull { (key, value) ->
-                val ts = (value as? Number)?.toLong() ?: return@mapNotNull null
-                Pair(key, ts)
-            }.sortedBy { it.second }
-
-            val toRemoveCount = timeEntries.size - 200
-            if (toRemoveCount <= 0) return
-
-            val editor = prefs.edit()
-            for (i in 0 until toRemoveCount) {
-                val timeKey = sortedEntries[i].first
-                editor.remove(timeKey)
-                if (timeKey.startsWith("time_fn_")) {
-                    val variant = timeKey.removePrefix("time_fn_")
-                    editor.remove("pos_fn_$variant")
-                    editor.remove("dur_fn_$variant")
-                } else if (timeKey.startsWith("time_")) {
-                    val uriKey = timeKey.removePrefix("time_")
-                    editor.remove("pos_$uriKey")
-                    editor.remove("dur_$uriKey")
-                    editor.remove("speed_$uriKey")
+            runBlocking {
+                withTimeoutOrNull(timeoutMs) {
+                    initialLoadDeferred.await()
                 }
             }
-            editor.apply()
-            shura.media.LogKeeper.log("SettingsManager: Trimmed $toRemoveCount older playback records to prevent SharedPreferences bloat", "SettingsManager")
-        } catch (e: Exception) {
-            shura.media.LogKeeper.log("SettingsManager: Error trimming playback history: ${e.message}", "SettingsManager")
+        } catch (_: Exception) {}
+    }
+
+    private suspend fun initializeHistoryFromPrefsAndRoom() {
+        historyDbMutex.withLock {
+            try {
+                migrateLegacyPrefsLocked()
+                val totalDbRows = historyDao.getAllHistory()
+                if (totalDbRows.size > HISTORY_CAP) {
+                    historyDao.pruneBeyondLimit(HISTORY_CAP)
+                }
+                val dbRows = if (totalDbRows.size > HISTORY_CAP) {
+                    historyDao.getAllHistory()
+                } else {
+                    totalDbRows
+                }
+                synchronized(historyLock) {
+                    for (row in dbRows) {
+                        val normUri = normalizeUriKey(row.mediaUri)
+                        if (normUri.isEmpty()) continue
+                        if (normUri in deletedUris || row.mediaUri in deletedUris) continue
+                        if (row.fileNameKey.isNotEmpty() && row.fileNameKey in deletedFileNameKeys) continue
+                        if (normUri in dirtyUris || row.mediaUri in dirtyUris) continue
+
+                        val normalizedRow = if (normUri == row.mediaUri) row else row.copy(mediaUri = normUri)
+                        historyByUri.putIfAbsent(normUri, normalizedRow)
+                        indexFileNameLocked(normalizedRow)
+                    }
+                }
+            } catch (e: Exception) {
+                shura.media.LogKeeper.logError("SettingsManager", "Failed initializing Room playback history", e)
+            } finally {
+                initialLoadDeferred.complete(Unit)
+            }
+        }
+    }
+
+    private suspend fun migrateLegacyPrefsLocked() {
+        if (prefs.getBoolean(KEY_HISTORY_ROOM_MIGRATED, false)) return
+
+        val allEntries = prefs.all
+        val legacyKeys = mutableListOf<String>()
+        val rawUriKeys = linkedSetOf<String>()
+        val fnTimeToSafeKeys = HashMap<Long, MutableList<String>>()
+
+        for ((key, value) in allEntries) {
+            when {
+                key.startsWith("time_fn_") || key.startsWith("pos_fn_") || key.startsWith("dur_fn_") -> {
+                    legacyKeys.add(key)
+                    if (key.startsWith("time_fn_")) {
+                        val ts = (value as? Number)?.toLong() ?: 0L
+                        val safeStem = normalizeFileNameStem(key.removePrefix("time_fn_"))
+                        if (ts > 0L && isSafeFileNameKey(safeStem)) {
+                            fnTimeToSafeKeys.getOrPut(ts) { mutableListOf() }.add(safeStem)
+                        }
+                    }
+                }
+                key.startsWith("time_") -> {
+                    legacyKeys.add(key)
+                    rawUriKeys.add(key.removePrefix("time_"))
+                }
+                key.startsWith("pos_") -> {
+                    legacyKeys.add(key)
+                    rawUriKeys.add(key.removePrefix("pos_"))
+                }
+                key.startsWith("dur_") -> {
+                    legacyKeys.add(key)
+                    rawUriKeys.add(key.removePrefix("dur_"))
+                }
+                key.startsWith("speed_") -> {
+                    legacyKeys.add(key)
+                    rawUriKeys.add(key.removePrefix("speed_"))
+                }
+                key.startsWith("orient_") -> {
+                    legacyKeys.add(key)
+                    rawUriKeys.add(key.removePrefix("orient_"))
+                }
+                key.startsWith("track_") -> {
+                    legacyKeys.add(key)
+                    val rest = key.removePrefix("track_")
+                    val sep = rest.indexOf('_')
+                    if (sep > 0 && rest.substring(0, sep).toIntOrNull() != null) {
+                        rawUriKeys.add(rest.substring(sep + 1))
+                    }
+                }
+            }
+        }
+
+        if (rawUriKeys.isNotEmpty()) {
+            val mergedByNormUri = LinkedHashMap<String, PlaybackHistoryEntity>()
+            for (rawUri in rawUriKeys) {
+                val normUri = normalizeUriKey(rawUri)
+                if (normUri.isEmpty()) continue
+                val ts = (allEntries["time_$rawUri"] as? Number)?.toLong() ?: 0L
+                val pos = (allEntries["pos_$rawUri"] as? Number)?.toLong() ?: 0L
+                val dur = (allEntries["dur_$rawUri"] as? Number)?.toLong() ?: -1L
+                val speed = (allEntries["speed_$rawUri"] as? Number)?.toFloat() ?: 1.0f
+                val orient = allEntries["orient_$rawUri"] as? Boolean
+                val audioIdx = (allEntries["track_${TRACK_TYPE_AUDIO}_$rawUri"] as? Number)?.toInt() ?: -1
+                val subIdx = (allEntries["track_${TRACK_TYPE_TEXT}_$rawUri"] as? Number)?.toInt() ?: -1
+
+                val matchedFnKey = extractSafeFileNameKey(null, normUri).ifEmpty {
+                    fnTimeToSafeKeys[ts]?.maxByOrNull { it.length } ?: ""
+                }
+
+                val existing = mergedByNormUri[normUri]
+                mergedByNormUri[normUri] = if (existing == null) {
+                    PlaybackHistoryEntity(
+                        mediaUri = normUri,
+                        fileNameKey = matchedFnKey,
+                        positionMs = pos,
+                        durationMs = dur,
+                        lastPlayedTime = ts,
+                        playbackSpeed = speed,
+                        isPortrait = orient,
+                        audioTrackIndex = audioIdx,
+                        subtitleTrackIndex = subIdx
+                    )
+                } else {
+                    existing.copy(
+                        fileNameKey = existing.fileNameKey.ifEmpty { matchedFnKey },
+                        positionMs = if (ts >= existing.lastPlayedTime && pos > 0L) pos else existing.positionMs,
+                        durationMs = if (dur > 0L) dur else existing.durationMs,
+                        lastPlayedTime = maxOf(existing.lastPlayedTime, ts),
+                        playbackSpeed = if (speed != 1.0f) speed else existing.playbackSpeed,
+                        isPortrait = orient ?: existing.isPortrait,
+                        audioTrackIndex = if (audioIdx != -1) audioIdx else existing.audioTrackIndex,
+                        subtitleTrackIndex = if (subIdx != -1) subIdx else existing.subtitleTrackIndex
+                    )
+                }
+            }
+
+            val topEntities = mergedByNormUri.values
+                .sortedByDescending { it.lastPlayedTime }
+                .take(HISTORY_CAP)
+            if (topEntities.isNotEmpty()) {
+                historyDao.upsertAll(topEntities)
+                historyDao.pruneBeyondLimit(HISTORY_CAP)
+            }
+        }
+
+        val editor = prefs.edit()
+        for (k in legacyKeys) {
+            editor.remove(k)
+        }
+        editor.putBoolean(KEY_HISTORY_ROOM_MIGRATED, true)
+        editor.commit()
+    }
+
+    private fun trimInMemoryHistoryLocked() {
+        writesSincePrune++
+        val shouldPrune = writesSincePrune >= PRUNE_INTERVAL || historyByUri.size > HISTORY_CAP + 20
+        if (!shouldPrune) return
+        writesSincePrune = 0
+
+        if (historyByUri.size > HISTORY_CAP) {
+            val overflow = historyByUri.values
+                .sortedBy { it.lastPlayedTime }
+                .take(historyByUri.size - HISTORY_CAP)
+            for (old in overflow) {
+                historyByUri.remove(old.mediaUri)
+                if (old.fileNameKey.isNotEmpty() && historyByFileName[old.fileNameKey]?.mediaUri == old.mediaUri) {
+                    historyByFileName.remove(old.fileNameKey)
+                }
+            }
+        }
+
+        historyScope.launch {
+            historyDbMutex.withLock {
+                try {
+                    historyDao.pruneBeyondLimit(HISTORY_CAP)
+                } catch (_: Exception) {}
+            }
+        }
+    }
+
+    private fun persistUpsert(entity: PlaybackHistoryEntity) {
+        historyScope.launch {
+            historyDbMutex.withLock {
+                try {
+                    historyDao.upsert(entity)
+                } catch (e: Exception) {
+                    shura.media.LogKeeper.logError("SettingsManager", "Failed persisting playback history", e)
+                }
+            }
         }
     }
 
     fun savePlaybackState(uri: String, position: Long, duration: Long, fileName: String? = null) {
+        val normUri = normalizeUriKey(uri)
+        if (normUri.isEmpty()) return
         val now = System.currentTimeMillis()
-        val editor = prefs.edit()
-            .putLong("time_$uri", now)
-            .putString("last_played_uri", uri)
-        if (position > 0L) {
-            editor.putLong("pos_$uri", position)
+        prefs.edit().putString("last_played_uri", normUri).apply()
+
+        val updated = synchronized(historyLock) {
+            deletedUris.remove(normUri)
+            dirtyUris.add(normUri)
+            val existing = historyByUri[normUri]
+            val resolvedFnKey = extractSafeFileNameKey(fileName, normUri).ifEmpty { existing?.fileNameKey ?: "" }
+            val next = PlaybackHistoryEntity(
+                mediaUri = normUri,
+                fileNameKey = resolvedFnKey,
+                positionMs = if (position > 0L) position else (existing?.positionMs ?: 0L),
+                durationMs = if (duration > 0L) duration else (existing?.durationMs ?: -1L),
+                lastPlayedTime = now,
+                playbackSpeed = existing?.playbackSpeed ?: 1.0f,
+                isPortrait = existing?.isPortrait,
+                audioTrackIndex = existing?.audioTrackIndex ?: -1,
+                subtitleTrackIndex = existing?.subtitleTrackIndex ?: -1
+            )
+            historyByUri[normUri] = next
+            indexFileNameLocked(next)
+            trimInMemoryHistoryLocked()
+            next
         }
-        if (duration > 0L) {
-            editor.putLong("dur_$uri", duration)
-        }
-        val variants = getFileNameVariants(fileName, uri)
-        for (v in variants) {
-            editor.putLong("time_fn_$v", now)
-            if (position > 0L) {
-                editor.putLong("pos_fn_$v", position)
-            }
-            if (duration > 0L) {
-                editor.putLong("dur_fn_$v", duration)
-            }
-        }
-        editor.apply()
-        trimPlaybackHistoryIfNeeded()
+        persistUpsert(updated)
     }
 
     fun markAsFinished(uri: String, fileName: String? = null, duration: Long = 0L) {
-        val targetDur = if (duration > 0L) duration else getStoredDuration(uri, fileName).takeIf { it > 0L } ?: 1000L
-        savePlaybackState(uri, targetDur, targetDur, fileName)
-        if (getLastPlayedUri() == uri) {
+        val normUri = normalizeUriKey(uri)
+        if (normUri.isEmpty()) return
+        val targetDur = if (duration > 0L) duration else getStoredDuration(normUri, fileName).takeIf { it > 0L } ?: 1000L
+        savePlaybackState(normUri, targetDur, targetDur, fileName)
+        val lastUri = getLastPlayedUri()
+        if (lastUri != null && normalizeUriKey(lastUri) == normUri) {
             prefs.edit().remove("last_played_uri").apply()
         }
     }
@@ -279,91 +522,189 @@ class SettingsManager private constructor(context: Context) {
     }
 
     fun markAsOpened(uri: String, fileName: String? = null) {
+        val normUri = normalizeUriKey(uri)
+        if (normUri.isEmpty()) return
         val now = System.currentTimeMillis()
-        val editor = prefs.edit()
-            .putLong("time_$uri", now)
-            .putString("last_played_uri", uri)
-        val variants = getFileNameVariants(fileName, uri)
-        for (v in variants) {
-            editor.putLong("time_fn_$v", now)
+        prefs.edit().putString("last_played_uri", normUri).apply()
+
+        val updated = synchronized(historyLock) {
+            deletedUris.remove(normUri)
+            dirtyUris.add(normUri)
+            val existing = historyByUri[normUri]
+            val resolvedFnKey = extractSafeFileNameKey(fileName, normUri).ifEmpty { existing?.fileNameKey ?: "" }
+            val next = (existing ?: PlaybackHistoryEntity(mediaUri = normUri)).copy(
+                fileNameKey = resolvedFnKey,
+                lastPlayedTime = now
+            )
+            historyByUri[normUri] = next
+            indexFileNameLocked(next)
+            trimInMemoryHistoryLocked()
+            next
         }
-        editor.apply()
+        persistUpsert(updated)
     }
 
     fun savePlaybackSpeed(uri: String, speed: Float) {
-        prefs.edit().putFloat("speed_$uri", speed).apply()
+        val normUri = normalizeUriKey(uri)
+        if (normUri.isEmpty()) return
+        val updated = synchronized(historyLock) {
+            deletedUris.remove(normUri)
+            dirtyUris.add(normUri)
+            val existing = historyByUri[normUri]
+            val resolvedFnKey = existing?.fileNameKey?.ifEmpty { extractSafeFileNameKey(null, normUri) }
+                ?: extractSafeFileNameKey(null, normUri)
+            val next = (existing ?: PlaybackHistoryEntity(mediaUri = normUri)).copy(
+                fileNameKey = resolvedFnKey,
+                playbackSpeed = speed
+            )
+            historyByUri[normUri] = next
+            indexFileNameLocked(next)
+            next
+        }
+        persistUpsert(updated)
     }
 
     fun getPlaybackSpeed(uri: String): Float {
-        return prefs.getFloat("speed_$uri", 1.0f)
+        val normUri = normalizeUriKey(uri)
+        if (normUri.isEmpty()) return 1.0f
+        return synchronized(historyLock) {
+            historyByUri[normUri]?.playbackSpeed ?: 1.0f
+        }
     }
 
     fun saveTrackSelection(uri: String, trackType: Int, trackIndex: Int) {
-        prefs.edit().putInt("track_${trackType}_$uri", trackIndex).apply()
+        val normUri = normalizeUriKey(uri)
+        if (normUri.isEmpty()) return
+        if (trackType != TRACK_TYPE_AUDIO && trackType != TRACK_TYPE_TEXT) return
+        val updated = synchronized(historyLock) {
+            deletedUris.remove(normUri)
+            dirtyUris.add(normUri)
+            val existing = historyByUri[normUri]
+            val resolvedFnKey = existing?.fileNameKey?.ifEmpty { extractSafeFileNameKey(null, normUri) }
+                ?: extractSafeFileNameKey(null, normUri)
+            val base = existing ?: PlaybackHistoryEntity(mediaUri = normUri, fileNameKey = resolvedFnKey)
+            val next = when (trackType) {
+                TRACK_TYPE_AUDIO -> base.copy(fileNameKey = resolvedFnKey, audioTrackIndex = trackIndex)
+                TRACK_TYPE_TEXT -> base.copy(fileNameKey = resolvedFnKey, subtitleTrackIndex = trackIndex)
+                else -> base
+            }
+            historyByUri[normUri] = next
+            indexFileNameLocked(next)
+            next
+        }
+        persistUpsert(updated)
     }
 
     fun getTrackSelection(uri: String, trackType: Int): Int {
-        return prefs.getInt("track_${trackType}_$uri", -1)
+        val normUri = normalizeUriKey(uri)
+        if (normUri.isEmpty()) return -1
+        return synchronized(historyLock) {
+            val entity = historyByUri[normUri] ?: return@synchronized -1
+            when (trackType) {
+                TRACK_TYPE_AUDIO -> entity.audioTrackIndex
+                TRACK_TYPE_TEXT -> entity.subtitleTrackIndex
+                else -> -1
+            }
+        }
     }
 
     fun getLastPlayedTime(uri: String, fileName: String? = null): Long {
-        val directTime = prefs.getLong("time_$uri", 0L)
-        if (directTime > 0L) return directTime
-        val variants = getFileNameVariants(fileName, uri)
-        for (v in variants) {
-            val fnTime = prefs.getLong("time_fn_$v", 0L)
-            if (fnTime > 0L) return fnTime
+        val normUri = normalizeUriKey(uri)
+        return synchronized(historyLock) {
+            val direct = if (normUri.isNotEmpty()) historyByUri[normUri] else null
+            if (direct != null && direct.lastPlayedTime > 0L) return@synchronized direct.lastPlayedTime
+            val fnKey = extractSafeFileNameKey(fileName, normUri)
+            if (fnKey.isNotEmpty()) {
+                return@synchronized historyByFileName[fnKey]?.lastPlayedTime ?: 0L
+            }
+            0L
         }
-        return 0L
     }
 
     fun getPlaybackPosition(uri: String, fileName: String? = null): Long {
-        val pos = prefs.getLong("pos_$uri", 0L)
-        if (pos > 0L) return pos
-        val variants = getFileNameVariants(fileName, uri)
-        for (v in variants) {
-            val fnPos = prefs.getLong("pos_fn_$v", 0L)
-            if (fnPos > 0L) return fnPos
+        val normUri = normalizeUriKey(uri)
+        return synchronized(historyLock) {
+            val direct = if (normUri.isNotEmpty()) historyByUri[normUri] else null
+            if (direct != null && direct.positionMs > 0L) return@synchronized direct.positionMs
+            val fnKey = extractSafeFileNameKey(fileName, normUri)
+            if (fnKey.isNotEmpty()) {
+                return@synchronized historyByFileName[fnKey]?.positionMs ?: 0L
+            }
+            0L
         }
-        return 0L
     }
 
     fun getStoredDuration(uri: String, fileName: String? = null): Long {
-        val dur = prefs.getLong("dur_$uri", -1L)
-        if (dur > 0L) return dur
-        val variants = getFileNameVariants(fileName, uri)
-        for (v in variants) {
-            val fnDur = prefs.getLong("dur_fn_$v", -1L)
-            if (fnDur > 0L) return fnDur
+        val normUri = normalizeUriKey(uri)
+        return synchronized(historyLock) {
+            val direct = if (normUri.isNotEmpty()) historyByUri[normUri] else null
+            if (direct != null && direct.durationMs > 0L) return@synchronized direct.durationMs
+            val fnKey = extractSafeFileNameKey(fileName, normUri)
+            if (fnKey.isNotEmpty()) {
+                val fnDur = historyByFileName[fnKey]?.durationMs ?: -1L
+                if (fnDur > 0L) return@synchronized fnDur
+            }
+            -1L
         }
-        return -1L
     }
 
     fun saveVideoOrientation(uri: String, isPortrait: Boolean) {
-        prefs.edit().putBoolean("orient_$uri", isPortrait).apply()
+        val normUri = normalizeUriKey(uri)
+        if (normUri.isEmpty()) return
+        val updated = synchronized(historyLock) {
+            deletedUris.remove(normUri)
+            dirtyUris.add(normUri)
+            val existing = historyByUri[normUri]
+            val resolvedFnKey = existing?.fileNameKey?.ifEmpty { extractSafeFileNameKey(null, normUri) }
+                ?: extractSafeFileNameKey(null, normUri)
+            val next = (existing ?: PlaybackHistoryEntity(mediaUri = normUri)).copy(
+                fileNameKey = resolvedFnKey,
+                isPortrait = isPortrait
+            )
+            historyByUri[normUri] = next
+            indexFileNameLocked(next)
+            next
+        }
+        persistUpsert(updated)
     }
 
     fun getVideoOrientation(uri: String): Boolean? {
-        return if (prefs.contains("orient_$uri")) {
-            prefs.getBoolean("orient_$uri", false)
-        } else {
-            null
+        val normUri = normalizeUriKey(uri)
+        if (normUri.isEmpty()) return null
+        return synchronized(historyLock) {
+            historyByUri[normUri]?.isPortrait
         }
     }
 
     fun removePlaybackState(uri: String, fileName: String? = null) {
-        val editor = prefs.edit()
-            .remove("time_$uri")
-            .remove("pos_$uri")
-            .remove("dur_$uri")
-            .remove("orient_$uri")
-        val variants = getFileNameVariants(fileName, uri)
-        for (v in variants) {
-            editor.remove("time_fn_$v")
-                .remove("pos_fn_$v")
-                .remove("dur_fn_$v")
+        val normUri = normalizeUriKey(uri)
+        if (normUri.isEmpty()) return
+        val fnKey = synchronized(historyLock) {
+            val removed = historyByUri.remove(normUri)
+            dirtyUris.remove(normUri)
+            deletedUris.add(normUri)
+            val candidateFnKey = removed?.fileNameKey?.ifEmpty { extractSafeFileNameKey(fileName, normUri) }
+                ?: extractSafeFileNameKey(fileName, normUri)
+            if (candidateFnKey.isNotEmpty()) {
+                deletedFileNameKeys.add(candidateFnKey)
+                historyByFileName.remove(candidateFnKey)
+            }
+            candidateFnKey
         }
-        editor.apply()
+        val lastUri = getLastPlayedUri()
+        if (lastUri != null && normalizeUriKey(lastUri) == normUri) {
+            prefs.edit().remove("last_played_uri").apply()
+        }
+        historyScope.launch {
+            historyDbMutex.withLock {
+                try {
+                    historyDao.deleteByUri(normUri)
+                    if (fnKey.isNotEmpty()) {
+                        historyDao.deleteByFileNameKey(fnKey)
+                    }
+                } catch (_: Exception) {}
+            }
+        }
     }
 
     // A video is finished if we watched past 99%
@@ -444,35 +785,39 @@ class SettingsManager private constructor(context: Context) {
         prefs.edit().putString("notification_priority", priority.joinToString(",")).apply()
     }
 
-    inner class PlaybackStateLookup(private val entries: Map<String, Any?>) {
+    inner class PlaybackStateLookup(
+        private val uriMap: Map<String, PlaybackHistoryEntity>,
+        private val fnMap: Map<String, PlaybackHistoryEntity>
+    ) {
         fun getLastPlayedTime(uri: String, fileName: String? = null): Long {
-            val direct = (entries["time_$uri"] as? Number)?.toLong() ?: 0L
-            if (direct > 0L) return direct
-            val variants = getFileNameVariants(fileName, uri)
-            for (v in variants) {
-                val fnTime = (entries["time_fn_$v"] as? Number)?.toLong() ?: 0L
-                if (fnTime > 0L) return fnTime
+            val normUri = normalizeUriKey(uri)
+            val direct = if (normUri.isNotEmpty()) uriMap[normUri] else null
+            if (direct != null && direct.lastPlayedTime > 0L) return direct.lastPlayedTime
+            val fnKey = extractSafeFileNameKey(fileName, normUri)
+            if (fnKey.isNotEmpty()) {
+                return fnMap[fnKey]?.lastPlayedTime ?: 0L
             }
             return 0L
         }
 
         fun getPlaybackPosition(uri: String, fileName: String? = null): Long {
-            val direct = (entries["pos_$uri"] as? Number)?.toLong() ?: 0L
-            if (direct > 0L) return direct
-            val variants = getFileNameVariants(fileName, uri)
-            for (v in variants) {
-                val fnPos = (entries["pos_fn_$v"] as? Number)?.toLong() ?: 0L
-                if (fnPos > 0L) return fnPos
+            val normUri = normalizeUriKey(uri)
+            val direct = if (normUri.isNotEmpty()) uriMap[normUri] else null
+            if (direct != null && direct.positionMs > 0L) return direct.positionMs
+            val fnKey = extractSafeFileNameKey(fileName, normUri)
+            if (fnKey.isNotEmpty()) {
+                return fnMap[fnKey]?.positionMs ?: 0L
             }
             return 0L
         }
 
         fun getStoredDuration(uri: String, fileName: String? = null): Long {
-            val direct = (entries["dur_$uri"] as? Number)?.toLong() ?: -1L
-            if (direct > 0L) return direct
-            val variants = getFileNameVariants(fileName, uri)
-            for (v in variants) {
-                val fnDur = (entries["dur_fn_$v"] as? Number)?.toLong() ?: -1L
+            val normUri = normalizeUriKey(uri)
+            val direct = if (normUri.isNotEmpty()) uriMap[normUri] else null
+            if (direct != null && direct.durationMs > 0L) return direct.durationMs
+            val fnKey = extractSafeFileNameKey(fileName, normUri)
+            if (fnKey.isNotEmpty()) {
+                val fnDur = fnMap[fnKey]?.durationMs ?: -1L
                 if (fnDur > 0L) return fnDur
             }
             return -1L
@@ -486,10 +831,26 @@ class SettingsManager private constructor(context: Context) {
     }
 
     fun createPlaybackLookup(): PlaybackStateLookup {
-        return PlaybackStateLookup(prefs.all.toMap())
+        return synchronized(historyLock) {
+            PlaybackStateLookup(
+                uriMap = HashMap(historyByUri),
+                fnMap = HashMap(historyByFileName)
+            )
+        }
     }
 
     companion object {
+        private const val HISTORY_CAP = 250
+        private const val PRUNE_INTERVAL = 20
+        private const val KEY_HISTORY_ROOM_MIGRATED = "playback_history_room_migrated_v1"
+        private const val TRACK_TYPE_AUDIO = 1
+        private const val TRACK_TYPE_TEXT = 3
+        private val GENERIC_FILENAME_STEMS = setOf(
+            "unknown", "video", "audio", "media", "movie", "clip", "file",
+            "temp", "tmp", "download", "downloads", "recording", "screenrecording",
+            "audio_record", "untitled", "index", "stream", "playlist", "master", "playback"
+        )
+
         @Volatile
         private var instance: SettingsManager? = null
 

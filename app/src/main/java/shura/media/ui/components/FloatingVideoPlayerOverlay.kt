@@ -10,10 +10,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
-import androidx.compose.material.icons.automirrored.filled.QueueMusic
-import androidx.compose.material.icons.filled.*
+import shura.media.ui.icons.AppIcons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -231,7 +228,7 @@ fun FloatingVideoPlayerOverlay(
                     .padding(horizontal = 8.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Filled.DragIndicator, contentDescription = "Drag", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
+                Icon(AppIcons.DragIndicator, contentDescription = "Drag", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = title,
@@ -251,7 +248,7 @@ fun FloatingVideoPlayerOverlay(
                     modifier = Modifier.size(28.dp)
                 ) {
                     Icon(
-                        imageVector = if (isAspectRatioBroken) Icons.Filled.CropFree else Icons.Filled.AspectRatio,
+                        imageVector = if (isAspectRatioBroken) AppIcons.CropFree else AppIcons.AspectRatio,
                         contentDescription = if (isAspectRatioBroken) "Locked Aspect Ratio" else "Break Aspect Ratio (Freeform)",
                         tint = if (isAspectRatioBroken) Color(0xFF2196F3) else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(20.dp)
@@ -266,7 +263,7 @@ fun FloatingVideoPlayerOverlay(
                     modifier = Modifier.size(28.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Filled.QueueMusic,
+                        imageVector = AppIcons.AutoMirrored.QueueMusic,
                         contentDescription = "Switch to Mini Player",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(20.dp)
@@ -281,7 +278,7 @@ fun FloatingVideoPlayerOverlay(
                     modifier = Modifier.size(28.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.OpenInFull,
+                        imageVector = AppIcons.OpenInFull,
                         contentDescription = "Open Full-Screen Player",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(20.dp)
@@ -410,7 +407,7 @@ fun FloatingVideoPlayerOverlay(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Filled.MusicNote,
+                                imageVector = AppIcons.MusicNote,
                                 contentDescription = "Audio Playback",
                                 tint = Color.White.copy(alpha = 0.7f),
                                 modifier = Modifier.size(44.dp)
@@ -472,7 +469,7 @@ fun FloatingVideoPlayerOverlay(
                                             modifier = Modifier.size(32.dp)
                                         ) {
                                             Icon(
-                                                imageVector = Icons.Filled.SkipPrevious,
+                                                imageVector = AppIcons.SkipPrevious,
                                                 contentDescription = "Previous",
                                                 tint = Color.White,
                                                 modifier = Modifier.size(20.dp)
@@ -499,7 +496,7 @@ fun FloatingVideoPlayerOverlay(
                                             modifier = Modifier.size(32.dp)
                                         ) {
                                             Icon(
-                                                imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                                                imageVector = if (isPlaying) AppIcons.Pause else AppIcons.PlayArrow,
                                                 contentDescription = "Play/Pause",
                                                 tint = Color.White,
                                                 modifier = Modifier.size(22.dp)
@@ -526,7 +523,7 @@ fun FloatingVideoPlayerOverlay(
                                             modifier = Modifier.size(32.dp)
                                         ) {
                                             Icon(
-                                                imageVector = Icons.Filled.SkipNext,
+                                                imageVector = AppIcons.SkipNext,
                                                 contentDescription = "Next",
                                                 tint = Color.White,
                                                 modifier = Modifier.size(20.dp)
@@ -551,7 +548,7 @@ fun FloatingVideoPlayerOverlay(
                                             },
                                             modifier = Modifier.size(32.dp)
                                         ) {
-                                            val loopIcon = if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Filled.RepeatOne else Icons.Filled.Repeat
+                                            val loopIcon = if (repeatMode == Player.REPEAT_MODE_ONE) AppIcons.RepeatOne else AppIcons.Repeat
                                             val loopTint = if (repeatMode != Player.REPEAT_MODE_OFF) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.7f)
                                             Icon(
                                                 imageVector = loopIcon,
@@ -621,7 +618,7 @@ fun FloatingVideoPlayerOverlay(
                                             shura.media.service.PlayerManager.isFloatingVideoActive = false
                                             onClose()
                                         }, modifier = Modifier.size(32.dp)) {
-                                            Icon(Icons.Filled.Close, "Exit", tint = Color.White, modifier = Modifier.size(18.dp))
+                                            Icon(AppIcons.Close, "Exit", tint = Color.White, modifier = Modifier.size(18.dp))
                                         }
                                         // Minimize button
                                         IconButton(
@@ -631,7 +628,7 @@ fun FloatingVideoPlayerOverlay(
                                             },
                                             modifier = Modifier.size(32.dp)
                                         ) {
-                                            Icon(Icons.Filled.Remove, "Minimize", tint = Color.White, modifier = Modifier.size(18.dp))
+                                            Icon(AppIcons.Remove, "Minimize", tint = Color.White, modifier = Modifier.size(18.dp))
                                         }
                                         // Resize button (with drag gesture)
                                         Box(
@@ -646,7 +643,7 @@ fun FloatingVideoPlayerOverlay(
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Icon(
-                                                Icons.Filled.ZoomOutMap,
+                                                AppIcons.ZoomOutMap,
                                                 contentDescription = "Resize",
                                                 tint = Color.White,
                                                 modifier = Modifier.size(18.dp)
@@ -676,7 +673,7 @@ fun FloatingVideoPlayerOverlay(
                             contentAlignment = Alignment.Center
                         ) {
                             if (isPlayPause) {
-                                val icon = if (gestureFeedbackText == "Pause") Icons.Filled.Pause else Icons.Filled.PlayArrow
+                                val icon = if (gestureFeedbackText == "Pause") AppIcons.Pause else AppIcons.PlayArrow
                                 Icon(
                                     imageVector = icon,
                                     contentDescription = gestureFeedbackText,
@@ -689,11 +686,11 @@ fun FloatingVideoPlayerOverlay(
                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
                                     val icon = when (gestureFeedbackText) {
-                                        "-10s" -> Icons.Filled.FastRewind
-                                        "+10s" -> Icons.Filled.FastForward
-                                        "Freeform" -> Icons.Filled.CropFree
-                                        "Locked Aspect" -> Icons.Filled.AspectRatio
-                                        else -> Icons.Filled.PlayArrow
+                                        "-10s" -> AppIcons.FastRewind
+                                        "+10s" -> AppIcons.FastForward
+                                        "Freeform" -> AppIcons.CropFree
+                                        "Locked Aspect" -> AppIcons.AspectRatio
+                                        else -> AppIcons.PlayArrow
                                     }
                                     Icon(
                                         imageVector = icon,

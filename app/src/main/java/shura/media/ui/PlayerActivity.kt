@@ -70,6 +70,15 @@ class PlayerActivity : ComponentActivity() {
         if (rawUri.isEmpty()) return ""
 
         val base64Flags = android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING
+        val decodedCandidate = try {
+            val decoded = String(android.util.Base64.decode(rawUri, base64Flags))
+            if (decoded.contains("://") || decoded.startsWith("/")) decoded else rawUri
+        } catch (e: Exception) {
+            rawUri
+        }
+        if (!shura.media.data.MediaUriResolver.isSafeExternalUri(this, decodedCandidate)) {
+            return ""
+        }
         return try {
             val decoded = String(android.util.Base64.decode(rawUri, base64Flags))
             if (decoded.contains("://") || decoded.startsWith("/")) {
@@ -360,7 +369,7 @@ class PlayerActivity : ComponentActivity() {
                             clipData = android.content.ClipData.newRawUri("media", targetUri)
                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                         }
-                        startActivity(editorIntent)
+                        shura.media.data.MediaUriResolver.safeStartActivity(this@PlayerActivity, editorIntent)
                     }
                 )
             }

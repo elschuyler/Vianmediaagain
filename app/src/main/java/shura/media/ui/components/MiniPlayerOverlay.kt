@@ -13,8 +13,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import shura.media.ui.icons.AppIcons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -216,7 +215,7 @@ fun MiniPlayerOverlay(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Icon(Icons.Filled.DragHandle, contentDescription = "Drag to move", tint = Color(0xFF37474F))
+                Icon(AppIcons.DragHandle, contentDescription = "Drag to move", tint = Color(0xFF37474F))
                 Text(
                     text = title,
                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold),
@@ -231,7 +230,7 @@ fun MiniPlayerOverlay(
                         shura.media.service.PlayerManager.flushProgressToStorage()
                         onSwitchToVideo()
                     }) {
-                        Icon(Icons.Filled.VideoLibrary, contentDescription = "Switch to Floating Player", tint = Color(0xFF03A9F4))
+                        Icon(AppIcons.VideoLibrary, contentDescription = "Switch to Floating Player", tint = Color(0xFF03A9F4))
                     }
 
                     IconButton(onClick = {
@@ -247,9 +246,9 @@ fun MiniPlayerOverlay(
                             }
                             flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP
                         }
-                        context.startActivity(intent)
+                        shura.media.data.MediaUriResolver.safeStartActivity(context, intent)
                     }, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Filled.OpenInFull, contentDescription = "Main Player", tint = Color(0xFF37474F), modifier = Modifier.size(20.dp))
+                        Icon(AppIcons.OpenInFull, contentDescription = "Main Player", tint = Color(0xFF37474F), modifier = Modifier.size(20.dp))
                     }
                 }
             }
@@ -335,10 +334,10 @@ fun MiniPlayerOverlay(
                             }
                         }
                     }) {
-                        Icon(Icons.Filled.SkipPrevious, "Previous", tint = Color(0xFF121212))
+                        Icon(AppIcons.SkipPrevious, "Previous", tint = Color(0xFF121212))
                     }
                     IconButton(onClick = { player?.seekTo(player.currentPosition - 5000) }) {
-                        Icon(Icons.Filled.FastRewind, "-5s", tint = Color(0xFF121212))
+                        Icon(AppIcons.FastRewind, "-5s", tint = Color(0xFF121212))
                     }
                     IconButton(onClick = {
                         player?.let { p ->
@@ -355,10 +354,10 @@ fun MiniPlayerOverlay(
                             }
                         }
                     }) {
-                        Icon(if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, "Play/Pause", tint = Color(0xFF03A9F4), modifier = Modifier.size(36.dp))
+                        Icon(if (isPlaying) AppIcons.Pause else AppIcons.PlayArrow, "Play/Pause", tint = Color(0xFF03A9F4), modifier = Modifier.size(36.dp))
                     }
                     IconButton(onClick = { player?.seekTo(player.currentPosition + 5000) }) {
-                        Icon(Icons.Filled.FastForward, "+5s", tint = Color(0xFF121212))
+                        Icon(AppIcons.FastForward, "+5s", tint = Color(0xFF121212))
                     }
                     IconButton(onClick = {
                         player?.let { controller ->
@@ -376,13 +375,13 @@ fun MiniPlayerOverlay(
                             }
                         }
                     }) {
-                        Icon(Icons.Filled.SkipNext, "Next", tint = Color(0xFF121212))
+                        Icon(AppIcons.SkipNext, "Next", tint = Color(0xFF121212))
                     }
                     IconButton(onClick = {
                         shura.media.service.PlayerManager.flushProgressToStorage()
                         onClose()
                     }) {
-                        Icon(Icons.Filled.Stop, "Stop", tint = Color(0xFF121212))
+                        Icon(AppIcons.Stop, "Stop", tint = Color(0xFF121212))
                     }
                 }
 
@@ -406,7 +405,7 @@ fun MiniPlayerOverlay(
                             modifier = Modifier.size(30.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Filled.Shuffle,
+                                imageVector = AppIcons.Shuffle,
                                 contentDescription = "Shuffle",
                                 tint = if (shuffleMode) Color(0xFF03A9F4) else Color(0xFF546E7A),
                                 modifier = Modifier.size(18.dp)
@@ -428,7 +427,7 @@ fun MiniPlayerOverlay(
                             modifier = Modifier.size(30.dp)
                         ) {
                             Icon(
-                                imageVector = if (loopMode == Player.REPEAT_MODE_ONE) Icons.Filled.RepeatOne else Icons.Filled.Repeat,
+                                imageVector = if (loopMode == Player.REPEAT_MODE_ONE) AppIcons.RepeatOne else AppIcons.Repeat,
                                 contentDescription = "Loop",
                                 tint = if (loopMode != Player.REPEAT_MODE_OFF) Color(0xFF03A9F4) else Color(0xFF546E7A),
                                 modifier = Modifier.size(18.dp)
@@ -438,7 +437,7 @@ fun MiniPlayerOverlay(
                             onClick = { /* Refresh playlist logic */ },
                             modifier = Modifier.size(30.dp)
                         ) {
-                            Icon(Icons.Filled.Refresh, "Refresh", tint = Color(0xFF546E7A), modifier = Modifier.size(18.dp))
+                            Icon(AppIcons.Refresh, "Refresh", tint = Color(0xFF546E7A), modifier = Modifier.size(18.dp))
                         }
                         IconButton(
                             onClick = {
@@ -456,7 +455,7 @@ fun MiniPlayerOverlay(
                             modifier = Modifier.size(30.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Filled.VolumeUp,
+                                imageVector = AppIcons.VolumeUp,
                                 contentDescription = "Volume",
                                 tint = Color(0xFF546E7A),
                                 modifier = Modifier.size(18.dp)
@@ -486,7 +485,7 @@ fun MiniPlayerOverlay(
                 ) {
                     if (canGoBack) {
                         IconButton(onClick = handleBack, modifier = Modifier.size(32.dp)) {
-                            Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(20.dp))
+                            Icon(AppIcons.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(20.dp))
                         }
                     }
                     Text(
@@ -513,7 +512,7 @@ fun MiniPlayerOverlay(
                 ) {
                     if (explorerMode == "root") {
                         val options = listOf("Current", "Folder List", "Playlists")
-                        val icons = listOf(Icons.Filled.PlayCircle, Icons.Filled.Folder, Icons.Filled.PlaylistPlay)
+                        val icons = listOf(AppIcons.PlayCircle, AppIcons.Folder, AppIcons.PlaylistPlay)
                         items(options.size) { index ->
                             Row(
                                 modifier = Modifier
@@ -575,7 +574,7 @@ fun MiniPlayerOverlay(
                                     .padding(horizontal = 16.dp, vertical = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Filled.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(end = 16.dp))
+                                Icon(AppIcons.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(end = 16.dp))
                                 Column {
                                     Text(
                                         text = folder.name,
@@ -630,7 +629,7 @@ fun MiniPlayerOverlay(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
-                                    imageVector = if (item.mediaType == shura.media.data.MediaType.VIDEO) Icons.Filled.Movie else Icons.Filled.AudioFile,
+                                    imageVector = if (item.mediaType == shura.media.data.MediaType.VIDEO) AppIcons.Movie else AppIcons.AudioFile,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.onSurface,
                                     modifier = Modifier.padding(end = 12.dp).size(20.dp)
@@ -671,7 +670,7 @@ fun MiniPlayerOverlay(
                                     .padding(horizontal = 16.dp, vertical = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Filled.PlaylistPlay, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(end = 16.dp))
+                                Icon(AppIcons.PlaylistPlay, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(end = 16.dp))
                                 Text(
                                     text = playlistItem.name,
                                     style = MaterialTheme.typography.bodyMedium,
@@ -724,7 +723,7 @@ fun MiniPlayerOverlay(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
-                                    imageVector = Icons.Filled.AudioFile,
+                                    imageVector = AppIcons.AudioFile,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.onSurface,
                                     modifier = Modifier.padding(end = 12.dp).size(20.dp)
@@ -754,10 +753,10 @@ fun MiniPlayerOverlay(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onClose, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Filled.Close, "Close completely", tint = Color(0xFF37474F), modifier = Modifier.size(20.dp))
+                Icon(AppIcons.Close, "Close completely", tint = Color(0xFF37474F), modifier = Modifier.size(20.dp))
             }
             IconButton(onClick = { onMinimizeChange(true) }, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Filled.Remove, "Minimize", tint = Color(0xFF37474F), modifier = Modifier.size(20.dp))
+                Icon(AppIcons.Remove, "Minimize", tint = Color(0xFF37474F), modifier = Modifier.size(20.dp))
             }
             Box(
                 modifier = Modifier
@@ -770,7 +769,7 @@ fun MiniPlayerOverlay(
                     },
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Filled.ZoomOutMap, "Resize", tint = Color(0xFF37474F), modifier = Modifier.size(20.dp))
+                Icon(AppIcons.ZoomOutMap, "Resize", tint = Color(0xFF37474F), modifier = Modifier.size(20.dp))
             }
         }
     }

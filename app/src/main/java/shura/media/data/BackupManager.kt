@@ -48,6 +48,7 @@ object BackupManager {
         // 1. Serialize Settings / Preferences
         val settingsJson = JSONObject()
         settingsJson.put("output_folder_uri", settings.outputFolderUri.value)
+        settingsJson.put("save_single_edits_to_original_folder", settings.saveSingleEditsToOriginalFolder.value)
         settingsJson.put("show_logger_fab", settings.showLoggerFab.value)
         settingsJson.put("has_seen_welcome", settings.hasSeenWelcome)
 
@@ -107,6 +108,7 @@ object BackupManager {
             // 1. Pre-parse and validate settings payload before mutating anything
             val hasSettings = root.has("settings")
             var outputFolderUri: String? = null
+            var saveSingleEditsToOriginalFolder = true
             var showLoggerFab = true
             var hasSeenWelcome = true
             var excludedFoldersParsed: List<String>? = null
@@ -117,6 +119,7 @@ object BackupManager {
                 val settingsJson = root.getJSONObject("settings")
                 val rawOutputFolderUri = if (settingsJson.isNull("output_folder_uri")) null else settingsJson.getString("output_folder_uri")
                 outputFolderUri = if (isAllowedUriScheme(rawOutputFolderUri, ALLOWED_FOLDER_SCHEMES)) rawOutputFolderUri else null
+                saveSingleEditsToOriginalFolder = settingsJson.optBoolean("save_single_edits_to_original_folder", true)
                 showLoggerFab = settingsJson.optBoolean("show_logger_fab", true)
                 hasSeenWelcome = settingsJson.optBoolean("has_seen_welcome", true)
 
@@ -232,6 +235,7 @@ object BackupManager {
             // 4. Apply settings only after DB restore succeeds
             if (hasSettings) {
                 settings.setOutputFolderUri(outputFolderUri)
+                settings.setSaveSingleEditsToOriginalFolder(saveSingleEditsToOriginalFolder)
                 settings.setShowLoggerFab(showLoggerFab)
                 settings.hasSeenWelcome = hasSeenWelcome
 

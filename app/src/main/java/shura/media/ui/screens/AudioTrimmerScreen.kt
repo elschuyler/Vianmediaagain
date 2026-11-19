@@ -16,11 +16,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.arthenica.ffmpegkit.FFmpegKit
 import com.arthenica.ffmpegkit.ReturnCode
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Save
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Pause
+import shura.media.ui.icons.AppIcons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -38,15 +34,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.common.MediaItem
-import androidx.media3.common.MimeTypes
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.transformer.Composition
-import androidx.media3.transformer.ExportException
-import androidx.media3.transformer.ExportResult
-import androidx.media3.transformer.Transformer
-import androidx.media3.transformer.EditedMediaItem
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlin.coroutines.resume
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
@@ -67,17 +58,20 @@ fun AudioTrimmerScreen(
     var durationLoaded by remember { mutableStateOf(false) }
     
     LaunchedEffect(uri) {
-        try {
+        val extractedDuration = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             val retriever = android.media.MediaMetadataRetriever()
-            retriever.setDataSource(context, uri)
-            val time = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
-            durationMs = time?.toLongOrNull() ?: 180000L
-            retriever.release()
-            durationLoaded = true
-        } catch (e: Exception) {
-            durationMs = 180000L
-            durationLoaded = true
+            try {
+                retriever.setDataSource(context, uri)
+                val time = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
+                time?.toLongOrNull() ?: 180000L
+            } catch (e: Exception) {
+                180000L
+            } finally {
+                try { retriever.release() } catch (_: Exception) {}
+            }
         }
+        durationMs = extractedDuration
+        durationLoaded = true
     }
     
     var startMs by remember { mutableLongStateOf(0L) }
@@ -92,6 +86,7 @@ fun AudioTrimmerScreen(
     }
 
     var isExporting by remember { mutableStateOf(false) }
+    var activeExportSessionId by remember { mutableStateOf<Long?>(null) }
     var denoiseLevel by remember { mutableStateOf("OFF") }
     
     val player = remember(context) { 
@@ -117,6 +112,10 @@ fun AudioTrimmerScreen(
         // True Single Engine: Fully stop background playback and release shared PlayerManager engine
         shura.media.service.PlaybackService.stopPlaybackAndRelease(context)
         onDispose {
+            activeExportSessionId?.let { id ->
+                try { FFmpegKit.cancel(id) } catch (_: Exception) {}
+            }
+            activeExportSessionId = null
             player.release()
         }
     }
@@ -152,30 +151,45 @@ fun AudioTrimmerScreen(
                 title = { Text("Trim Audio") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(AppIcons.AutoMirrored.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
                     IconButton(
                         onClick = {
                             if (endMs > startMs) {
-                                exportTrimmedAudio(context, uri, startMs, endMs, denoiseLevel) { success ->
+                                isExporting = true
+                                coroutineScope.launch {
+                                    val result = exportTrimmedAudio(
+                                        context = context,
+                                        inputUri = uri,
+                                        startMs = startMs,
+                                        endMs = endMs,
+                                        denoiseLevel = denoiseLevel,
+                                        onSessionCreated = { sessionId ->
+                                            activeExportSessionId = sessionId
+                                        }
+                                    )
                                     isExporting = false
-                                    if (success) {
-                                        Toast.makeText(context, "Trimmed audio saved successfully", Toast.LENGTH_SHORT).show()
+                                    if (result.success) {
+                                        val msg = if (result.fellBackToOutputFolder) {
+                                            "Saved to Output Folder (original folder protected by Android)"
+                                        } else {
+                                            "Trimmed audio saved successfully"
+                                        }
+                                        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                                         onNavigateBack()
                                     } else {
                                         Toast.makeText(context, "Export failed", Toast.LENGTH_SHORT).show()
                                     }
                                 }
-                                isExporting = true
                             } else {
                                 Toast.makeText(context, "Invalid range", Toast.LENGTH_SHORT).show()
                             }
                         },
                         enabled = !isExporting
                     ) {
-                        Icon(Icons.Filled.Save, contentDescription = "Save Trim")
+                        Icon(AppIcons.Save, contentDescription = "Save Trim")
                     }
                 }
             )
@@ -278,7 +292,7 @@ fun AudioTrimmerScreen(
                             .background(MaterialTheme.colorScheme.primaryContainer, CircleShape)
                     ) {
                         Icon(
-                            if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                            if (isPlaying) AppIcons.Pause else AppIcons.PlayArrow,
                             contentDescription = "Play/Pause preview",
                             modifier = Modifier.size(32.dp),
                             tint = MaterialTheme.colorScheme.onPrimaryContainer
@@ -562,169 +576,209 @@ private fun formatTrimmerTime(ms: Long): String {
     }
 }
 
-// Media3 Transformer & FFmpeg afftdn Denoise API
-private fun exportTrimmedAudio(context: Context, inputUri: Uri, startMs: Long, endMs: Long, denoiseLevel: String, onComplete: (Boolean) -> Unit) {
-    if (denoiseLevel == "OFF") {
-        val transformer = Transformer.Builder(context).build()
-        
-        val clippingConfiguration = MediaItem.ClippingConfiguration.Builder()
-            .setStartPositionMs(startMs)
-            .setEndPositionMs(endMs)
-            .build()
-
-        val mediaItem = MediaItem.Builder()
-            .setUri(inputUri)
-            .setClippingConfiguration(clippingConfiguration)
-            .build()
-            
-        val editedMediaItem = EditedMediaItem.Builder(mediaItem).build()
-        
-        // We export to a local temp file, then copy to SAF or MediaStore
-        val tempFile = java.io.File(context.cacheDir, "Temp_Trim_${System.currentTimeMillis()}.m4a")
-
-        transformer.addListener(object : Transformer.Listener {
-            override fun onCompleted(composition: Composition, exportResult: ExportResult) {
-                super.onCompleted(composition, exportResult)
-                
-                Thread {
-                    val settingsManager = shura.media.data.SettingsManager.getInstance(context)
-                    val outputUriStr = settingsManager.outputFolderUri.value
-                    
-                    val originalName = getDisplayNameFromUri(context, inputUri)
-                    val sdf = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.getDefault())
-                    val dateStr = sdf.format(java.util.Date())
-                    val fileName = "${originalName}_${dateStr}_trimmed.m4a"
-                    
-                    val outStream = getOutputStream(context, outputUriStr, fileName, "audio/mp4")
-                    val success = if (outStream != null) {
-                        copyFileToStream(tempFile, outStream)
-                    } else {
-                        false
-                    }
-                    
-                    if (tempFile.exists()) {
-                        tempFile.delete()
-                    }
-                    
-                    android.os.Handler(android.os.Looper.getMainLooper()).post {
-                        onComplete(success)
-                    }
-                }.start()
-            }
-
-            override fun onError(composition: Composition, exportResult: ExportResult, exportException: ExportException) {
-                super.onError(composition, exportResult, exportException)
-                if (tempFile.exists()) {
-                    tempFile.delete()
-                }
-                android.os.Handler(android.os.Looper.getMainLooper()).post {
-                    onComplete(false)
-                }
-            }
-        })
-
-        transformer.start(editedMediaItem, tempFile.absolutePath)
-        return
-    }
-
-    // High-Fidelity FFmpeg FFT Denoise Pipeline
-    Thread {
-        val denoiseFilter = when (denoiseLevel) {
-            "LIGHT" -> "afftdn=nr=12:nf=-20"
-            "MEDIUM" -> "afftdn=nr=18:nf=-25"
-            "AGGRESSIVE" -> "afftdn=nr=24:nf=-30"
-            else -> "anull"
+private suspend fun runCancellableFFmpeg(
+    args: Array<String>,
+    onSessionCreated: (Long?) -> Unit
+): com.arthenica.ffmpegkit.FFmpegSession = kotlinx.coroutines.suspendCancellableCoroutine { cont ->
+    val session = FFmpegKit.executeWithArgumentsAsync(args) { completedSession ->
+        if (cont.isActive) {
+            cont.resume(completedSession)
         }
-        val tempInput = java.io.File(context.cacheDir, "Temp_Input_${System.currentTimeMillis()}.tmp")
-        val tempOutput = java.io.File(context.cacheDir, "Temp_Trim_${System.currentTimeMillis()}.m4a")
-        var success = false
-        try {
-            shura.media.data.MediaUriResolver.openInputStreamSafely(context, inputUri.toString()).use { input ->
-                java.io.FileOutputStream(tempInput).use { output ->
+    }
+    onSessionCreated(session.sessionId)
+    cont.invokeOnCancellation {
+        try { FFmpegKit.cancel(session.sessionId) } catch (_: Exception) {}
+    }
+}
+
+private data class AudioExportResult(
+    val success: Boolean,
+    val fellBackToOutputFolder: Boolean = false
+)
+
+// FFmpegKit Audio Trim + Optional afftdn Denoise Pipeline
+private suspend fun exportTrimmedAudio(
+    context: Context,
+    inputUri: Uri,
+    startMs: Long,
+    endMs: Long,
+    denoiseLevel: String,
+    onSessionCreated: (Long?) -> Unit
+): AudioExportResult = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+    val uriStr = inputUri.toString()
+    val isFileUri = inputUri.scheme == "file" || uriStr.startsWith("file:") || uriStr.startsWith("/")
+    val localCandidate = if (isFileUri && !shura.media.data.MediaUriResolver.isAppPrivatePath(context, uriStr, allowApprovedCacheTemp = true)) {
+        val directPath = when {
+            uriStr.startsWith("file://") -> uriStr.removePrefix("file://")
+            uriStr.startsWith("file:/") -> uriStr.removePrefix("file:")
+            uriStr.startsWith("file:") -> uriStr.removePrefix("file:")
+            else -> inputUri.path ?: uriStr
+        }
+        listOfNotNull(
+            java.io.File(directPath),
+            java.io.File(Uri.decode(directPath)),
+            inputUri.path?.let { java.io.File(it) },
+            inputUri.path?.let { java.io.File(Uri.decode(it)) }
+        ).firstOrNull {
+            it.exists() && it.canRead() && !shura.media.data.MediaUriResolver.isAppPrivatePath(
+                context,
+                it.absolutePath,
+                allowApprovedCacheTemp = true
+            )
+        }
+    } else null
+
+    val tempInputToDelete: java.io.File? = if (localCandidate == null) {
+        java.io.File(context.cacheDir, "Temp_Input_${System.currentTimeMillis()}.tmp")
+    } else null
+    val tempOutput = java.io.File(context.cacheDir, "Temp_Trim_${System.currentTimeMillis()}.m4a")
+    var success = false
+    var fellBackToOutputFolder = false
+
+    try {
+        val actualInputFile = if (localCandidate != null) {
+            localCandidate
+        } else {
+            val tmpIn = tempInputToDelete!!
+            shura.media.data.MediaUriResolver.openInputStreamSafely(context, uriStr).use { input ->
+                java.io.FileOutputStream(tmpIn).use { output ->
                     input.copyTo(output)
                 }
             }
-            if (tempInput.exists() && tempInput.length() > 0) {
-                val startS = startMs / 1000f
-                val endS = endMs / 1000f
-                val session = FFmpegKit.executeWithArguments(
+            tmpIn
+        }
+
+        if (actualInputFile.exists() && actualInputFile.length() > 0L) {
+            val startS = String.format(java.util.Locale.US, "%.3f", startMs / 1000.0)
+            val endS = String.format(java.util.Locale.US, "%.3f", endMs / 1000.0)
+
+            var session: com.arthenica.ffmpegkit.FFmpegSession? = null
+            if (denoiseLevel == "OFF") {
+                val extLower = uriStr.substringAfterLast('.', "").substringBefore('?').lowercase()
+                if (extLower in setOf("m4a", "aac", "mp4")) {
+                    val copySession = runCancellableFFmpeg(
+                        arrayOf(
+                            "-y",
+                            "-ss", startS,
+                            "-to", endS,
+                            "-i", actualInputFile.absolutePath,
+                            "-vn",
+                            "-c:a", "copy",
+                            "-movflags", "+faststart",
+                            tempOutput.absolutePath
+                        ),
+                        onSessionCreated
+                    )
+                    if (ReturnCode.isSuccess(copySession.returnCode) && tempOutput.exists() && tempOutput.length() > 0L) {
+                        session = copySession
+                    } else if (tempOutput.exists()) {
+                        tempOutput.delete()
+                    }
+                }
+                if (session == null) {
+                    session = runCancellableFFmpeg(
+                        arrayOf(
+                            "-y",
+                            "-ss", startS,
+                            "-to", endS,
+                            "-i", actualInputFile.absolutePath,
+                            "-vn",
+                            "-c:a", "aac",
+                            "-b:a", "192k",
+                            "-movflags", "+faststart",
+                            tempOutput.absolutePath
+                        ),
+                        onSessionCreated
+                    )
+                }
+            } else {
+                val denoiseFilter = when (denoiseLevel) {
+                    "LIGHT" -> "afftdn=nr=12:nf=-20"
+                    "MEDIUM" -> "afftdn=nr=18:nf=-25"
+                    "AGGRESSIVE" -> "afftdn=nr=24:nf=-30"
+                    else -> "anull"
+                }
+                session = runCancellableFFmpeg(
                     arrayOf(
                         "-y",
-                        "-ss", startS.toString(),
-                        "-to", endS.toString(),
-                        "-i", tempInput.absolutePath,
+                        "-ss", startS,
+                        "-to", endS,
+                        "-i", actualInputFile.absolutePath,
+                        "-vn",
                         "-af", denoiseFilter,
                         "-c:a", "aac",
                         "-b:a", "192k",
+                        "-movflags", "+faststart",
                         tempOutput.absolutePath
-                    )
+                    ),
+                    onSessionCreated
                 )
-                val returnCode = session.returnCode
-                if (returnCode != null && ReturnCode.isSuccess(returnCode) && tempOutput.exists() && tempOutput.length() > 0) {
-                    val settingsManager = shura.media.data.SettingsManager.getInstance(context)
-                    val outputUriStr = settingsManager.outputFolderUri.value
-                    val originalName = getDisplayNameFromUri(context, inputUri)
-                    val sdf = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.getDefault())
-                    val dateStr = sdf.format(java.util.Date())
-                    val fileName = "${originalName}_${dateStr}_trimmed_denoised.m4a"
-                    val outStream = getOutputStream(context, outputUriStr, fileName, "audio/mp4")
-                    if (outStream != null) {
-                        success = copyFileToStream(tempOutput, outStream)
+            }
+
+            val finalSession = session!!
+            val returnCode = finalSession.returnCode
+            if (returnCode != null && ReturnCode.isSuccess(returnCode) && tempOutput.exists() && tempOutput.length() > 0L) {
+                val settingsManager = shura.media.data.SettingsManager.getInstance(context)
+                val outputUriStr = settingsManager.outputFolderUri.value
+                val preferOriginal = settingsManager.saveSingleEditsToOriginalFolder.value
+                val originalName = getDisplayNameFromUri(context, inputUri)
+                val sdf = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.getDefault())
+                val dateStr = sdf.format(java.util.Date())
+                val suffix = if (denoiseLevel == "OFF") "trimmed" else "trimmed_denoised"
+                val fileName = "${originalName}_${dateStr}_${suffix}.m4a"
+                val defaultQCollection = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI
+                } else {
+                    android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+                }
+                val target = shura.media.data.MediaOutputRouter.openOutputTarget(
+                    context = context,
+                    sourceUriStr = uriStr,
+                    fileName = fileName,
+                    mimeType = "audio/mp4",
+                    preferOriginalFolder = preferOriginal,
+                    fallbackOutputTreeUri = outputUriStr,
+                    defaultRelativePath = android.os.Environment.DIRECTORY_DOWNLOADS + "/Compressed",
+                    defaultCollectionLegacy = android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                    defaultCollectionQ = defaultQCollection
+                )
+                val outStream = target.stream
+                if (outStream != null) {
+                    success = copyFileToStream(tempOutput, outStream)
+                    if (success) {
+                        shura.media.data.MediaOutputRouter.finalizeOutputTarget(context, target, "audio/mp4")
+                        fellBackToOutputFolder = preferOriginal && !target.savedToOriginalFolder
+                    } else {
+                        shura.media.data.MediaOutputRouter.abortOutputTarget(context, target)
                     }
                 } else {
-                    val tailLogs = shura.media.LogKeeper.sanitize(
-                        session.allLogsAsString.orEmpty().lines().takeLast(25).joinToString("\n")
-                    )
-                    shura.media.LogKeeper.logError("AudioTrimmerScreen", "FFmpeg denoise failed (${returnCode?.value ?: "null"}):\n$tailLogs", null)
+                    shura.media.data.MediaOutputRouter.abortOutputTarget(context, target)
                 }
-            }
-        } catch (e: Exception) {
-            shura.media.LogKeeper.logError("AudioTrimmerScreen", "Failed to trim and denoise audio: ${e.message}", e)
-        } finally {
-            if (tempInput.exists()) tempInput.delete()
-            if (tempOutput.exists()) tempOutput.delete()
-            android.os.Handler(android.os.Looper.getMainLooper()).post {
-                onComplete(success)
+            } else if (!ReturnCode.isCancel(returnCode)) {
+                val tailLogs = shura.media.LogKeeper.sanitize(
+                    finalSession.allLogsAsString.orEmpty().lines().takeLast(25).joinToString("\n")
+                )
+                shura.media.LogKeeper.logError(
+                    "AudioTrimmerScreen",
+                    "FFmpeg audio trim failed (${returnCode?.value ?: "null"}):\n$tailLogs",
+                    null
+                )
             }
         }
-    }.start()
-}
-
-private fun getOutputStream(context: Context, outputUriStr: String?, fileName: String, mimeType: String): java.io.OutputStream? {
-    if (outputUriStr != null) {
-        try {
-            val treeUri = Uri.parse(outputUriStr)
-            val docId = android.provider.DocumentsContract.getTreeDocumentId(treeUri)
-            val docUri = android.provider.DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
-            val newUri = android.provider.DocumentsContract.createDocument(
-                context.contentResolver,
-                docUri,
-                mimeType,
-                fileName
-            )
-            if (newUri != null) {
-                return context.contentResolver.openOutputStream(newUri)
-            }
-        } catch (e: Exception) {
-            shura.media.LogKeeper.logError("AudioTrimmerScreen", "Failed SAF create", e)
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        shura.media.LogKeeper.logError("AudioTrimmerScreen", "Failed to trim audio: ${e.message}", e)
+    } finally {
+        onSessionCreated(null)
+        if (tempInputToDelete != null && tempInputToDelete.exists()) {
+            try { tempInputToDelete.delete() } catch (_: Exception) {}
+        }
+        if (tempOutput.exists()) {
+            try { tempOutput.delete() } catch (_: Exception) {}
         }
     }
-
-    // Fallback to media store (Downloads directory)
-    val contentValues = android.content.ContentValues().apply {
-        put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, fileName)
-        put(android.provider.MediaStore.MediaColumns.MIME_TYPE, mimeType)
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-            put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS + "/Compressed")
-        }
-    }
-    val collection = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-        android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI
-    } else {
-        android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
-    }
-    val uri = context.contentResolver.insert(collection, contentValues)
-    return uri?.let { context.contentResolver.openOutputStream(it) }
+    AudioExportResult(success = success, fellBackToOutputFolder = fellBackToOutputFolder)
 }
 
 private fun copyFileToStream(source: java.io.File, destination: java.io.OutputStream): Boolean {

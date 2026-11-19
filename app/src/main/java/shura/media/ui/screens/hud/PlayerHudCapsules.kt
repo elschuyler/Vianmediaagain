@@ -19,13 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.BatteryChargingFull
-import androidx.compose.material.icons.filled.BatteryFull
-import androidx.compose.material.icons.filled.LightMode
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.VolumeUp
+import shura.media.ui.icons.AppIcons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -92,7 +86,7 @@ fun VolumeHudCapsule(
             }
             Spacer(modifier = Modifier.height(4.dp))
             Icon(
-                imageVector = Icons.Filled.VolumeUp,
+                imageVector = AppIcons.VolumeUp,
                 contentDescription = null,
                 tint = Color.White,
                 modifier = Modifier.size(16.dp)
@@ -175,7 +169,7 @@ fun BrightnessHudCapsule(
         }
         Spacer(modifier = Modifier.height(4.dp))
         Icon(
-            imageVector = Icons.Filled.LightMode,
+            imageVector = AppIcons.LightMode,
             contentDescription = null,
             tint = Color.White,
             modifier = Modifier.size(16.dp)
@@ -249,7 +243,7 @@ fun PlayPauseFlashHud(
         modifier = modifier
     ) {
         Icon(
-            imageVector = if (flashIsPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+            imageVector = if (flashIsPlaying) AppIcons.Pause else AppIcons.PlayArrow,
             contentDescription = null,
             tint = Color.White.copy(alpha = 0.85f),
             modifier = Modifier.size(72.dp)
@@ -279,7 +273,7 @@ fun BatteryTimeHudRow(
             fontWeight = FontWeight.SemiBold,
         )
         Icon(
-            imageVector = if (isCharging) Icons.Filled.BatteryChargingFull else Icons.Filled.BatteryFull,
+            imageVector = if (isCharging) AppIcons.BatteryChargingFull else AppIcons.BatteryFull,
             contentDescription = if (isCharging) "Charging" else "Battery",
             tint = Color.White.copy(alpha = 0.8f),
             modifier = Modifier.size(14.dp)

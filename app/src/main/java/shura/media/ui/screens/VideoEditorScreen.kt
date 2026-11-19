@@ -11,12 +11,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.automirrored.filled.Redo
-import androidx.compose.material.icons.automirrored.filled.Undo
-import androidx.compose.material.icons.filled.*
+import shura.media.ui.icons.AppIcons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -304,14 +299,22 @@ fun VideoEditorScreen(
     )
     var currentMainUri by remember(uriString) { mutableStateOf(uriString) }
     val initialUri = remember(currentMainUri) { Uri.parse(currentMainUri) }
-    val mimeType = remember(currentMainUri) { context.contentResolver.getType(initialUri) }
+    val isLocalFileSchemeInitial = remember(currentMainUri) {
+        initialUri.scheme == "file" || currentMainUri.startsWith("file:") || currentMainUri.startsWith("/")
+    }
+    var resolvedMimeType by remember(currentMainUri) { mutableStateOf<String?>(null) }
+    var mimeChecked by remember(currentMainUri) { mutableStateOf(isLocalFileSchemeInitial) }
     val extRawInitial = remember(uriString) { uriString.substringAfterLast('.', "").substringBefore('?').lowercase() }
-    val initialRequiresConversion = remember(uriString, mimeType) {
-        mimeType == "image/gif" || mimeType == "image/webp" || extRawInitial in setOf("m4s", "ts", "m2ts", "mts", "tp", "trp")
+    val extNeedsConversion = remember(extRawInitial) {
+        extRawInitial in setOf("gif", "webp", "m4s", "ts", "m2ts", "mts", "tp", "trp")
+    }
+    val initialRequiresConversion = remember(resolvedMimeType, extNeedsConversion, mimeChecked, isLocalFileSchemeInitial) {
+        resolvedMimeType == "image/gif" || resolvedMimeType == "image/webp" || extNeedsConversion ||
+            (!isLocalFileSchemeInitial && !mimeChecked)
     }
 
     var convertedUri by remember { mutableStateOf<String?>(null) }
-    var isConverting by remember { mutableStateOf(initialRequiresConversion) }
+    var isConverting by remember(uriString) { mutableStateOf(extNeedsConversion) }
     var playerError by remember { mutableStateOf<String?>(null) }
     var exportedPreviewUri by remember { mutableStateOf<String?>(null) }
     val isExportPreviewOpen = exportedPreviewUri != null
@@ -336,7 +339,7 @@ fun VideoEditorScreen(
     }
 
     val effectiveUri = convertedUri ?: if (!initialRequiresConversion) currentMainUri else null
-    val effectiveMimeType = if (convertedUri != null) "video/mp4" else mimeType
+    val effectiveMimeType = if (convertedUri != null) "video/mp4" else resolvedMimeType
 
     // Zero-Memory: Track session temporary files and delete them on screen exit
     val sessionTempFiles = remember { java.util.concurrent.CopyOnWriteArraySet<java.io.File>() }
@@ -361,15 +364,17 @@ fun VideoEditorScreen(
             withContext(Dispatchers.IO) {
                 var totalJoinMs = 0L
                 for (uStr in urisToMeasure) {
+                    val retriever = android.media.MediaMetadataRetriever()
                     try {
-                        val retriever = android.media.MediaMetadataRetriever()
                         retriever.setDataSource(context, android.net.Uri.parse(uStr))
                         val timeString = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
                         if (timeString != null) {
                             totalJoinMs += timeString.toLong()
                         }
-                        retriever.release()
-                    } catch (e: Exception) {}
+                    } catch (e: Exception) {
+                    } finally {
+                        try { retriever.release() } catch (_: Exception) {}
+                    }
                 }
                 joinDurationMs = totalJoinMs
             }
@@ -382,9 +387,14 @@ fun VideoEditorScreen(
     LaunchedEffect(uriString) {
         val targetUri = Uri.parse(uriString)
         val extRaw = uriString.substringAfterLast('.', "").substringBefore('?').lowercase()
-        val containerType = withContext(Dispatchers.IO) {
-            shura.media.data.detectStreamContainer(context, targetUri)
+        val (mimeType, containerType) = withContext(Dispatchers.IO) {
+            val m = try { context.contentResolver.getType(targetUri) } catch (_: Exception) { null }
+            val c = shura.media.data.detectStreamContainer(context, targetUri)
+            m to c
         }
+        resolvedMimeType = mimeType
+        mimeChecked = true
+
         val isStreamContainer = (containerType != shura.media.data.StreamContainerType.STANDARD)
         val isM4s = extRaw == "m4s" || (mimeType == "video/mp4" && uriString.endsWith(".m4s", true)) || containerType == shura.media.data.StreamContainerType.FRAGMENTED_MP4
         val isTs = extRaw in setOf("ts", "m2ts", "mts", "tp", "trp") || containerType == shura.media.data.StreamContainerType.MPEG_TS
@@ -393,8 +403,10 @@ fun VideoEditorScreen(
         
         if (mimeType == "image/gif" || mimeType == "image/webp" || isM4s || isTs || isStreamContainer) {
             isConverting = true
+            var shouldDeleteInputFile = false
+            var tempInputToDelete: java.io.File? = null
             try {
-                // Step 1: Copy URI to cache file on IO thread
+                // Step 1: Use local readable file directly if safe, otherwise copy URI to cache file on IO thread
                 val ext = when {
                     mimeType == "image/gif" -> "gif"
                     mimeType == "image/webp" -> "webp"
@@ -402,11 +414,36 @@ fun VideoEditorScreen(
                     else -> "m4s"
                 }
                 val inputFile = withContext(Dispatchers.IO) {
-                    val f = java.io.File(context.cacheDir, "editor_in_${System.currentTimeMillis()}.$ext")
-                    shura.media.data.MediaUriResolver.openInputStreamSafely(context, uriString).use { input ->
-                        f.outputStream().use { output -> input.copyTo(output) }
+                    val isLocalFile = targetUri.scheme == "file" || uriString.startsWith("file:") || uriString.startsWith("/")
+                    val localCandidate = if (isLocalFile && !shura.media.data.MediaUriResolver.isAppPrivatePath(context, uriString, allowApprovedCacheTemp = true)) {
+                        val directPath = when {
+                            uriString.startsWith("file://") -> uriString.removePrefix("file://")
+                            uriString.startsWith("file:/") -> uriString.removePrefix("file:")
+                            uriString.startsWith("file:") -> uriString.removePrefix("file:")
+                            else -> targetUri.path ?: uriString
+                        }
+                        listOfNotNull(
+                            java.io.File(directPath),
+                            java.io.File(Uri.decode(directPath)),
+                            targetUri.path?.let { java.io.File(it) },
+                            targetUri.path?.let { java.io.File(Uri.decode(it)) }
+                        ).firstOrNull { it.exists() && it.canRead() && !shura.media.data.MediaUriResolver.isAppPrivatePath(context, it.absolutePath, allowApprovedCacheTemp = true) }
+                    } else null
+
+                    if (localCandidate != null) {
+                        shouldDeleteInputFile = false
+                        localCandidate
+                    } else {
+                        shouldDeleteInputFile = true
+                        val f = java.io.File(context.cacheDir, "editor_in_${System.currentTimeMillis()}.$ext")
+                        shura.media.data.MediaUriResolver.openInputStreamSafely(context, uriString).use { input ->
+                            f.outputStream().use { output -> input.copyTo(output) }
+                        }
+                        f
                     }
-                    f
+                }
+                if (shouldDeleteInputFile) {
+                    tempInputToDelete = inputFile
                 }
                 val outputFile = java.io.File(context.cacheDir, "editor_converted_${System.currentTimeMillis()}.mp4")
                 sessionTempFiles.add(outputFile)
@@ -418,8 +455,10 @@ fun VideoEditorScreen(
 
                     var calculatedFps = 30
                     withContext(Dispatchers.IO) {
+                        var webpImage: com.facebook.animated.webp.WebPImage? = null
+                        var previousFrameToRecycle: android.graphics.Bitmap? = null
                         try {
-                            val bytes = inputFile.readBytes()
+                            var bytes: ByteArray? = inputFile.readBytes()
                             try {
                                 val clazz = Class.forName("com.facebook.soloader.nativeloader.NativeLoader")
                                 val isInitializedMethod = clazz.getMethod("isInitialized")
@@ -432,12 +471,12 @@ fun VideoEditorScreen(
                                     initMethod.invoke(null, delegate)
                                 }
                             } catch (e: Exception) {}
-                            val webpImage = com.facebook.animated.webp.WebPImage.createFromByteArray(bytes, com.facebook.imagepipeline.common.ImageDecodeOptions.defaults())
+                            webpImage = com.facebook.animated.webp.WebPImage.createFromByteArray(bytes!!, com.facebook.imagepipeline.common.ImageDecodeOptions.defaults())
+                            bytes = null // Allow GC before frame extraction loop
                             frameCount = webpImage.frameCount
                             val durations = webpImage.frameDurations
                             val averageDurationMs = if (frameCount > 0) durations.sum() / frameCount else 33
                             calculatedFps = if (averageDurationMs > 0) 1000 / averageDurationMs else 30
-                            
                             
                             var lastCachedFrame: android.graphics.Bitmap? = null
                             var lastCachedFrameIndex = -1
@@ -462,7 +501,6 @@ fun VideoEditorScreen(
                                 }
                             )
 
-                            var previousFrameToRecycle: android.graphics.Bitmap? = null
                             for (i in 0 until frameCount) {
                                 val w = webpImage.width
                                 val h = webpImage.height
@@ -476,12 +514,15 @@ fun VideoEditorScreen(
                                 lastCachedFrameIndex = i
                                 previousFrameToRecycle = bmp
                             }
-                            previousFrameToRecycle?.recycle()
-                            webpImage.dispose()
                         } catch (e: kotlinx.coroutines.CancellationException) {
                             throw e
+                        } catch (e: OutOfMemoryError) {
+                            LogKeeper.logError("VideoEditor", "OOM during WebP frame extraction", RuntimeException(e))
                         } catch (e: Exception) {
                             LogKeeper.logError("VideoEditor", "Frame extraction failed: ${e.message}", e)
+                        } finally {
+                            try { previousFrameToRecycle?.recycle() } catch (_: Exception) {}
+                            try { webpImage?.dispose() } catch (_: Exception) {}
                         }
                     }
 
@@ -610,15 +651,16 @@ fun VideoEditorScreen(
                         }
                     }
                 }
-                if (inputFile.exists()) {
-                    inputFile.delete()
-                }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
                 LogKeeper.logError("VideoEditor", "Pre-conversion failed: ${e.message}", e)
+            } finally {
+                if (tempInputToDelete != null && tempInputToDelete.exists()) {
+                    try { tempInputToDelete.delete() } catch (_: Exception) {}
+                }
+                isConverting = false
             }
-            isConverting = false
         }
     }
 
@@ -627,13 +669,38 @@ fun VideoEditorScreen(
         scope.launch {
             playerError = null
             isConverting = true
+            var shouldDeleteRepairInput = false
+            var inputFile: java.io.File? = null
             try {
-                val inputFile = withContext(Dispatchers.IO) {
-                    val f = java.io.File(context.cacheDir, "editor_in_${System.currentTimeMillis()}.mp4")
-                    shura.media.data.MediaUriResolver.openInputStreamSafely(context, uriString).use { input ->
-                        f.outputStream().use { output -> input.copyTo(output) }
+                inputFile = withContext(Dispatchers.IO) {
+                    val parsedRepair = Uri.parse(uriString)
+                    val isLocal = parsedRepair.scheme == "file" || uriString.startsWith("file:") || uriString.startsWith("/")
+                    val localCandidate = if (isLocal && !shura.media.data.MediaUriResolver.isAppPrivatePath(context, uriString, allowApprovedCacheTemp = true)) {
+                        val directPath = when {
+                            uriString.startsWith("file://") -> uriString.removePrefix("file://")
+                            uriString.startsWith("file:/") -> uriString.removePrefix("file:")
+                            uriString.startsWith("file:") -> uriString.removePrefix("file:")
+                            else -> parsedRepair.path ?: uriString
+                        }
+                        listOfNotNull(
+                            java.io.File(directPath),
+                            java.io.File(Uri.decode(directPath)),
+                            parsedRepair.path?.let { java.io.File(it) },
+                            parsedRepair.path?.let { java.io.File(Uri.decode(it)) }
+                        ).firstOrNull { it.exists() && it.canRead() && !shura.media.data.MediaUriResolver.isAppPrivatePath(context, it.absolutePath, allowApprovedCacheTemp = true) }
+                    } else null
+
+                    if (localCandidate != null) {
+                        shouldDeleteRepairInput = false
+                        localCandidate
+                    } else {
+                        shouldDeleteRepairInput = true
+                        val f = java.io.File(context.cacheDir, "editor_in_${System.currentTimeMillis()}.mp4")
+                        shura.media.data.MediaUriResolver.openInputStreamSafely(context, uriString).use { input ->
+                            f.outputStream().use { output -> input.copyTo(output) }
+                        }
+                        f
                     }
-                    f
                 }
                 val outputFile = java.io.File(context.cacheDir, "editor_converted_${System.currentTimeMillis()}.mp4")
                 sessionTempFiles.add(outputFile)
@@ -643,7 +710,7 @@ fun VideoEditorScreen(
                             "-y",
                             "-fflags", "+genpts+igndts",
                             "-avoid_negative_ts", "make_zero",
-                            "-i", inputFile.absolutePath,
+                            "-i", inputFile!!.absolutePath,
                             "-vf", "fps=30,setpts=PTS-STARTPTS",
                             "-af", "aresample=async=1000:first_pts=0",
                             "-c:v", "libx264",
@@ -663,11 +730,13 @@ fun VideoEditorScreen(
                         val tailLogs = LogKeeper.sanitize(session.allLogsAsString.orEmpty().lines().takeLast(25).joinToString("\n"))
                         LogKeeper.logError("VideoEditor", "FFmpeg repair failed: ${session.returnCode}\nLogs:\n$tailLogs", Exception())
                     }
-                    inputFile.delete()
                 }
             } catch (e: Exception) {
                 LogKeeper.logError("VideoEditor", "Repair failed: ${e.message}", e)
             } finally {
+                if (shouldDeleteRepairInput && inputFile != null && inputFile.exists()) {
+                    try { inputFile.delete() } catch (_: Exception) {}
+                }
                 isConverting = false
             }
         }
@@ -688,43 +757,51 @@ fun VideoEditorScreen(
     
     LaunchedEffect(effectiveUri) {
         if (effectiveUri.isNullOrBlank()) return@LaunchedEffect
-        try {
+        val metadata = withContext(Dispatchers.IO) {
             val retriever = android.media.MediaMetadataRetriever()
-            val parsed = android.net.Uri.parse(effectiveUri)
-            val isFile = parsed.scheme == "file" || effectiveUri.startsWith("file:") || effectiveUri.startsWith("/")
-            if (isFile) {
-                val directPath = when {
-                    effectiveUri.startsWith("file://") -> effectiveUri.removePrefix("file://")
-                    effectiveUri.startsWith("file:/") -> effectiveUri.removePrefix("file:")
-                    effectiveUri.startsWith("file:") -> effectiveUri.removePrefix("file:")
-                    else -> parsed.path ?: effectiveUri
-                }
-                val candidate1 = java.io.File(directPath)
-                val candidate2 = java.io.File(android.net.Uri.decode(directPath))
-                val candidate3 = parsed.path?.let { java.io.File(it) }
-                val candidate4 = parsed.path?.let { java.io.File(android.net.Uri.decode(it)) }
-                val src = listOfNotNull(candidate1, candidate2, candidate3, candidate4).firstOrNull { it.exists() && it.canRead() }
-                    ?: candidate1
-                retriever.setDataSource(src.absolutePath)
-            } else {
-                retriever.setDataSource(context, parsed)
-            }
-            val timeString = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
-            if (timeString != null) {
-                val dur = timeString.toLong()
-                if (dur > 0) {
-                    durationMs = dur
-                    if (editState.trimEndMs == 0L) {
-                        editState = editState.copy(trimEndMs = dur)
+            try {
+                val parsed = android.net.Uri.parse(effectiveUri)
+                val isFile = parsed.scheme == "file" || effectiveUri.startsWith("file:") || effectiveUri.startsWith("/")
+                if (isFile) {
+                    val directPath = when {
+                        effectiveUri.startsWith("file://") -> effectiveUri.removePrefix("file://")
+                        effectiveUri.startsWith("file:/") -> effectiveUri.removePrefix("file:")
+                        effectiveUri.startsWith("file:") -> effectiveUri.removePrefix("file:")
+                        else -> parsed.path ?: effectiveUri
                     }
+                    val candidate1 = java.io.File(directPath)
+                    val candidate2 = java.io.File(android.net.Uri.decode(directPath))
+                    val candidate3 = parsed.path?.let { java.io.File(it) }
+                    val candidate4 = parsed.path?.let { java.io.File(android.net.Uri.decode(it)) }
+                    val src = listOfNotNull(candidate1, candidate2, candidate3, candidate4).firstOrNull { it.exists() && it.canRead() }
+                        ?: candidate1
+                    retriever.setDataSource(src.absolutePath)
+                } else {
+                    retriever.setDataSource(context, parsed)
+                }
+                val dur = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+                val rotation = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)?.toIntOrNull() ?: 0
+                val rawW = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: 0
+                val rawH = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull() ?: 0
+                val hasAudio = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO) == "yes"
+                listOf(dur, rotation.toLong(), rawW.toLong(), rawH.toLong(), if (hasAudio) 1L else 0L)
+            } catch (_: Exception) {
+                null
+            } finally {
+                try { retriever.release() } catch (_: Exception) {}
+            }
+        }
+        if (metadata != null) {
+            val dur = metadata[0]
+            val rotation = metadata[1].toInt()
+            val rawW = metadata[2].toInt()
+            val rawH = metadata[3].toInt()
+            if (dur > 0L) {
+                durationMs = dur
+                if (editState.trimEndMs == 0L) {
+                    editState = editState.copy(trimEndMs = dur)
                 }
             }
-            val rotStr = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)
-            val rotation = rotStr?.toIntOrNull() ?: 0
-            val wStr = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
-            val hStr = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
-            val rawW = wStr?.toIntOrNull() ?: 0
-            val rawH = hStr?.toIntOrNull() ?: 0
             if (rawW > 0 && rawH > 0) {
                 if (rotation == 90 || rotation == 270) {
                     videoWidth = rawH
@@ -734,10 +811,8 @@ fun VideoEditorScreen(
                     videoHeight = rawH
                 }
             }
-            val audioStr = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO)
-            videoHasAudio = (audioStr == "yes")
-            retriever.release()
-        } catch (e: Exception) {}
+            videoHasAudio = metadata[4] == 1L
+        }
     }
 
     val exoPlayer = remember(effectiveUri, convertedUri, isConverting, isExportPreviewOpen, editState.joinVideoUris, editState.joinVideoUri, editState.joinAtEnd) {
@@ -895,15 +970,15 @@ fun VideoEditorScreen(
                 title = { Text("Editor", style = MaterialTheme.typography.titleMedium) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(AppIcons.AutoMirrored.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
                     IconButton(onClick = { /* Undo */ }) {
-                        Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "Undo")
+                        Icon(AppIcons.AutoMirrored.Undo, contentDescription = "Undo")
                     }
                     IconButton(onClick = { /* Redo */ }) {
-                        Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = "Redo")
+                        Icon(AppIcons.AutoMirrored.Redo, contentDescription = "Redo")
                     }
                     Button(
                         enabled = !isEditorExporting && !shura.media.service.FFmpegStatus.isRunning && !isConverting,
@@ -1157,7 +1232,7 @@ fun VideoEditorScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = Icons.Filled.PlayArrow,
+                                    imageVector = AppIcons.PlayArrow,
                                     contentDescription = "Play",
                                     tint = Color.White,
                                     modifier = Modifier.size(36.dp)
@@ -1577,7 +1652,7 @@ fun VideoEditorScreen(
                                 .border(1.dp, Color(0xFF2196F3), CircleShape)
                         ) {
                             Icon(
-                                imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                                imageVector = if (isPlaying) AppIcons.Pause else AppIcons.PlayArrow,
                                 contentDescription = if (isPlaying) "Pause" else "Play",
                                 tint = Color(0xFF2196F3),
                                 modifier = Modifier.size(20.dp)
@@ -1605,9 +1680,9 @@ fun VideoEditorScreen(
                             .padding(16.dp),
                         horizontalArrangement = Arrangement.spacedBy(24.dp)
                     ) {
-                        ToolIcon(Icons.Filled.ContentCut, "Trim") { backupEditState = editState.copy(); currentTool = VideoEditorTool.TRIM }
-                        ToolIcon(Icons.Filled.Speed, "Speed") { backupEditState = editState.copy(); currentTool = VideoEditorTool.SPEED }
-                        ToolIcon(Icons.Filled.Crop, "Crop") {
+                        ToolIcon(AppIcons.ContentCut, "Trim") { backupEditState = editState.copy(); currentTool = VideoEditorTool.TRIM }
+                        ToolIcon(AppIcons.Speed, "Speed") { backupEditState = editState.copy(); currentTool = VideoEditorTool.SPEED }
+                        ToolIcon(AppIcons.Crop, "Crop") {
                             backupEditState = editState.copy()
                             if (editState.cropRect.isEmpty() || editState.cropRect == "None") {
                                 editState = editState.copy(
@@ -1620,11 +1695,11 @@ fun VideoEditorScreen(
                             }
                             currentTool = VideoEditorTool.CROP
                         }
-                        ToolIcon(Icons.Filled.VolumeUp, "Audio") { backupEditState = editState.copy(); currentTool = VideoEditorTool.AUDIO }
-                        ToolIcon(Icons.Filled.AspectRatio, "Aspect Ratio") { backupEditState = editState.copy(); currentTool = VideoEditorTool.ASPECT_RATIO }
-                        ToolIcon(Icons.Filled.RotateRight, "Rotate") { backupEditState = editState.copy(); currentTool = VideoEditorTool.ROTATE }
-                        ToolIcon(Icons.Filled.ClosedCaption, "Captions") { backupEditState = editState.copy(); currentTool = VideoEditorTool.CAPTIONS }
-                        ToolIcon(Icons.Filled.Add, "Join") { backupEditState = editState.copy(); currentTool = VideoEditorTool.JOIN }
+                        ToolIcon(AppIcons.VolumeUp, "Audio") { backupEditState = editState.copy(); currentTool = VideoEditorTool.AUDIO }
+                        ToolIcon(AppIcons.AspectRatio, "Aspect Ratio") { backupEditState = editState.copy(); currentTool = VideoEditorTool.ASPECT_RATIO }
+                        ToolIcon(AppIcons.RotateRight, "Rotate") { backupEditState = editState.copy(); currentTool = VideoEditorTool.ROTATE }
+                        ToolIcon(AppIcons.ClosedCaption, "Captions") { backupEditState = editState.copy(); currentTool = VideoEditorTool.CAPTIONS }
+                        ToolIcon(AppIcons.Add, "Join") { backupEditState = editState.copy(); currentTool = VideoEditorTool.JOIN }
                     }
                 } else {
                     // Partial Tool UI Panel
@@ -1637,13 +1712,13 @@ fun VideoEditorScreen(
                                     currentTool = VideoEditorTool.NONE 
                                     backupEditState = null
                                 }) {
-                                    Icon(Icons.Filled.Close, contentDescription = "Cancel")
+                                    Icon(AppIcons.Close, contentDescription = "Cancel")
                                 }
                                 IconButton(onClick = { 
                                     currentTool = VideoEditorTool.NONE 
                                     backupEditState = null
                                 }) {
-                                    Icon(Icons.Filled.Check, contentDescription = "Done")
+                                    Icon(AppIcons.Check, contentDescription = "Done")
                                 }
                             }
                         }
@@ -1766,7 +1841,7 @@ fun VideoEditorScreen(
                                             label = { Text("Standard") },
                                             leadingIcon = {
                                                 Icon(
-                                                    Icons.Filled.Speed,
+                                                    AppIcons.Speed,
                                                     contentDescription = null,
                                                     modifier = Modifier.size(16.dp)
                                                 )
@@ -1780,7 +1855,7 @@ fun VideoEditorScreen(
                                             label = { Text("Speed Curve (Wave)") },
                                             leadingIcon = {
                                                 Icon(
-                                                    Icons.Filled.GraphicEq,
+                                                    AppIcons.GraphicEq,
                                                     contentDescription = null,
                                                     modifier = Modifier.size(16.dp)
                                                 )
@@ -1890,7 +1965,7 @@ fun VideoEditorScreen(
                                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                                                     modifier = Modifier.height(34.dp)
                                                 ) {
-                                                    Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(14.dp))
+                                                    Icon(AppIcons.Delete, contentDescription = null, modifier = Modifier.size(14.dp))
                                                     Spacer(Modifier.width(4.dp))
                                                     Text("Delete Node at Playhead", style = MaterialTheme.typography.labelMedium)
                                                 }
@@ -1911,7 +1986,7 @@ fun VideoEditorScreen(
                                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                                                     modifier = Modifier.height(34.dp)
                                                 ) {
-                                                    Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(14.dp))
+                                                    Icon(AppIcons.Add, contentDescription = null, modifier = Modifier.size(14.dp))
                                                     Spacer(Modifier.width(4.dp))
                                                     Text("Add Node at Playhead", style = MaterialTheme.typography.labelMedium)
                                                 }
@@ -1929,7 +2004,7 @@ fun VideoEditorScreen(
                                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                                                     modifier = Modifier.height(34.dp)
                                                 ) {
-                                                    Icon(Icons.Filled.Remove, contentDescription = null, modifier = Modifier.size(14.dp))
+                                                    Icon(AppIcons.Remove, contentDescription = null, modifier = Modifier.size(14.dp))
                                                     Spacer(Modifier.width(4.dp))
                                                     Text("Delete Node", style = MaterialTheme.typography.labelMedium)
                                                 }
@@ -2281,7 +2356,7 @@ fun VideoEditorScreen(
                                                         verticalAlignment = Alignment.CenterVertically
                                                     ) {
                                                         Icon(
-                                                            Icons.Filled.Speed,
+                                                            AppIcons.Speed,
                                                             contentDescription = null,
                                                             tint = MaterialTheme.colorScheme.primary,
                                                             modifier = Modifier.size(14.dp)
@@ -2493,7 +2568,7 @@ fun VideoEditorScreen(
                                             },
                                             modifier = Modifier.fillMaxWidth()
                                         ) {
-                                            Icon(Icons.Filled.Audiotrack, contentDescription = null)
+                                            Icon(AppIcons.Audiotrack, contentDescription = null)
                                             Spacer(modifier = Modifier.width(8.dp))
                                             Text("Add Audio File")
                                         }
@@ -2516,7 +2591,7 @@ fun VideoEditorScreen(
                                                     modifier = Modifier.weight(1f)
                                                 ) {
                                                     Icon(
-                                                        Icons.Filled.Audiotrack,
+                                                        AppIcons.Audiotrack,
                                                         contentDescription = null,
                                                         tint = MaterialTheme.colorScheme.primary,
                                                         modifier = Modifier.size(24.dp)
@@ -2538,7 +2613,7 @@ fun VideoEditorScreen(
                                                             } catch (e: Exception) {}
                                                         }
                                                     ) {
-                                                        Icon(Icons.Filled.FolderOpen, contentDescription = "Change Audio", tint = MaterialTheme.colorScheme.primary)
+                                                        Icon(AppIcons.FolderOpen, contentDescription = "Change Audio", tint = MaterialTheme.colorScheme.primary)
                                                     }
                                                     IconButton(
                                                         onClick = {
@@ -2548,7 +2623,7 @@ fun VideoEditorScreen(
                                                             )
                                                         }
                                                     ) {
-                                                        Icon(Icons.Filled.Delete, contentDescription = "Remove Audio", tint = MaterialTheme.colorScheme.error)
+                                                        Icon(AppIcons.Delete, contentDescription = "Remove Audio", tint = MaterialTheme.colorScheme.error)
                                                     }
                                                 }
                                             }
@@ -2568,7 +2643,7 @@ fun VideoEditorScreen(
                                                 onClick = { editState = editState.copy(isAudioReplaceMode = false) },
                                                 label = { Text("Background (Mix)") },
                                                 leadingIcon = if (!editState.isAudioReplaceMode) {
-                                                    { Icon(Icons.Filled.Layers, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                                                    { Icon(AppIcons.Layers, contentDescription = null, modifier = Modifier.size(16.dp)) }
                                                 } else null
                                             )
                                             FilterChip(
@@ -2576,7 +2651,7 @@ fun VideoEditorScreen(
                                                 onClick = { editState = editState.copy(isAudioReplaceMode = true) },
                                                 label = { Text("Main (Replace)") },
                                                 leadingIcon = if (editState.isAudioReplaceMode) {
-                                                    { Icon(Icons.Filled.SwapHoriz, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                                                    { Icon(AppIcons.SwapHoriz, contentDescription = null, modifier = Modifier.size(16.dp)) }
                                                 } else null
                                             )
                                         }
@@ -2835,7 +2910,7 @@ fun VideoEditorScreen(
                                                     onClick = { showReorderDialog = true },
                                                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                                                 ) {
-                                                    Icon(Icons.Filled.SwapHoriz, contentDescription = null, modifier = Modifier.size(14.dp))
+                                                    Icon(AppIcons.SwapHoriz, contentDescription = null, modifier = Modifier.size(14.dp))
                                                     Spacer(modifier = Modifier.width(4.dp))
                                                     Text("Reorder", style = MaterialTheme.typography.labelSmall)
                                                 }
@@ -2931,7 +3006,7 @@ fun VideoEditorScreen(
                                                             modifier = Modifier.size(20.dp)
                                                         ) {
                                                             Icon(
-                                                                imageVector = Icons.Filled.Tune,
+                                                                imageVector = AppIcons.Tune,
                                                                 contentDescription = "Adjust Aspect & Fit",
                                                                 modifier = Modifier.size(14.dp),
                                                                 tint = MaterialTheme.colorScheme.primary
@@ -3026,7 +3101,7 @@ fun VideoEditorScreen(
                                                                     modifier = Modifier.size(20.dp)
                                                                 ) {
                                                                     Icon(
-                                                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                                                        imageVector = AppIcons.AutoMirrored.ArrowBack,
                                                                         contentDescription = "Move Earlier",
                                                                         modifier = Modifier.size(13.dp)
                                                                     )
@@ -3048,7 +3123,7 @@ fun VideoEditorScreen(
                                                                     modifier = Modifier.size(20.dp)
                                                                 ) {
                                                                     Icon(
-                                                                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                                                        imageVector = AppIcons.AutoMirrored.ArrowForward,
                                                                         contentDescription = "Move Later",
                                                                         modifier = Modifier.size(13.dp)
                                                                     )
@@ -3066,7 +3141,7 @@ fun VideoEditorScreen(
                                                                 modifier = Modifier.size(20.dp)
                                                             ) {
                                                                 Icon(
-                                                                    imageVector = Icons.Filled.Close,
+                                                                    imageVector = AppIcons.Close,
                                                                     contentDescription = "Remove Clip",
                                                                     modifier = Modifier.size(14.dp)
                                                                 )
@@ -3102,7 +3177,7 @@ fun VideoEditorScreen(
                                                             modifier = Modifier.size(20.dp)
                                                         ) {
                                                             Icon(
-                                                                imageVector = Icons.Filled.Tune,
+                                                                imageVector = AppIcons.Tune,
                                                                 contentDescription = "Adjust Frame & Order",
                                                                 modifier = Modifier.size(14.dp),
                                                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
@@ -3117,7 +3192,7 @@ fun VideoEditorScreen(
                                             activeJoins.forEachIndexed { index, uriStr ->
                                                 renderJoinCard(index, uriStr)
                                                 Icon(
-                                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                                    imageVector = AppIcons.AutoMirrored.ArrowForward,
                                                     contentDescription = null,
                                                     modifier = Modifier.size(16.dp),
                                                     tint = MaterialTheme.colorScheme.onSurfaceVariant
@@ -3128,7 +3203,7 @@ fun VideoEditorScreen(
                                             renderMainCard()
                                             activeJoins.forEachIndexed { index, uriStr ->
                                                 Icon(
-                                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                                    imageVector = AppIcons.AutoMirrored.ArrowForward,
                                                     contentDescription = null,
                                                     modifier = Modifier.size(16.dp),
                                                     tint = MaterialTheme.colorScheme.onSurfaceVariant
@@ -3138,7 +3213,7 @@ fun VideoEditorScreen(
                                         }
 
                                         Icon(
-                                            imageVector = Icons.Filled.Add,
+                                            imageVector = AppIcons.Add,
                                             contentDescription = null,
                                             modifier = Modifier.size(16.dp),
                                             tint = MaterialTheme.colorScheme.primary
@@ -3162,7 +3237,7 @@ fun VideoEditorScreen(
                                                 verticalArrangement = Arrangement.Center
                                             ) {
                                                 Icon(
-                                                    imageVector = Icons.Filled.VideoLibrary,
+                                                    imageVector = AppIcons.VideoLibrary,
                                                     contentDescription = "Add Video",
                                                     tint = MaterialTheme.colorScheme.primary,
                                                     modifier = Modifier.size(24.dp)
@@ -3908,8 +3983,11 @@ fun VideoEditorScreen(
                         }
                         try {
                             val parsedTarget = Uri.parse(exportTargetUri)
+                            val isSingleEdit = urisToJoin.isEmpty()
                             val intent = android.content.Intent(context, shura.media.service.FFmpegService::class.java).apply {
                                 putStringArrayListExtra("uris", arrayListOf(exportTargetUri))
+                                putStringArrayListExtra("source_uris", arrayListOf(currentMainUri))
+                                putExtra("is_single_edit", isSingleEdit)
                                 putStringArrayListExtra("original_names", arrayListOf(shura.media.ui.screens.getDisplayNameFromUri(context, initialUri)))
                                 putStringArrayListExtra("commandArgs", commandArgs)
                                 putExtra("outputExt", format)
@@ -4098,7 +4176,7 @@ fun VideoEditorScreen(
                                     horizontalArrangement = Arrangement.Center
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Filled.Info,
+                                        imageVector = AppIcons.Info,
                                         contentDescription = null,
                                         modifier = Modifier.size(16.dp),
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant
@@ -4161,7 +4239,7 @@ fun VideoEditorScreen(
             AlertDialog(
                 onDismissRequest = { clipToAdjustUri = null },
                 icon = {
-                    Icon(Icons.Filled.AspectRatio, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Icon(AppIcons.AspectRatio, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 },
                 title = {
                     Text(
@@ -4298,7 +4376,7 @@ fun VideoEditorScreen(
                                         enabled = clipIndex > 0,
                                         modifier = Modifier.weight(1f)
                                     ) {
-                                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Icon(AppIcons.AutoMirrored.ArrowBack, contentDescription = null, modifier = Modifier.size(16.dp))
                                         Spacer(modifier = Modifier.width(4.dp))
                                         Text("Move Earlier", style = MaterialTheme.typography.labelSmall)
                                     }
@@ -4321,7 +4399,7 @@ fun VideoEditorScreen(
                                     ) {
                                         Text("Move Later", style = MaterialTheme.typography.labelSmall)
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Icon(AppIcons.AutoMirrored.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp))
                                     }
                                 }
 
@@ -4339,7 +4417,7 @@ fun VideoEditorScreen(
                                     },
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Icon(Icons.Filled.Star, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                                    Icon(AppIcons.Star, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text("Make Primary (Main) Video", style = MaterialTheme.typography.labelSmall)
                                 }
@@ -4390,7 +4468,7 @@ fun VideoEditorScreen(
             AlertDialog(
                 onDismissRequest = { showReorderDialog = false },
                 icon = {
-                    Icon(Icons.Filled.SwapHoriz, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Icon(AppIcons.SwapHoriz, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 },
                 title = {
                     Text("Rearrange Join Order", style = MaterialTheme.typography.titleMedium)
@@ -4502,7 +4580,7 @@ fun VideoEditorScreen(
                                             enabled = idx > 0,
                                             modifier = Modifier.size(32.dp)
                                         ) {
-                                            Icon(Icons.Filled.ArrowUpward, contentDescription = "Move Up", modifier = Modifier.size(18.dp))
+                                            Icon(AppIcons.ArrowUpward, contentDescription = "Move Up", modifier = Modifier.size(18.dp))
                                         }
                                         IconButton(
                                             onClick = {
@@ -4520,7 +4598,7 @@ fun VideoEditorScreen(
                                             enabled = idx < activeJoins.size - 1,
                                             modifier = Modifier.size(32.dp)
                                         ) {
-                                            Icon(Icons.Filled.ArrowDownward, contentDescription = "Move Down", modifier = Modifier.size(18.dp))
+                                            Icon(AppIcons.ArrowDownward, contentDescription = "Move Down", modifier = Modifier.size(18.dp))
                                         }
                                     }
                                 }

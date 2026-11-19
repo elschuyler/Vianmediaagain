@@ -93,7 +93,7 @@ object CacheManager {
      * editing, converting, or compressing operations.
      */
     fun purgeOrphanedTempFiles(context: Context) {
-        CoroutineScope(Dispatchers.IO).launch {
+        shura.media.service.PlayerManager.backgroundScope.launch {
             try {
                 val cache = context.cacheDir
                 cache?.listFiles()?.forEach { file ->

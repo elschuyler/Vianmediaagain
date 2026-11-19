@@ -7,8 +7,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.BugReport
+import shura.media.ui.icons.AppIcons
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -119,7 +118,7 @@ class MainActivity : ComponentActivity() {
           }
       } catch (e: Exception) {}
 
-      val uris = uriSet.toList()
+      val uris = uriSet.filter { shura.media.data.MediaUriResolver.isSafeExternalUri(this, it) }
       if (uris.isEmpty()) return false
 
       shura.media.LogKeeper.log("handleFloatingOrMiniIntent: isMini=$isMini, isPip=$isPip, urisCount=${uris.size}", "MainActivity")
@@ -166,7 +165,7 @@ class MainActivity : ComponentActivity() {
 
           // Auto-save playlist snapshot to Room database
           val appCtx = applicationContext
-          kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+          shura.media.service.PlayerManager.backgroundScope.launch {
               try {
                   val db = shura.media.data.AppDatabase.getDatabase(appCtx)
                   val playlistRepo = shura.media.data.PlaylistRepository(db.playlistDao())
@@ -191,7 +190,7 @@ class MainActivity : ComponentActivity() {
               val firstUri = firstItem.localConfiguration?.uri
               val firstFastName = firstItem.mediaMetadata.title?.toString() ?: "Media"
               if (firstUri?.scheme == "content") {
-                  kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                  shura.media.service.PlayerManager.backgroundScope.launch {
                       val resolvedName = shura.media.data.MediaUriResolver.queryCleanDisplayName(appCtx, firstUri)
                       if (!resolvedName.isNullOrBlank() && resolvedName != firstFastName) {
                           kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
@@ -235,7 +234,7 @@ class MainActivity : ComponentActivity() {
               ).apply {
                   addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
               }
-              startActivity(permIntent)
+              shura.media.data.MediaUriResolver.safeStartActivity(this, permIntent)
               android.widget.Toast.makeText(
                   this,
                   "Please enable 'Display over other apps' to use Mini Player",
@@ -278,7 +277,7 @@ class MainActivity : ComponentActivity() {
 
               if (targetUri.scheme == "content") {
                   val appCtx = applicationContext
-                  kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                  shura.media.service.PlayerManager.backgroundScope.launch {
                       val resolvedName = shura.media.data.MediaUriResolver.queryCleanDisplayName(appCtx, targetUri)
                       if (!resolvedName.isNullOrBlank() && resolvedName != displayName) {
                           kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
@@ -322,7 +321,7 @@ class MainActivity : ComponentActivity() {
               ).apply {
                   addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
               }
-              startActivity(permIntent)
+              shura.media.data.MediaUriResolver.safeStartActivity(this, permIntent)
               android.widget.Toast.makeText(
                   this,
                   "Please enable 'Display over other apps' to use Floating Player",
@@ -354,7 +353,7 @@ class MainActivity : ComponentActivity() {
               intent.clipData?.let { clipData = it }
               addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP)
           }
-          startActivity(editorIntent)
+          shura.media.data.MediaUriResolver.safeStartActivity(this, editorIntent)
           return
       }
       if (intent.action == "shura.media.ACTION_OPEN_PLAYER" ||
@@ -368,7 +367,7 @@ class MainActivity : ComponentActivity() {
               intent.clipData?.let { clipData = it }
               addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP)
           }
-          startActivity(playerIntent)
+          shura.media.data.MediaUriResolver.safeStartActivity(this, playerIntent)
           return
       }
       _currentIntent.value = intent
@@ -394,7 +393,7 @@ class MainActivity : ComponentActivity() {
                 intent?.clipData?.let { clipData = it }
                 addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP)
             }
-            startActivity(editorIntent)
+            shura.media.data.MediaUriResolver.safeStartActivity(this, editorIntent)
             finish()
             return
         }
@@ -409,7 +408,7 @@ class MainActivity : ComponentActivity() {
                 intent?.clipData?.let { clipData = it }
                 addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP)
             }
-            startActivity(playerIntent)
+            shura.media.data.MediaUriResolver.safeStartActivity(this, playerIntent)
             finish()
             return
         }
@@ -420,7 +419,7 @@ class MainActivity : ComponentActivity() {
     shura.media.data.CacheManager.purgeOrphanedTempFiles(this)
 
     // Passive on-launch janitor: Clean up temporary playlists older than 24 hours without continuous background services
-    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+    shura.media.service.PlayerManager.backgroundScope.launch {
         try {
             val db = shura.media.data.AppDatabase.getDatabase(applicationContext)
             val playlistRepo = shura.media.data.PlaylistRepository(db.playlistDao())
@@ -532,7 +531,7 @@ class MainActivity : ComponentActivity() {
                       .padding(16.dp),
                     containerColor = if (logEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
                   ) {
-                    Icon(Icons.Filled.BugReport, contentDescription = "Open Logger")
+                    Icon(AppIcons.BugReport, contentDescription = "Open Logger")
                   }
               }
             }

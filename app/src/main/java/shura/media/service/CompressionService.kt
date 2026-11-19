@@ -26,7 +26,6 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.OutputStream
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -116,6 +115,9 @@ class CompressionService : Service() {
         val maxHeight = intent.getIntExtra("maxHeight", -1)
         val quality = intent.getIntExtra("quality", 80)
         val formatStr = intent.getStringExtra("format") ?: "JPEG"
+        val sourceUris = intent.getStringArrayListExtra("source_uris")
+        val isSingleEdit = intent.getBooleanExtra("is_single_edit", false)
+        val outputSuffix = intent.getStringExtra("output_suffix")?.takeIf { it.isNotBlank() } ?: "compressed"
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Compressing Images")
@@ -147,7 +149,7 @@ class CompressionService : Service() {
                 if (batchRunId.get() != myRunId) return@launch
                 isCancelled = false
                 LogKeeper.log("Starting batch compression for ${uris.size} images...", "Compressor")
-                processImages(uris, maxWidth, maxHeight, quality, formatStr)
+                processImages(uris, sourceUris, maxWidth, maxHeight, quality, formatStr, isSingleEdit, outputSuffix)
                 LogKeeper.log("Completed batch compression for ${uris.size} images.", "Compressor")
             } catch (e: kotlinx.coroutines.CancellationException) {
                 LogKeeper.log("Batch compression job cancelled.", "Compressor")
@@ -189,13 +191,53 @@ class CompressionService : Service() {
         return result?.substringBeforeLast(".") ?: "compressed_${System.currentTimeMillis()}"
     }
 
-    private suspend fun processImages(uris: List<String>, maxWidth: Int, maxHeight: Int, quality: Int, formatStr: String) {
+    private data class ExifOrientationInfo(
+        val rotationDegrees: Int = 0,
+        val flipHorizontal: Boolean = false,
+        val swapDimensions: Boolean = false
+    ) {
+        val needsTransform: Boolean
+            get() = rotationDegrees != 0 || flipHorizontal
+    }
+
+    private fun readExifOrientation(uriStr: String): ExifOrientationInfo {
+        return try {
+            MediaUriResolver.openInputStreamSafely(this@CompressionService, uriStr).use { stream ->
+                val exif = android.media.ExifInterface(stream)
+                when (exif.getAttributeInt(android.media.ExifInterface.TAG_ORIENTATION, android.media.ExifInterface.ORIENTATION_NORMAL)) {
+                    android.media.ExifInterface.ORIENTATION_ROTATE_90 -> ExifOrientationInfo(rotationDegrees = 90, flipHorizontal = false, swapDimensions = true)
+                    android.media.ExifInterface.ORIENTATION_ROTATE_180 -> ExifOrientationInfo(rotationDegrees = 180, flipHorizontal = false, swapDimensions = false)
+                    android.media.ExifInterface.ORIENTATION_ROTATE_270 -> ExifOrientationInfo(rotationDegrees = 270, flipHorizontal = false, swapDimensions = true)
+                    android.media.ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> ExifOrientationInfo(rotationDegrees = 0, flipHorizontal = true, swapDimensions = false)
+                    android.media.ExifInterface.ORIENTATION_FLIP_VERTICAL -> ExifOrientationInfo(rotationDegrees = 180, flipHorizontal = true, swapDimensions = false)
+                    android.media.ExifInterface.ORIENTATION_TRANSPOSE -> ExifOrientationInfo(rotationDegrees = 90, flipHorizontal = true, swapDimensions = true)
+                    android.media.ExifInterface.ORIENTATION_TRANSVERSE -> ExifOrientationInfo(rotationDegrees = 270, flipHorizontal = true, swapDimensions = true)
+                    else -> ExifOrientationInfo()
+                }
+            }
+        } catch (_: Exception) {
+            ExifOrientationInfo()
+        }
+    }
+
+    private suspend fun processImages(
+        uris: List<String>,
+        sourceUris: List<String>?,
+        maxWidth: Int,
+        maxHeight: Int,
+        quality: Int,
+        formatStr: String,
+        isSingleEdit: Boolean,
+        outputSuffix: String
+    ) {
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val settingsManager = SettingsManager.getInstance(applicationContext)
         val outputUriStr = settingsManager.outputFolderUri.value
+        val preferOriginalFolder = isSingleEdit && settingsManager.saveSingleEditsToOriginalFolder.value
+        var fallbackToastShown = false
 
         var count = 0
-        for (uriStr in uris) {
+        for ((index, uriStr) in uris.withIndex()) {
             if (isCancelled || !currentCoroutineContext().isActive) {
                 LogKeeper.log("Batch compression cancelled/interrupted - halting loop.", "Compressor")
                 break
@@ -204,22 +246,36 @@ class CompressionService : Service() {
             var sourceBitmap: Bitmap? = null
             var outBitmap: Bitmap? = null
             try {
-                // Safely calculate sample size if downscaling is requested
+                val exif = readExifOrientation(uriStr)
                 val options = BitmapFactory.Options()
-                if (maxWidth > 0 && maxHeight > 0) {
-                    options.inJustDecodeBounds = true
-                    MediaUriResolver.openInputStreamSafely(this@CompressionService, uriStr).use { stream ->
-                        BitmapFactory.decodeStream(stream, null, options)
-                    }
-                    val maxTargetDim = maxOf(maxWidth, maxHeight)
-                    val maxSourceDim = maxOf(options.outWidth, options.outHeight)
+                options.inJustDecodeBounds = true
+                MediaUriResolver.openInputStreamSafely(this@CompressionService, uriStr).use { stream ->
+                    BitmapFactory.decodeStream(stream, null, options)
+                }
+
+                val rawW = options.outWidth
+                val rawH = options.outHeight
+                val visualW = if (exif.swapDimensions) rawH else rawW
+                val visualH = if (exif.swapDimensions) rawW else rawH
+
+                // Option A: Equal Pixel-Area Budget so horizontal and vertical images compress to comparable pixel counts & sizes
+                var scaleRatio = 1.0
+                if (maxWidth > 0 && maxHeight > 0 && visualW > 0 && visualH > 0) {
+                    val targetPixelBudget = maxWidth.toDouble() * maxHeight.toDouble()
+                    val sourcePixels = visualW.toDouble() * visualH.toDouble()
+                    val areaRatio = kotlin.math.sqrt(targetPixelBudget / sourcePixels)
+                    val maxEdgeClamp = maxOf(maxWidth, maxHeight).toDouble() * 2.0
+                    val longVisual = maxOf(visualW, visualH).toDouble()
+                    scaleRatio = minOf(areaRatio, maxEdgeClamp / longVisual).coerceAtMost(1.0)
+
+                    val desiredMaxDim = (longVisual * scaleRatio).coerceAtLeast(1.0)
                     var sampleSize = 1
-                    while (maxSourceDim / (sampleSize * 2) >= maxTargetDim) {
+                    while (longVisual / (sampleSize * 2) >= desiredMaxDim) {
                         sampleSize *= 2
                     }
                     options.inSampleSize = sampleSize
-                    options.inJustDecodeBounds = false
                 }
+                options.inJustDecodeBounds = false
 
                 if (isCancelled || !currentCoroutineContext().isActive) break
 
@@ -231,21 +287,43 @@ class CompressionService : Service() {
 
                 if (sourceBitmap != null) {
                     val bitmap = sourceBitmap!!
-                    outBitmap = bitmap
-                    if (maxWidth > 0 && maxHeight > 0) {
-                        val maxDim = maxOf(maxWidth, maxHeight).toFloat()
-                        val minDim = minOf(maxWidth, maxHeight).toFloat()
+                    val decW = bitmap.width
+                    val decH = bitmap.height
+                    val curVisW = if (exif.swapDimensions) decH else decW
+                    val curVisH = if (exif.swapDimensions) decW else decH
 
-                        val targetW = if (bitmap.width > bitmap.height) maxDim else minDim
-                        val targetH = if (bitmap.width > bitmap.height) minDim else maxDim
+                    val targetW = if (maxWidth > 0 && maxHeight > 0 && visualW > 0 && visualH > 0 && scaleRatio < 1.0) {
+                        (visualW * scaleRatio).toInt().coerceAtLeast(1)
+                    } else {
+                        curVisW
+                    }
+                    val targetH = if (maxWidth > 0 && maxHeight > 0 && visualW > 0 && visualH > 0 && scaleRatio < 1.0) {
+                        (visualH * scaleRatio).toInt().coerceAtLeast(1)
+                    } else {
+                        curVisH
+                    }
 
-                        val ratio = minOf(targetW / bitmap.width, targetH / bitmap.height)
-
-                        if (ratio < 1f) {
-                            val newW = (bitmap.width * ratio).toInt().coerceAtLeast(1)
-                            val newH = (bitmap.height * ratio).toInt().coerceAtLeast(1)
-                            outBitmap = Bitmap.createScaledBitmap(bitmap, newW, newH, true)
+                    outBitmap = when {
+                        exif.needsTransform -> {
+                            val matrix = android.graphics.Matrix()
+                            if (exif.flipHorizontal) {
+                                matrix.postScale(-1f, 1f)
+                            }
+                            if (exif.rotationDegrees != 0) {
+                                matrix.postRotate(exif.rotationDegrees.toFloat())
+                            }
+                            if (targetW != curVisW || targetH != curVisH) {
+                                matrix.postScale(
+                                    targetW.toFloat() / curVisW.coerceAtLeast(1).toFloat(),
+                                    targetH.toFloat() / curVisH.coerceAtLeast(1).toFloat()
+                                )
+                            }
+                            Bitmap.createBitmap(bitmap, 0, 0, decW, decH, matrix, true)
                         }
+                        targetW != decW || targetH != decH -> {
+                            Bitmap.createScaledBitmap(bitmap, targetW, targetH, true)
+                        }
+                        else -> bitmap
                     }
 
                     val compressFormat = when (formatStr) {
@@ -254,11 +332,61 @@ class CompressionService : Service() {
                         else -> Bitmap.CompressFormat.JPEG
                     }
                     val ext = formatStr.lowercase()
+                    val mimeType = when (ext) {
+                        "png" -> "image/png"
+                        "webp" -> "image/webp"
+                        else -> "image/jpeg"
+                    }
 
-                    val origName = getOriginalFileName(uri)
-                    val fileName = "${origName}_compressed.${ext}"
-                    getOutputStream(outputUriStr, fileName, ext)?.use { s ->
-                        outBitmap?.compress(compressFormat, quality, s)
+                    val origSourceStr = sourceUris?.getOrNull(index) ?: uriStr
+                    val origName = getOriginalFileName(Uri.parse(origSourceStr))
+                    val fileName = shura.media.data.MediaOutputRouter.buildSuffixedFileName(origName, outputSuffix, ext)
+                    val defaultQCollection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI
+                    } else {
+                        android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+                    }
+                    val target = shura.media.data.MediaOutputRouter.openOutputTarget(
+                        context = this@CompressionService,
+                        sourceUriStr = origSourceStr,
+                        fileName = fileName,
+                        mimeType = mimeType,
+                        preferOriginalFolder = preferOriginalFolder,
+                        fallbackOutputTreeUri = outputUriStr,
+                        defaultRelativePath = android.os.Environment.DIRECTORY_DOWNLOADS + "/Compressed",
+                        defaultCollectionLegacy = android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                        defaultCollectionQ = defaultQCollection
+                    )
+                    val outStream = target.stream
+                    if (outStream != null) {
+                        var compressedOk = false
+                        try {
+                            outStream.use { s ->
+                                compressedOk = outBitmap?.compress(compressFormat, quality, s) == true
+                            }
+                            if (compressedOk) {
+                                shura.media.data.MediaOutputRouter.finalizeOutputTarget(this@CompressionService, target, mimeType)
+                                if (preferOriginalFolder && !target.savedToOriginalFolder && !fallbackToastShown) {
+                                    fallbackToastShown = true
+                                    mainHandler.post {
+                                        try {
+                                            android.widget.Toast.makeText(
+                                                applicationContext,
+                                                "Saved to Output Folder (original folder protected by Android)",
+                                                android.widget.Toast.LENGTH_LONG
+                                            ).show()
+                                        } catch (_: Exception) {}
+                                    }
+                                }
+                            } else {
+                                shura.media.data.MediaOutputRouter.abortOutputTarget(this@CompressionService, target)
+                            }
+                        } catch (writeErr: Exception) {
+                            shura.media.data.MediaOutputRouter.abortOutputTarget(this@CompressionService, target)
+                            throw writeErr
+                        }
+                    } else {
+                        shura.media.data.MediaOutputRouter.abortOutputTarget(this@CompressionService, target)
                     }
                 }
             } catch (oom: OutOfMemoryError) {
@@ -275,12 +403,12 @@ class CompressionService : Service() {
                 if (sourceBitmap != null && !sourceBitmap!!.isRecycled) {
                     sourceBitmap?.recycle()
                 }
-                // Zero-Memory: Automatically delete temporary editor files (e.g. edited_*.jpg)
-                if (uri.scheme == "file" || uriStr.startsWith("file://") || uriStr.contains("edited_")) {
+                // Zero-Memory: Automatically delete temporary editor files strictly inside cacheDir (e.g. edited_*.jpg)
+                if (uri.scheme == "file" || uriStr.startsWith("file:") || uriStr.startsWith("/")) {
                     try {
-                        val path = uri.path ?: uriStr.removePrefix("file://")
+                        val path = uri.path ?: uriStr.removePrefix("file://").removePrefix("file:")
                         val file = java.io.File(path)
-                        if (file.exists() && (file.parentFile?.absolutePath == cacheDir.absolutePath || file.name.startsWith("edited_"))) {
+                        if (file.exists() && file.parentFile?.canonicalPath == cacheDir.canonicalPath && file.name.startsWith("edited_")) {
                             file.delete()
                         }
                     } catch (e: Exception) {}
@@ -306,43 +434,6 @@ class CompressionService : Service() {
         }
     }
 
-    private fun getOutputStream(outputUriStr: String?, fileName: String, ext: String): OutputStream? {
-        if (outputUriStr != null) {
-            try {
-                val treeUri = Uri.parse(outputUriStr)
-                val docId = android.provider.DocumentsContract.getTreeDocumentId(treeUri)
-                val docUri = android.provider.DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
-                val newUri = android.provider.DocumentsContract.createDocument(
-                    contentResolver,
-                    docUri,
-                    "image/${ext}",
-                    fileName
-                )
-                if (newUri != null) {
-                    return contentResolver.openOutputStream(newUri)
-                }
-            } catch (e: Exception) {
-                LogKeeper.logError("CompressionService", "Failed SAF create", e)
-            }
-        }
-
-        // Fallback to media store
-        val contentValues = android.content.ContentValues().apply {
-            put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, fileName)
-            put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "image/${ext}")
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS + "/Compressed")
-            }
-        }
-        val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI
-        } else {
-            android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-        }
-        val uri = contentResolver.insert(collection, contentValues)
-        return uri?.let { contentResolver.openOutputStream(it) }
-    }
-
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val serviceChannel = NotificationChannel(
@@ -357,6 +448,15 @@ class CompressionService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? {
         return null
+    }
+
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        LogKeeper.logWarn("CompressionService", "Foreground service timeout triggered (type=$fgsType); cancelling gracefully.")
+        requestCancel()
+        try {
+            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+        } catch (_: Exception) {}
+        stopSelfResult(startId)
     }
 
     override fun onDestroy() {

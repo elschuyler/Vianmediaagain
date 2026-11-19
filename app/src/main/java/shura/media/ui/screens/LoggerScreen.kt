@@ -7,14 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Search
+import shura.media.ui.icons.AppIcons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -60,19 +53,24 @@ fun LoggerScreen(onClose: () -> Unit) {
         refreshLogs()
     }
 
-    // Merge live logs emitted while the screen is open
+    // Merge live logs emitted while the screen is open (recentLogs is capped at 250)
     LaunchedEffect(recentLogs) {
         if (!isLoading && recentLogs.isNotEmpty()) {
-            val existingSet = allLogs.map { it.timestampMs to it.message }.toSet()
-            val newItems = recentLogs.filter { (it.timestampMs to it.message) !in existingSet }
+            val tailSize = allLogs.size.coerceAtMost(300)
+            val tailKeys = HashSet<Pair<Long, String>>(tailSize * 2)
+            for (i in (allLogs.size - tailSize) until allLogs.size) {
+                val entry = allLogs[i]
+                tailKeys.add(entry.timestampMs to entry.message)
+            }
+            val newItems = recentLogs.filter { (it.timestampMs to it.message) !in tailKeys }
             if (newItems.isNotEmpty()) {
                 allLogs = allLogs + newItems
             }
         }
     }
 
-    val currentMillis = System.currentTimeMillis()
     val filteredLogs = remember(allLogs, selectedFilterHours, onlyErrors, searchQuery) {
+        val currentMillis = System.currentTimeMillis()
         val timeThreshold = if (selectedFilterHours > 0L) {
             currentMillis - (selectedFilterHours * 60 * 60 * 1000)
         } else 0L
@@ -128,7 +126,7 @@ fun LoggerScreen(onClose: () -> Unit) {
                 },
                 navigationIcon = {
                     IconButton(onClick = onClose) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Close")
+                        Icon(AppIcons.AutoMirrored.ArrowBack, contentDescription = "Close")
                     }
                 },
                 actions = {
@@ -138,14 +136,14 @@ fun LoggerScreen(onClose: () -> Unit) {
                         modifier = Modifier.padding(end = 4.dp)
                     )
                     IconButton(onClick = { refreshLogs() }) {
-                        Icon(Icons.Filled.Refresh, contentDescription = "Refresh Logs")
+                        Icon(AppIcons.Refresh, contentDescription = "Refresh Logs")
                     }
                     IconButton(onClick = {
                         val allFormatted = filteredLogs.joinToString("\n") { it.formattedString }
                         clipboardManager.setText(AnnotatedString(allFormatted))
                         Toast.makeText(context, "Copied ${filteredLogs.size} logs to clipboard", Toast.LENGTH_SHORT).show()
                     }) {
-                        Icon(Icons.Filled.ContentCopy, contentDescription = "Copy to Clipboard")
+                        Icon(AppIcons.ContentCopy, contentDescription = "Copy to Clipboard")
                     }
                     IconButton(onClick = {
                         LogKeeper.dumpCurrentLogs(context) { success, fileName ->
@@ -156,10 +154,10 @@ fun LoggerScreen(onClose: () -> Unit) {
                             }
                         }
                     }) {
-                        Icon(Icons.Filled.Download, contentDescription = "Download Logs")
+                        Icon(AppIcons.Download, contentDescription = "Download Logs")
                     }
                     IconButton(onClick = { showClearConfirmDialog = true }) {
-                        Icon(Icons.Filled.DeleteOutline, contentDescription = "Clear Logs")
+                        Icon(AppIcons.DeleteOutline, contentDescription = "Clear Logs")
                     }
                 }
             )
@@ -214,11 +212,11 @@ fun LoggerScreen(onClose: () -> Unit) {
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
                 placeholder = { Text("Search tags, messages, stacktraces...") },
-                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                leadingIcon = { Icon(AppIcons.Search, contentDescription = null) },
                 trailingIcon = {
                     if (searchQuery.isNotEmpty()) {
                         IconButton(onClick = { searchQuery = "" }) {
-                            Icon(Icons.Filled.Clear, contentDescription = "Clear search")
+                            Icon(AppIcons.Clear, contentDescription = "Clear search")
                         }
                     }
                 },

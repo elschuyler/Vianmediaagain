@@ -6,12 +6,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.Speed
-import androidx.compose.material.icons.filled.Subtitles
+import shura.media.ui.icons.AppIcons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -57,7 +52,7 @@ fun PlayerTopBar(
             onInteraction()
             onNavigateBack()
         }) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+            Icon(AppIcons.AutoMirrored.ArrowBack, contentDescription = "Back", tint = Color.White)
         }
         Text(
             text = title,
@@ -89,7 +84,7 @@ fun PlayerTopBar(
             contentAlignment = Alignment.Center
         ) {
             if (playbackSpeed == 1.0f) {
-                Icon(Icons.Filled.Speed, contentDescription = "Speed: 1x (Long press for controls)", tint = Color.White)
+                Icon(AppIcons.Speed, contentDescription = "Speed: 1x (Long press for controls)", tint = Color.White)
             } else {
                 val speedDisplay = if (playbackSpeed == 0.25f) "0.25"
                     else if (playbackSpeed == 0.5f) "0.5"
@@ -115,20 +110,20 @@ fun PlayerTopBar(
             onInteraction()
             onAudioClick()
         }) {
-            Icon(Icons.Filled.MusicNote, contentDescription = "Audio track", tint = Color.White)
+            Icon(AppIcons.MusicNote, contentDescription = "Audio track", tint = Color.White)
         }
         IconButton(onClick = {
             onInteraction()
             onSubtitleClick()
         }) {
-            Icon(Icons.Filled.Subtitles, contentDescription = "Subtitles", tint = Color.White)
+            Icon(AppIcons.Subtitles, contentDescription = "Subtitles", tint = Color.White)
         }
         Box {
             IconButton(onClick = {
                 onInteraction()
                 onShowTopMenuChange(true)
             }) {
-                Icon(Icons.Filled.MoreVert, contentDescription = "More options", tint = Color.White)
+                Icon(AppIcons.MoreVert, contentDescription = "More options", tint = Color.White)
             }
             DropdownMenu(
                 expanded = showTopMenu,

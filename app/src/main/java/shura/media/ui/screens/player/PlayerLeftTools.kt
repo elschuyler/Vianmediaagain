@@ -1,12 +1,7 @@
 package shura.media.ui.screens.player
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.LightMode
-import androidx.compose.material.icons.filled.Loop
-import androidx.compose.material.icons.filled.ScreenRotation
-import androidx.compose.material.icons.filled.Screenshot
-import androidx.compose.material.icons.filled.Timer
+import shura.media.ui.icons.AppIcons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -45,7 +40,7 @@ fun PlayerLeftTools(
             val tint = if (abRepeatStart != null) Color(0xFF2196F3) else Color.White
             val text = if (abRepeatStart != null && abRepeatEnd == null) "A" else if (abRepeatEnd != null) "A-B" else ""
             Box(contentAlignment = Alignment.Center) {
-                Icon(Icons.Filled.Loop, contentDescription = "A-B Repeat", tint = tint)
+                Icon(AppIcons.Loop, contentDescription = "A-B Repeat", tint = tint)
                 if (text.isNotEmpty()) {
                     Text(
                         text = text,
@@ -64,7 +59,7 @@ fun PlayerLeftTools(
             onSleepTimerClick()
         }) {
             Icon(
-                Icons.Filled.Timer,
+                AppIcons.Timer,
                 contentDescription = "Sleep Timer",
                 tint = if (isSleepTimerActive) Color(0xFF2196F3) else Color.White
             )
@@ -76,7 +71,7 @@ fun PlayerLeftTools(
             onBrightnessClick()
         }) {
             Icon(
-                Icons.Filled.LightMode,
+                AppIcons.LightMode,
                 contentDescription = "Brightness",
                 tint = if (isBrightnessSliderVisible) Color(0xFF2196F3) else Color.White
             )
@@ -87,7 +82,7 @@ fun PlayerLeftTools(
             onInteraction()
             onRotateClick()
         }) {
-            Icon(Icons.Filled.ScreenRotation, contentDescription = "Rotation", tint = Color.White)
+            Icon(AppIcons.ScreenRotation, contentDescription = "Rotation", tint = Color.White)
         }
 
         // Screenshot Icon
@@ -95,7 +90,7 @@ fun PlayerLeftTools(
             onInteraction()
             onScreenshotClick()
         }) {
-            Icon(Icons.Filled.Screenshot, contentDescription = "Screenshot", tint = Color.White)
+            Icon(AppIcons.Screenshot, contentDescription = "Screenshot", tint = Color.White)
         }
     }
 }

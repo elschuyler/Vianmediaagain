@@ -63,8 +63,6 @@ kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-cor
 androidx-core = { group = "androidx.test", name = "core", version.ref = "core" }
 androidx-runner = { group = "androidx.test", name = "runner", version.ref = "runner" }
 androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }
-androidx-compose-material-icons-core = { group = "androidx.compose.material", name = "material-icons-core" }
-androidx-compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coilCompose" }
 coil-video = { group = "io.coil-kt", name = "coil-video", version.ref = "coilCompose" }
 coil-gif = { group = "io.coil-kt", name = "coil-gif", version.ref = "coilCompose" }
@@ -85,7 +83,6 @@ androidx-media3-exoplayer = { group = "androidx.media3", name = "media3-exoplaye
 androidx-media3-ui = { group = "androidx.media3", name = "media3-ui", version.ref = "media3" }
 androidx-media3-session = { group = "androidx.media3", name = "media3-session", version.ref = "media3" }
 androidx-media3-common = { group = "androidx.media3", name = "media3-common", version.ref = "media3" }
-androidx-media3-transformer = { group = "androidx.media3", name = "media3-transformer", version.ref = "media3" }
 media3-decoder-ffmpeg = { group = "org.jellyfin.media3", name = "media3-ffmpeg-decoder", version = "1.5.0+1" }
 ffmpeg-kit-full = { group = "com.github.VineshChauhan24", name = "ffmpeg-kit-android-16kb-lts-full-gpl", version.ref = "ffmpegKit" }
 

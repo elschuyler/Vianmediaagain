@@ -9,14 +9,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.ArrowDownward
-import androidx.compose.material.icons.filled.Edit
+import shura.media.ui.icons.AppIcons
 
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -73,11 +66,11 @@ fun PlaylistsScreen(
                 navigationIcon = {
                     if (isMultiSelectMode) {
                         IconButton(onClick = { selectedPlaylists.clear() }) {
-                            Icon(Icons.Filled.Close, contentDescription = "Clear Selection")
+                            Icon(AppIcons.Close, contentDescription = "Clear Selection")
                         }
                     } else {
                         IconButton(onClick = onNavigateBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                            Icon(AppIcons.AutoMirrored.ArrowBack, contentDescription = "Back")
                         }
                     }
                 }
@@ -93,7 +86,7 @@ fun PlaylistsScreen(
                             selectedPlaylists.clear()
                         }
                     }) {
-                        Icon(Icons.Filled.Delete, contentDescription = "Delete")
+                        Icon(AppIcons.Delete, contentDescription = "Delete")
                     }
                     Spacer(modifier = Modifier.weight(1f))
                 }
@@ -102,7 +95,7 @@ fun PlaylistsScreen(
         floatingActionButton = {
             if (!isMultiSelectMode) {
                 FloatingActionButton(onClick = { showCreateDialog = true }) {
-                    Icon(Icons.Filled.Add, contentDescription = "New Playlist")
+                    Icon(AppIcons.Add, contentDescription = "New Playlist")
                 }
             }
         }

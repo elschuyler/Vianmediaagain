@@ -35,42 +35,63 @@ fun AppNavigation(
     val navController = rememberNavController()
     
     val defaultStartDest = if (settingsManager.hasSeenWelcome) "main" else "welcome"
-    
-    val intentDest = remember(initialUris, forceAction) {
-        if (initialUris.isNotEmpty()) {
+
+    val syncIntentDest = remember(initialUris, forceAction) {
+        if (initialUris.isEmpty()) {
+            null
+        } else {
+            val base64Flags = android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING
+            when {
+                forceAction == "mini" || forceAction == "pip" || forceAction == "none" -> defaultStartDest
+                forceAction == "play" || forceAction == "shura.media.ACTION_OPEN_PLAYER" || forceAction == android.content.Intent.ACTION_VIEW -> {
+                    val encodedUri = android.util.Base64.encodeToString(initialUris.first().toByteArray(), base64Flags)
+                    "player/$encodedUri"
+                }
+                else -> null
+            }
+        }
+    }
+
+    var asyncIntentDest by androidx.compose.runtime.saveable.rememberSaveable {
+        mutableStateOf<String?>(syncIntentDest ?: if (initialUris.isEmpty()) defaultStartDest else null)
+    }
+
+    LaunchedEffect(initialUris, forceAction) {
+        if (initialUris.isEmpty()) {
+            if (asyncIntentDest == null) asyncIntentDest = defaultStartDest
+            return@LaunchedEffect
+        }
+        if (syncIntentDest != null) {
+            asyncIntentDest = syncIntentDest
+            return@LaunchedEffect
+        }
+        val computed = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             val uriStr = initialUris.first()
-            val mimeType = context.contentResolver.getType(android.net.Uri.parse(uriStr))?.lowercase()
+            val parsedUri = android.net.Uri.parse(uriStr)
+            val mimeType = try { context.contentResolver.getType(parsedUri)?.lowercase() } catch (_: Exception) { null }
             val ext = uriStr.substringAfterLast('.', "").substringBefore('?').lowercase()
-            
+
             val isImage = mimeType?.startsWith("image/") == true || ext in shura.media.data.COMMON_IMAGE_EXTENSIONS
             val isAudio = mimeType?.startsWith("audio/") == true || ext in shura.media.data.COMMON_AUDIO_EXTENSIONS
             val isVideo = mimeType?.startsWith("video/") == true || ext in shura.media.data.COMMON_VIDEO_EXTENSIONS
-            val isAnimated = isImage && shura.media.data.isAnimatedMedia(context, android.net.Uri.parse(uriStr))
+            val isAnimated = isImage && shura.media.data.isAnimatedMedia(context, parsedUri)
             val isEffectiveVideo = isVideo || isAnimated
-            
+
             val base64Flags = android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING
-            if (forceAction == "mini" || forceAction == "pip" || forceAction == "none") {
-                null
-            } else if (forceAction == "play" || forceAction == "shura.media.ACTION_OPEN_PLAYER" || forceAction == android.content.Intent.ACTION_VIEW) {
-                val encodedUri = android.util.Base64.encodeToString(initialUris.first().toByteArray(), base64Flags)
-                "player/$encodedUri"
-            } else if (forceAction == "edit") {
-                val encodedUri = android.util.Base64.encodeToString(initialUris.first().toByteArray(), base64Flags)
-                if (isAudio) "audio_trimmer/$encodedUri"
-                else if (isEffectiveVideo) "video_editor/$encodedUri"
-                else "photo_editor/$encodedUri"
-            } else if (isImage && !isAnimated) {
-                if (initialUris.size == 1) {
-                    val encodedUri = android.util.Base64.encodeToString(initialUris.first().toByteArray(), base64Flags)
-                    "photo_editor/$encodedUri"
-                } else {
-                    "main"
+            val encodedUri = android.util.Base64.encodeToString(uriStr.toByteArray(), base64Flags)
+            if (forceAction == "edit") {
+                when {
+                    isAudio -> "audio_trimmer/$encodedUri"
+                    isEffectiveVideo -> "video_editor/$encodedUri"
+                    else -> "photo_editor/$encodedUri"
                 }
+            } else if (isImage && !isAnimated) {
+                if (initialUris.size == 1) "photo_editor/$encodedUri" else "main"
             } else {
-                val encodedUri = android.util.Base64.encodeToString(initialUris.first().toByteArray(), base64Flags)
                 "player/$encodedUri"
             }
-        } else null
+        }
+        asyncIntentDest = computed
     }
 
     val isExternalIntent = initialUris.isNotEmpty() && (
@@ -88,8 +109,14 @@ fun AppNavigation(
         }
     }
 
-    val initialStartDest = remember { intentDest ?: defaultStartDest }
-    val startDest = androidx.compose.runtime.saveable.rememberSaveable { initialStartDest }
+    val resolvedStartDest = asyncIntentDest
+    if (resolvedStartDest == null) {
+        androidx.compose.foundation.layout.Box(
+            modifier = androidx.compose.ui.Modifier.fillMaxSize()
+        )
+        return
+    }
+    val startDest = androidx.compose.runtime.saveable.rememberSaveable { resolvedStartDest }
     
 
 
@@ -129,7 +156,7 @@ fun AppNavigation(
                     addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     action = forceAction
                 }
-                context.startActivity(intent)
+                shura.media.data.MediaUriResolver.safeStartActivity(context, intent)
                 onIntentConsumed()
             }
         }
@@ -171,7 +198,7 @@ fun AppNavigation(
                         clipData = android.content.ClipData.newRawUri("media", parsedUri)
                         addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     }
-                    context.startActivity(intent)
+                    shura.media.data.MediaUriResolver.safeStartActivity(context, intent)
                 },
                 onNavigateToPhotoEditor = { uri ->
                     shura.media.service.PlaybackService.stopPlaybackAndRelease(context)
@@ -245,7 +272,7 @@ fun AppNavigation(
                         clipData = android.content.ClipData.newRawUri("media", parsedUri)
                         addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     }
-                    context.startActivity(intent)
+                    shura.media.data.MediaUriResolver.safeStartActivity(context, intent)
                 }
             )
         }
@@ -266,7 +293,7 @@ fun AppNavigation(
                         clipData = android.content.ClipData.newRawUri("media", parsedUri)
                         addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     }
-                    context.startActivity(intent)
+                    shura.media.data.MediaUriResolver.safeStartActivity(context, intent)
                 }
                 navController.popBackStack()
             }

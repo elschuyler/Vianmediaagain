@@ -112,21 +112,34 @@ private fun startPauseGraceTimerIfNeeded() {
         } else {
             shura.media.LogKeeper.log("PlaybackService: 5-minute pause grace expired in background -> releasing playback & notification", "PlaybackService")
             isWithinPauseGraceWindow = false
-            PlayerManager.flushProgressToStorage()
-            PlayerManager.resetSessionBackgroundPlay()
-            resetSessionFloatingState()
-            try { currentPlayer.playWhenReady = false } catch (_: Exception) {}
-            try { currentPlayer.stop() } catch (_: Exception) {}
-            try { currentPlayer.clearVideoSurface() } catch (_: Exception) {}
-            try { currentPlayer.clearMediaItems() } catch (_: Exception) {}
-            try {
-                androidx.core.app.ServiceCompat.stopForeground(this@PlaybackService, androidx.core.app.ServiceCompat.STOP_FOREGROUND_REMOVE)
-                cancelMediaNotifications()
-            } catch (_: Exception) {}
-            updateWidgetUI()
-            requestStopSelf()
+            performFullPlaybackTeardown(flushProgress = true)
         }
     }
+}
+
+private fun performFullPlaybackTeardown(flushProgress: Boolean) {
+    cancelPauseGraceTimer()
+    codecRecoveryJob?.cancel()
+    isRecoveringCodecError = false
+    if (flushProgress) {
+        PlayerManager.flushProgressToStorage()
+    }
+    PlayerManager.resetSessionBackgroundPlay()
+    hideOverlay()
+    resetSessionFloatingState()
+    val player = PlayerManager.exoPlayer
+    try { player?.playWhenReady = false } catch (_: Exception) {}
+    try { player?.stop() } catch (_: Exception) {}
+    try { player?.clearVideoSurface() } catch (_: Exception) {}
+    try { player?.clearMediaItems() } catch (_: Exception) {}
+    try {
+        androidx.core.app.ServiceCompat.stopForeground(this, androidx.core.app.ServiceCompat.STOP_FOREGROUND_REMOVE)
+        cancelMediaNotifications()
+    } catch (e: Exception) {
+        shura.media.LogKeeper.logError("PlaybackService", "Error stopping foreground during teardown", e)
+    }
+    updateWidgetUI()
+    requestStopSelf()
 }
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
@@ -152,8 +165,7 @@ private fun isTrustedController(controller: MediaSession.ControllerInfo): Boolea
 }
 
 private fun isAllowedMediaUri(uri: android.net.Uri?): Boolean {
-    val scheme = uri?.scheme?.lowercase() ?: return false
-    return scheme in setOf("content", "file", "http", "https", "rtsp", "rtmp", "rtmpe", "rtmps", "rtp")
+    return shura.media.data.MediaUriResolver.isSafeExternalUri(this@PlaybackService, uri?.toString())
 }
 
 private fun isAllowedSubtitleUri(uri: android.net.Uri?): Boolean {
@@ -807,22 +819,7 @@ if (customCommand.customAction == "SET_BOOST_GAIN") {
 }
 
 if (customCommand.customAction == "ACTION_CLOSE") {
-    cancelPauseGraceTimer()
-    PlayerManager.flushProgressToStorage()
-    PlayerManager.resetSessionBackgroundPlay()
-    val player = session.player
-    player.playWhenReady = false
-    player.stop()
-    player.clearVideoSurface()
-    player.clearMediaItems()
-    resetSessionFloatingState()
-    hideOverlay()
-    try {
-        androidx.core.app.ServiceCompat.stopForeground(this@PlaybackService, androidx.core.app.ServiceCompat.STOP_FOREGROUND_REMOVE)
-        cancelMediaNotifications()
-    } catch (_: Exception) {}
-    updateWidgetUI()
-    requestStopSelf()
+    performFullPlaybackTeardown(flushProgress = true)
     return Futures.immediateFuture(androidx.media3.session.SessionResult(androidx.media3.session.SessionResult.RESULT_SUCCESS))
 }
 
@@ -858,7 +855,7 @@ if (customCommand.customAction == "ACTION_OVERLAY" || customCommand.customAction
     if (!android.provider.Settings.canDrawOverlays(this@PlaybackService)) {
         val intent = android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:$packageName"))
         intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-        startActivity(intent)
+        shura.media.data.MediaUriResolver.safeStartActivity(this@PlaybackService, intent)
     } else {
         if (customCommand.customAction == "ACTION_MINIPLAYER") {
             showOverlay(false)
@@ -877,7 +874,7 @@ if (customCommand.customAction == "ACTION_PIP" || customCommand.customAction == 
     if (!android.provider.Settings.canDrawOverlays(this@PlaybackService)) {
         val intent = android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:$packageName"))
         intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-        startActivity(intent)
+        shura.media.data.MediaUriResolver.safeStartActivity(this@PlaybackService, intent)
     } else {
         showOverlay(true)
     }
@@ -1286,7 +1283,7 @@ onOpenMainPlayer = {
         }
         flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP
     }
-    startActivity(intent)
+    shura.media.data.MediaUriResolver.safeStartActivity(this@PlaybackService, intent)
     hideOverlay()
 },
 onSwitchToMiniPlayer = {
@@ -1523,26 +1520,8 @@ composeView = null
     private fun handleNaturalPlaybackEndClose() {
         if (isClosingOnEnd) return
         isClosingOnEnd = true
-        cancelPauseGraceTimer()
-        isRecoveringCodecError = false
-        codecRecoveryJob?.cancel()
         shura.media.LogKeeper.log("Playback ended with repeatMode OFF -> closing overlay/service & resetting widget", "PlaybackService")
-        PlayerManager.resetSessionBackgroundPlay()
-        hideOverlay()
-        resetSessionFloatingState()
-        val player = PlayerManager.exoPlayer
-        try { player?.playWhenReady = false } catch (_: Exception) {}
-        try { player?.stop() } catch (_: Exception) {}
-        try { player?.clearVideoSurface() } catch (_: Exception) {}
-        try { player?.clearMediaItems() } catch (_: Exception) {}
-        try {
-            androidx.core.app.ServiceCompat.stopForeground(this@PlaybackService, androidx.core.app.ServiceCompat.STOP_FOREGROUND_REMOVE)
-            cancelMediaNotifications()
-        } catch (e: Exception) {
-            shura.media.LogKeeper.logError("PlaybackService", "Error stopping foreground on natural end", e)
-        }
-        updateWidgetUI()
-        requestStopSelf()
+        performFullPlaybackTeardown(flushProgress = false)
     }
 
     override fun onDestroy() {
@@ -1569,6 +1548,9 @@ composeView = null
         PlayerManager.releaseOwnedPlayer()
         updateWidgetUI()
         lifecycleRegistry.handleLifecycleEvent(androidx.lifecycle.Lifecycle.Event.ON_DESTROY)
+        try {
+            store.clear()
+        } catch (_: Exception) {}
         try {
             serviceScope.cancel()
         } catch (e: Exception) {}
@@ -1629,20 +1611,8 @@ composeView = null
                 "ACTION_HIDE_OVERLAY" -> hideOverlay()
                 "ACTION_CLOSE" -> {
                     shura.media.LogKeeper.log("ACTION_CLOSE received -> stopping and removing notification", "PlaybackService")
-                    cancelPauseGraceTimer()
-                    PlayerManager.flushProgressToStorage()
-                    PlayerManager.resetSessionBackgroundPlay()
-                    try {
-                        androidx.core.app.ServiceCompat.stopForeground(this@PlaybackService, androidx.core.app.ServiceCompat.STOP_FOREGROUND_REMOVE)
-                        cancelMediaNotifications()
-                    } catch (e: Exception) {}
-                    player.playWhenReady = false
-                    player.stop()
-                    player.clearVideoSurface()
-                    player.clearMediaItems()
-                    resetSessionFloatingState()
-                    hideOverlay()
-                    requestStopSelf()
+                    performFullPlaybackTeardown(flushProgress = true)
+                    return
                 }
                 "ACTION_PLAY_PAUSE" -> if (player.isPlaying) player.pause() else player.play()
                 "ACTION_PREV" -> {
@@ -1809,21 +1779,7 @@ composeView = null
                 val inst = instance
                 if (inst != null) {
                     try {
-                        inst.cancelPauseGraceTimer()
-                        inst.codecRecoveryJob?.cancel()
-                        inst.isRecoveringCodecError = false
-                        PlayerManager.resetSessionBackgroundPlay()
-                        inst.hideOverlay()
-                        inst.resetSessionFloatingState()
-                        val player = PlayerManager.exoPlayer
-                        try { player?.playWhenReady = false } catch (_: Exception) {}
-                        try { player?.stop() } catch (_: Exception) {}
-                        try { player?.clearVideoSurface() } catch (_: Exception) {}
-                        try { player?.clearMediaItems() } catch (_: Exception) {}
-                        androidx.core.app.ServiceCompat.stopForeground(inst, androidx.core.app.ServiceCompat.STOP_FOREGROUND_REMOVE)
-                        inst.cancelMediaNotifications()
-                        inst.updateWidgetUI()
-                        inst.requestStopSelf()
+                        inst.performFullPlaybackTeardown(flushProgress = false)
                     } catch (e: Exception) {
                         shura.media.LogKeeper.logError("PlaybackService", "Error in stopPlaybackAndRelease", e)
                         shura.media.widget.MediaWidgetProvider.resetAllWidgetsToIdle(context)

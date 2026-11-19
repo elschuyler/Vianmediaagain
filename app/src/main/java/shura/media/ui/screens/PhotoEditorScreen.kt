@@ -14,13 +14,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Brush
-import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Crop
-import androidx.compose.material.icons.filled.Save
-import androidx.compose.material.icons.filled.TextFields
+import shura.media.ui.icons.AppIcons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -43,7 +37,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-data class Line(val start: Offset, val end: Offset, val color: Color, val strokeWidth: Float)
+data class Line(val startNorm: Offset, val endNorm: Offset, val color: Color, val strokeWidthNorm: Float)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -86,22 +80,10 @@ fun PhotoEditorScreen(uriString: String, onNavigateBack: () -> Unit) {
             try {
                 val parsedUri = Uri.parse(uriString)
                 fun openImageStream(): java.io.InputStream? {
-                    return if (parsedUri.scheme == "file" || uriString.startsWith("file:") || uriString.startsWith("/")) {
-                        val directPath = when {
-                            uriString.startsWith("file://") -> uriString.removePrefix("file://")
-                            uriString.startsWith("file:/") -> uriString.removePrefix("file:")
-                            uriString.startsWith("file:") -> uriString.removePrefix("file:")
-                            else -> parsedUri.path ?: uriString
-                        }
-                        val candidate1 = java.io.File(directPath)
-                        val candidate2 = java.io.File(Uri.decode(directPath))
-                        val candidate3 = parsedUri.path?.let { java.io.File(it) }
-                        val candidate4 = parsedUri.path?.let { java.io.File(Uri.decode(it)) }
-                        val src = listOfNotNull(candidate1, candidate2, candidate3, candidate4).firstOrNull { it.exists() && it.canRead() }
-                            ?: candidate1
-                        if (src.exists() && src.canRead()) src.inputStream() else null
-                    } else {
-                        context.contentResolver.openInputStream(parsedUri)
+                    return try {
+                        shura.media.data.MediaUriResolver.openInputStreamSafely(context, uriString)
+                    } catch (_: Exception) {
+                        null
                     }
                 }
                 val options = BitmapFactory.Options().apply {
@@ -146,14 +128,14 @@ fun PhotoEditorScreen(uriString: String, onNavigateBack: () -> Unit) {
                 title = { Text("Photo Editor") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(AppIcons.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
                     IconButton(onClick = {
                         showCompressionDialog = true
                     }) {
-                        Icon(Icons.Filled.Save, contentDescription = "Save/Distribute")
+                        Icon(AppIcons.Save, contentDescription = "Save/Distribute")
                     }
                 }
             )
@@ -189,7 +171,7 @@ fun PhotoEditorScreen(uriString: String, onNavigateBack: () -> Unit) {
                     Spacer(modifier = Modifier.weight(1f))
                     IconButton(onClick = { mode = if (mode == "DRAW") "VIEW" else "DRAW" }) {
                         Icon(
-                            Icons.Filled.Brush, 
+                            AppIcons.Brush, 
                             contentDescription = "Draw",
                             tint = if (mode == "DRAW") MaterialTheme.colorScheme.primary else LocalContentColor.current
                         )
@@ -197,7 +179,7 @@ fun PhotoEditorScreen(uriString: String, onNavigateBack: () -> Unit) {
                     Spacer(modifier = Modifier.weight(0.5f))
                     IconButton(onClick = { mode = if (mode == "ERASE") "VIEW" else "ERASE" }) {
                         Icon(
-                            Icons.Filled.Clear, 
+                            AppIcons.Clear, 
                             contentDescription = "Erase",
                             tint = if (mode == "ERASE") MaterialTheme.colorScheme.primary else LocalContentColor.current
                         )
@@ -205,7 +187,7 @@ fun PhotoEditorScreen(uriString: String, onNavigateBack: () -> Unit) {
                     Spacer(modifier = Modifier.weight(0.5f))
                     IconButton(onClick = { mode = if (mode == "CROP") "VIEW" else "CROP" }) {
                         Icon(
-                            Icons.Filled.Crop, 
+                            AppIcons.Crop, 
                             contentDescription = "Crop",
                             tint = if (mode == "CROP") MaterialTheme.colorScheme.primary else LocalContentColor.current
                         )
@@ -232,9 +214,19 @@ fun PhotoEditorScreen(uriString: String, onNavigateBack: () -> Unit) {
                                 detectDragGestures(
                                     onDragStart = { offset -> dragStart = offset },
                                     onDrag = { change, dragAmount -> 
+                                        if (imgWidth <= 0f || imgHeight <= 0f) return@detectDragGestures
                                         change.consume()
-                                        lines.add(Line(dragStart, dragStart + dragAmount, currentColor, 10f))
-                                        dragStart += dragAmount
+                                        val nextPoint = dragStart + dragAmount
+                                        val startNorm = Offset(
+                                            ((dragStart.x - imgLeft) / imgWidth).coerceIn(0f, 1f),
+                                            ((dragStart.y - imgTop) / imgHeight).coerceIn(0f, 1f)
+                                        )
+                                        val endNorm = Offset(
+                                            ((nextPoint.x - imgLeft) / imgWidth).coerceIn(0f, 1f),
+                                            ((nextPoint.y - imgTop) / imgHeight).coerceIn(0f, 1f)
+                                        )
+                                        lines.add(Line(startNorm, endNorm, currentColor, (10f / imgWidth).coerceIn(0.002f, 0.05f)))
+                                        dragStart = nextPoint
                                     }
                                 )
                             }
@@ -242,12 +234,17 @@ fun PhotoEditorScreen(uriString: String, onNavigateBack: () -> Unit) {
                                 detectDragGestures(
                                     onDragStart = { offset -> dragStart = offset },
                                     onDrag = { change, _ ->
+                                        if (imgWidth <= 0f || imgHeight <= 0f) return@detectDragGestures
                                         change.consume()
                                         val eraseRadius = 40f
                                         val toRemove = lines.filter { line ->
-                                            val dx = line.start.x - change.position.x
-                                            val dy = line.start.y - change.position.y
-                                            Math.sqrt((dx * dx + dy * dy).toDouble()) < eraseRadius
+                                            val sx = imgLeft + line.startNorm.x * imgWidth
+                                            val sy = imgTop + line.startNorm.y * imgHeight
+                                            val ex = imgLeft + line.endNorm.x * imgWidth
+                                            val ey = imgTop + line.endNorm.y * imgHeight
+                                            val dStart = Math.hypot((sx - change.position.x).toDouble(), (sy - change.position.y).toDouble())
+                                            val dEnd = Math.hypot((ex - change.position.x).toDouble(), (ey - change.position.y).toDouble())
+                                            dStart < eraseRadius || dEnd < eraseRadius
                                         }
                                         lines.removeAll(toRemove)
                                     }
@@ -350,9 +347,9 @@ fun PhotoEditorScreen(uriString: String, onNavigateBack: () -> Unit) {
                     lines.forEach { line ->
                         drawLine(
                             color = line.color,
-                            start = line.start,
-                            end = line.end,
-                            strokeWidth = line.strokeWidth,
+                            start = Offset(left + line.startNorm.x * drawWidth, top + line.startNorm.y * drawHeight),
+                            end = Offset(left + line.endNorm.x * drawWidth, top + line.endNorm.y * drawHeight),
+                            strokeWidth = (line.strokeWidthNorm * drawWidth).coerceAtLeast(2f),
                             cap = StrokeCap.Round
                         )
                     }
@@ -418,29 +415,27 @@ fun PhotoEditorScreen(uriString: String, onNavigateBack: () -> Unit) {
                             if (newW <= 0 || newH <= 0) return@withContext uriString
                             
                             val resBmp = Bitmap.createBitmap(newW, newH, Bitmap.Config.ARGB_8888)
-                            val canvas = android.graphics.Canvas(resBmp)
-                            
-                            val srcRect = android.graphics.Rect(
-                                (origBmp.width * cropLeft).toInt(),
-                                (origBmp.height * cropTop).toInt(),
-                                (origBmp.width * cropRight).toInt(),
-                                (origBmp.height * cropBottom).toInt()
-                            )
-                            val dstRect = android.graphics.Rect(0, 0, newW, newH)
-                            canvas.drawBitmap(origBmp, srcRect, dstRect, null)
-                            
-                            val paint = android.graphics.Paint().apply {
-                                style = android.graphics.Paint.Style.STROKE
-                                strokeCap = android.graphics.Paint.Cap.ROUND
-                                isAntiAlias = true
-                            }
-                            
-                                // Map lines
-                                val scaleX = origBmp.width / imgWidth
-                                val scaleY = origBmp.height / imgHeight
-                                val cropOffsetX = imgWidth * cropLeft
-                                val cropOffsetY = imgHeight * cropTop
-                                
+                            try {
+                                val canvas = android.graphics.Canvas(resBmp)
+
+                                val srcRect = android.graphics.Rect(
+                                    (origBmp.width * cropLeft).toInt(),
+                                    (origBmp.height * cropTop).toInt(),
+                                    (origBmp.width * cropRight).toInt(),
+                                    (origBmp.height * cropBottom).toInt()
+                                )
+                                val dstRect = android.graphics.Rect(0, 0, newW, newH)
+                                canvas.drawBitmap(origBmp, srcRect, dstRect, null)
+
+                                val paint = android.graphics.Paint().apply {
+                                    style = android.graphics.Paint.Style.STROKE
+                                    strokeCap = android.graphics.Paint.Cap.ROUND
+                                    isAntiAlias = true
+                                }
+
+                                val cropOffsetPxX = origBmp.width * cropLeft
+                                val cropOffsetPxY = origBmp.height * cropTop
+
                                 lines.forEach { line ->
                                     paint.color = android.graphics.Color.argb(
                                         (line.color.alpha * 255).toInt(),
@@ -448,34 +443,41 @@ fun PhotoEditorScreen(uriString: String, onNavigateBack: () -> Unit) {
                                         (line.color.green * 255).toInt(),
                                         (line.color.blue * 255).toInt()
                                     )
-                                    paint.strokeWidth = line.strokeWidth * ((scaleX + scaleY) / 2f)
-                                    
-                                    val startX = (line.start.x - imgLeft - cropOffsetX) * scaleX
-                                    val startY = (line.start.y - imgTop - cropOffsetY) * scaleY
-                                    val endX = (line.end.x - imgLeft - cropOffsetX) * scaleX
-                                    val endY = (line.end.y - imgTop - cropOffsetY) * scaleY
-                                    
+                                    paint.strokeWidth = (line.strokeWidthNorm * origBmp.width).coerceAtLeast(2f)
+
+                                    val startX = line.startNorm.x * origBmp.width - cropOffsetPxX
+                                    val startY = line.startNorm.y * origBmp.height - cropOffsetPxY
+                                    val endX = line.endNorm.x * origBmp.width - cropOffsetPxX
+                                    val endY = line.endNorm.y * origBmp.height - cropOffsetPxY
+
                                     canvas.drawLine(startX, startY, endX, endY, paint)
                                 }
-                                
-                                // Save to temp file
+
                                 LogKeeper.log("Rendering ${lines.size} drawn lines and cropping image...", "PhotoEditor")
                                 val tempFile = java.io.File(context.cacheDir, "edited_${System.currentTimeMillis()}.jpg")
-                                val out = java.io.FileOutputStream(tempFile)
-                                resBmp.compress(Bitmap.CompressFormat.JPEG, 90, out)
-                                out.flush()
-                                out.close()
-                                
+                                java.io.FileOutputStream(tempFile).use { out ->
+                                    resBmp.compress(Bitmap.CompressFormat.JPEG, 90, out)
+                                    out.flush()
+                                }
+
                                 LogKeeper.log("Editor render success. Handing off to compressor...", "PhotoEditor")
                                 Uri.fromFile(tempFile).toString()
-                            } catch (e: Exception) {
-                                LogKeeper.logError("PhotoEditor", "Save rendering failed", e)
-                                uriString
+                            } finally {
+                                if (!resBmp.isRecycled) {
+                                    resBmp.recycle()
+                                }
                             }
+                        } catch (e: Exception) {
+                            LogKeeper.logError("PhotoEditor", "Save rendering failed", e)
+                            uriString
                         }
-                        
-                        val intent = android.content.Intent(context, shura.media.service.CompressionService::class.java).apply {
+                    }
+
+                    val intent = android.content.Intent(context, shura.media.service.CompressionService::class.java).apply {
                             putStringArrayListExtra("uris", java.util.ArrayList(listOf(editedUri)))
+                            putStringArrayListExtra("source_uris", java.util.ArrayList(listOf(uriString)))
+                            putExtra("is_single_edit", true)
+                            putExtra("output_suffix", "edited")
                             putExtra("maxWidth", w)
                             putExtra("maxHeight", h)
                             putExtra("quality", q)

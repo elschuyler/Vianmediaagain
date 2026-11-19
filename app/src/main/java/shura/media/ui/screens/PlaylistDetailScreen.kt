@@ -10,21 +10,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowDownward
-import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
+import shura.media.ui.icons.AppIcons
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.material.icons.filled.DragHandle
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -107,11 +98,11 @@ fun PlaylistDetailScreen(
                 navigationIcon = {
                     if (isMultiSelectMode) {
                         IconButton(onClick = { selectedItems.clear() }) {
-                            Icon(Icons.Filled.Close, contentDescription = "Clear Selection")
+                            Icon(AppIcons.Close, contentDescription = "Clear Selection")
                         }
                     } else {
                         IconButton(onClick = onNavigateBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                            Icon(AppIcons.AutoMirrored.ArrowBack, contentDescription = "Back")
                         }
                     }
                 },
@@ -216,7 +207,7 @@ fun PlaylistDetailScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.PlayArrow,
+                        imageVector = AppIcons.PlayArrow,
                         contentDescription = "Play First / Long Press Play All",
                         tint = MaterialTheme.colorScheme.onPrimaryContainer
                     )
@@ -240,7 +231,7 @@ fun PlaylistDetailScreen(
                                     selectedItems.clear()
                                 }
                             }) {
-                                Icon(Icons.Filled.ArrowUpward, contentDescription = "Move Up")
+                                Icon(AppIcons.ArrowUpward, contentDescription = "Move Up")
                             }
                         }
                         if (index < localPlaylistItems.size - 1) {
@@ -253,7 +244,7 @@ fun PlaylistDetailScreen(
                                     selectedItems.clear()
                                 }
                             }) {
-                                Icon(Icons.Filled.ArrowDownward, contentDescription = "Move Down")
+                                Icon(AppIcons.ArrowDownward, contentDescription = "Move Down")
                             }
                         }
                     }
@@ -263,7 +254,7 @@ fun PlaylistDetailScreen(
                             selectedItems.clear()
                         }
                     }) {
-                        Icon(Icons.Filled.Delete, contentDescription = "Delete")
+                        Icon(AppIcons.Delete, contentDescription = "Delete")
                     }
                     Spacer(modifier = Modifier.weight(1f))
                 }
@@ -373,7 +364,7 @@ fun PlaylistDetailScreen(
                             
                             if (!isMultiSelectMode) {
                                 Icon(
-                                    imageVector = Icons.Filled.DragHandle,
+                                    imageVector = AppIcons.DragHandle,
                                     contentDescription = "Reorder",
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier

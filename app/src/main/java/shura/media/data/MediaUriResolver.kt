@@ -375,6 +375,122 @@ object MediaUriResolver {
         return uri.lastPathSegment
     }
 
+    private val APPROVED_INTERNAL_TEMP_PREFIXES = listOf(
+        "edited_", "editor_converted_", "ffmpeg_", "join_", "preconverted_", "audio_add_", "Temp_"
+    )
+
+    private fun extractRawFilePath(uriOrPath: String): String? {
+        if (uriOrPath.isBlank()) return null
+        val uri = try { Uri.parse(uriOrPath) } catch (_: Exception) { null }
+        val scheme = uri?.scheme?.lowercase(java.util.Locale.ROOT)
+        val isFileLike = scheme == "file" || uriOrPath.startsWith("file:") || uriOrPath.startsWith("/")
+        if (!isFileLike) return null
+        val directPath = when {
+            uriOrPath.startsWith("file://") -> uriOrPath.removePrefix("file://")
+            uriOrPath.startsWith("file:/") -> uriOrPath.removePrefix("file:")
+            uriOrPath.startsWith("file:") -> uriOrPath.removePrefix("file:")
+            else -> uri?.path ?: uriOrPath
+        }
+        return try { Uri.decode(directPath) } catch (_: Exception) { directPath }
+    }
+
+    fun isAppPrivatePath(context: Context, rawPath: String?, allowApprovedCacheTemp: Boolean): Boolean {
+        if (rawPath.isNullOrBlank()) return false
+        val canonicalTarget = try {
+            File(rawPath).canonicalPath
+        } catch (_: Exception) {
+            rawPath
+        }
+        val appContext = context.applicationContext
+        val cacheCanonical = try { appContext.cacheDir.canonicalPath } catch (_: Exception) { appContext.cacheDir.absolutePath }
+        val extCacheCanonical = try { appContext.externalCacheDir?.canonicalPath } catch (_: Exception) { appContext.externalCacheDir?.absolutePath }
+
+        if (allowApprovedCacheTemp) {
+            val fileObj = File(canonicalTarget)
+            val parentCanonical = fileObj.parentFile?.let {
+                try { it.canonicalPath } catch (_: Exception) { it.absolutePath }
+            }
+            if ((parentCanonical == cacheCanonical || (extCacheCanonical != null && parentCanonical == extCacheCanonical)) &&
+                APPROVED_INTERNAL_TEMP_PREFIXES.any { fileObj.name.startsWith(it) }
+            ) {
+                return false
+            }
+        }
+
+        val blockedRoots = buildList {
+            try { add(appContext.filesDir.canonicalPath) } catch (_: Exception) { add(appContext.filesDir.absolutePath) }
+            add(cacheCanonical)
+            try { appContext.codeCacheDir?.canonicalPath?.let { add(it) } } catch (_: Exception) {}
+            try { appContext.noBackupFilesDir?.canonicalPath?.let { add(it) } } catch (_: Exception) {}
+            try { appContext.dataDir.canonicalPath.let { add(it) } } catch (_: Exception) {}
+            add("/data/data/${appContext.packageName}")
+            add("/data/user/0/${appContext.packageName}")
+        }
+        if (blockedRoots.any { root ->
+                canonicalTarget == root || canonicalTarget.startsWith("$root/")
+            }) {
+            return true
+        }
+        val lower = canonicalTarget.lowercase(java.util.Locale.ROOT)
+        return (lower.contains("/${appContext.packageName.lowercase(java.util.Locale.ROOT)}/") &&
+            (lower.contains("/shared_prefs/") || lower.contains("/databases/") || lower.contains("/files/") || lower.contains("/logs/")))
+    }
+
+    fun isSafeExternalUri(context: Context, uriOrPath: String?): Boolean {
+        if (uriOrPath.isNullOrBlank()) return false
+        val parsed = try { Uri.parse(uriOrPath) } catch (_: Exception) { return false }
+        val scheme = parsed.scheme?.lowercase(java.util.Locale.ROOT)
+        val allowedSchemes = setOf("content", "file", "http", "https", "rtsp", "rtmp", "rtmpe", "rtmps", "rtp")
+        if (scheme != null && scheme !in allowedSchemes) return false
+        if (scheme == null && !uriOrPath.startsWith("/")) return false
+
+        if (scheme == "content") {
+            val auth = parsed.authority?.lowercase(java.util.Locale.ROOT) ?: ""
+            val pkg = context.applicationContext.packageName.lowercase(java.util.Locale.ROOT)
+            if (auth == pkg || auth.startsWith("$pkg.")) {
+                return false
+            }
+        }
+        val rawPath = extractRawFilePath(uriOrPath)
+        if (rawPath != null && isAppPrivatePath(context, rawPath, allowApprovedCacheTemp = false)) {
+            return false
+        }
+        return true
+    }
+
+    fun safeStartActivity(context: Context, intent: android.content.Intent, fallbackToast: String? = null): Boolean {
+        return try {
+            if (context !is android.app.Activity) {
+                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+            true
+        } catch (e: android.content.ActivityNotFoundException) {
+            LogKeeper.logWarn("MediaUriResolver", "No activity found to handle intent: ${intent.action}")
+            showSafeToast(context, fallbackToast ?: "Feature not supported on this device")
+            false
+        } catch (e: SecurityException) {
+            LogKeeper.logError("MediaUriResolver", "SecurityException starting activity: ${e.message}", e)
+            showSafeToast(context, fallbackToast ?: "Permission denied launching action")
+            false
+        } catch (e: Exception) {
+            LogKeeper.logError("MediaUriResolver", "Failed starting activity: ${e.message}", e)
+            if (fallbackToast != null) {
+                showSafeToast(context, fallbackToast)
+            }
+            false
+        }
+    }
+
+    private fun showSafeToast(context: Context, message: String) {
+        val appContext = context.applicationContext
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            try {
+                android.widget.Toast.makeText(appContext, message, android.widget.Toast.LENGTH_SHORT).show()
+            } catch (_: Exception) {}
+        }
+    }
+
     /**
      * Safely opens an InputStream for FFmpeg processing, handling Scoped Storage,
      * Document URIs, and POSIX path permission restrictions.
@@ -384,6 +500,9 @@ object MediaUriResolver {
         val isFileUri = uri.scheme == "file" || uriOrPath.startsWith("file:") || uriOrPath.startsWith("/")
 
         if (!isFileUri) {
+            if (!isSafeExternalUri(context, uriOrPath)) {
+                throw SecurityException("Access to protected URI is denied")
+            }
             // First attempt direct ContentResolver stream
             try {
                 val directStream = context.contentResolver.openInputStream(uri)
@@ -395,6 +514,10 @@ object MediaUriResolver {
             // Fallback: Resolve to playable MediaStore or physical URI
             val resolvedUri = resolveToPlayableUri(context, uri)
             if (resolvedUri != uri) {
+                val resolvedPath = extractRawFilePath(resolvedUri.toString())
+                if (resolvedPath != null && isAppPrivatePath(context, resolvedPath, allowApprovedCacheTemp = false)) {
+                    throw SecurityException("Access to app-private resolved path is denied")
+                }
                 try {
                     val resolvedStream = context.contentResolver.openInputStream(resolvedUri)
                     if (resolvedStream != null) return resolvedStream
@@ -410,6 +533,9 @@ object MediaUriResolver {
                 else -> uri.path ?: uriOrPath
             }
             val decodedPath = Uri.decode(directPath)
+            if (isAppPrivatePath(context, decodedPath, allowApprovedCacheTemp = true)) {
+                throw SecurityException("Access to app-private storage path is denied")
+            }
             val candidateFile = File(decodedPath)
 
             // Direct POSIX stream if readable

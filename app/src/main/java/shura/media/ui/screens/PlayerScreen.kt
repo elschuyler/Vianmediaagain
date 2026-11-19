@@ -55,32 +55,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
-import androidx.compose.material.icons.filled.Timer
-import androidx.compose.material.icons.filled.Loop
-import androidx.compose.material.icons.filled.AspectRatio
-import androidx.compose.material.icons.filled.LightMode
-import androidx.compose.material.icons.filled.Headphones
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.LockOpen
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Repeat
-import androidx.compose.material.icons.filled.RepeatOne
-import androidx.compose.material.icons.filled.ScreenRotation
-import androidx.compose.material.icons.filled.Screenshot
-import androidx.compose.material.icons.filled.SkipNext
-import androidx.compose.material.icons.filled.SkipPrevious
-import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.filled.Speed
-import androidx.compose.material.icons.filled.Subtitles
-import androidx.compose.material.icons.filled.VolumeUp
+import shura.media.ui.icons.AppIcons
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -101,18 +76,10 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material3.Switch
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.border
-import androidx.compose.material.icons.filled.BatteryFull
-import androidx.compose.material.icons.filled.BatteryChargingFull
-import androidx.compose.material.icons.filled.Crop
-import androidx.compose.material.icons.filled.Fullscreen
-import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -381,6 +348,7 @@ fun PlayerScreen(
         mutableStateOf(initialTitle ?: getFastImmediateName(decodedUri))
     }
     var currentMediaUri by remember { mutableStateOf(decodedUri) }
+    val activeMediaUriString = currentMediaUri.toString().ifBlank { decodedUriString }
     var tracksVideoSupport by remember(uriString) { mutableStateOf<Boolean?>(null) }
     val isAudioOnly = tracksVideoSupport?.let { !it }
         ?: shura.media.service.PlayerManager.isAudioOnlyHint(context, currentMediaUri)
@@ -462,8 +430,8 @@ fun PlayerScreen(
             val pos = controller.currentPosition
             val dur = controller.duration
             val settings = shura.media.data.SettingsManager.getInstance(context)
-            if (pos > 0L && !settings.isFinished(decodedUriString, currentMediaTitle)) {
-                settings.savePlaybackState(decodedUriString, pos, dur, currentMediaTitle)
+            if (pos > 0L && !settings.isFinished(activeMediaUriString, currentMediaTitle)) {
+                settings.savePlaybackState(activeMediaUriString, pos, dur, currentMediaTitle)
             }
         }
         if (!backgroundPlayEnabledRef.value && !forceBackgroundPlay.get()) {
@@ -553,8 +521,8 @@ fun PlayerScreen(
                 val pos = controller.currentPosition
                 val dur = controller.duration
                 val settings = shura.media.data.SettingsManager.getInstance(context)
-                if (pos > 0L && !settings.isFinished(decodedUriString, currentMediaTitle)) {
-                    settings.savePlaybackState(decodedUriString, pos, dur, currentMediaTitle)
+                if (pos > 0L && !settings.isFinished(activeMediaUriString, currentMediaTitle)) {
+                    settings.savePlaybackState(activeMediaUriString, pos, dur, currentMediaTitle)
                     lastSavedTime = now
                 }
             }
@@ -644,8 +612,7 @@ fun PlayerScreen(
     }
 
     val keepScreenAwake by settingsManager.keepScreenAwake.collectAsState()
-    val decodedUriStringForInit = remember(uriString) { String(android.util.Base64.decode(uriString, android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)) }
-    var playbackSpeed by remember { mutableFloatStateOf(settingsManager.getPlaybackSpeed(decodedUriStringForInit)) }
+    var playbackSpeed by remember { mutableFloatStateOf(settingsManager.getPlaybackSpeed(activeMediaUriString)) }
     var skipSilence by remember { mutableStateOf(false) }
     var repeatMode by remember { androidx.compose.runtime.mutableIntStateOf(androidx.media3.common.Player.REPEAT_MODE_OFF) }
         var showSpeedDialog by remember { mutableStateOf(false) }
@@ -1026,7 +993,13 @@ fun PlayerScreen(
             }
 
             override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
-                tracksVideoSupport = null
+                val newMediaId = mediaItem?.mediaId ?: mediaItem?.localConfiguration?.uri?.toString()
+                val isSameMediaReplacement = reason == androidx.media3.common.Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED &&
+                    newMediaId != null &&
+                    (newMediaId == currentMediaUri?.toString() || newMediaId == decodedUriString)
+                if (!isSameMediaReplacement) {
+                    tracksVideoSupport = null
+                }
                 val reasonStr = when (reason) {
                     androidx.media3.common.Player.MEDIA_ITEM_TRANSITION_REASON_AUTO -> "AUTO"
                     androidx.media3.common.Player.MEDIA_ITEM_TRANSITION_REASON_SEEK -> "SEEK"
@@ -1047,10 +1020,15 @@ fun PlayerScreen(
                     val isStoppedRewind = reason == androidx.media3.common.Player.MEDIA_ITEM_TRANSITION_REASON_SEEK &&
                         !controller.isPlaying && !controller.playWhenReady &&
                         settingsManager.isFinished(uri.toString(), immediateName)
-                    if (!isPassiveAutoPeek && !isStoppedRewind) {
+                    if (!isSameMediaReplacement) {
+                        val savedSpeed = settingsManager.getPlaybackSpeed(uri.toString())
+                        playbackSpeed = savedSpeed
+                        controller.setPlaybackSpeed(savedSpeed)
+                    }
+                    if (!isSameMediaReplacement && !isPassiveAutoPeek && !isStoppedRewind) {
                         settingsManager.markAsOpened(uri.toString(), currentMediaTitle)
                     }
-                    if (title == null && uri.scheme == "content") {
+                    if (!isSameMediaReplacement && title == null && uri.scheme == "content") {
                         coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                             val resolved = shura.media.data.MediaUriResolver.queryCleanDisplayName(context, uri)
                             if (!resolved.isNullOrBlank()) {
@@ -1077,8 +1055,10 @@ fun PlayerScreen(
                     null
                 }
                 // Restore track selection
-                val audioTrackIdx = settingsManager.getTrackSelection(decodedUriString, androidx.media3.common.C.TRACK_TYPE_AUDIO)
-                val subtitleTrackIdx = settingsManager.getTrackSelection(decodedUriString, androidx.media3.common.C.TRACK_TYPE_TEXT)
+                val trackUriKey = controller.currentMediaItem?.localConfiguration?.uri?.toString()?.ifBlank { activeMediaUriString }
+                    ?: activeMediaUriString
+                val audioTrackIdx = settingsManager.getTrackSelection(trackUriKey, androidx.media3.common.C.TRACK_TYPE_AUDIO)
+                val subtitleTrackIdx = settingsManager.getTrackSelection(trackUriKey, androidx.media3.common.C.TRACK_TYPE_TEXT)
                 
                 var builder = controller.trackSelectionParameters.buildUpon()
                 var changed = false
@@ -1240,8 +1220,8 @@ fun PlayerScreen(
                     val currentPos = controller.currentPosition
                     val dur = controller.duration
                     val settings = shura.media.data.SettingsManager.getInstance(context)
-                    if (currentPos > 0L && !settings.isFinished(decodedUriString, currentMediaTitle)) {
-                        settings.savePlaybackState(decodedUriString, currentPos, dur, currentMediaTitle)
+                    if (currentPos > 0L && !settings.isFinished(activeMediaUriString, currentMediaTitle)) {
+                        settings.savePlaybackState(activeMediaUriString, currentPos, dur, currentMediaTitle)
                     }
                     
                     val isCurrentlyPlaying = controller.isPlaying || controller.playWhenReady
@@ -1338,8 +1318,8 @@ fun PlayerScreen(
                 val currentPos = controller.currentPosition
                 val dur = controller.duration
                 val settings = shura.media.data.SettingsManager.getInstance(context)
-                if (currentPos > 0L && !settings.isFinished(decodedUriString, currentMediaTitle)) {
-                    settings.savePlaybackState(decodedUriString, currentPos, dur, currentMediaTitle)
+                if (currentPos > 0L && !settings.isFinished(activeMediaUriString, currentMediaTitle)) {
+                    settings.savePlaybackState(activeMediaUriString, currentPos, dur, currentMediaTitle)
                 }
             }
         }
@@ -1408,10 +1388,9 @@ fun PlayerScreen(
             onSeekStart = {
                 mediaController?.pause()
             },
-            onSeekUpdate = { offsetMs, seekSec ->
+            onSeekUpdate = { targetPos, seekSec ->
                 val curDuration = mediaController?.duration?.coerceAtLeast(1L) ?: 1L
-                val targetPos = ((mediaController?.currentPosition?.coerceAtLeast(0L) ?: 0L) + offsetMs).coerceIn(0L, curDuration)
-                mediaController?.seekTo(targetPos)
+                mediaController?.seekTo(targetPos.coerceIn(0L, curDuration))
                 seekOffsetSec = seekSec
             },
             onSeekCommit = { targetPos, resumePlay ->
@@ -1541,7 +1520,7 @@ fun PlayerScreen(
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(
-                        imageVector = Icons.Filled.MusicNote,
+                        imageVector = AppIcons.MusicNote,
                         contentDescription = "Audio Mode",
                         tint = Color.White.copy(alpha = 0.7f),
                         modifier = Modifier.size(72.dp)
@@ -1736,8 +1715,8 @@ fun PlayerScreen(
                                     val pos = controller.currentPosition
                                     val dur = controller.duration
                                     val settings = shura.media.data.SettingsManager.getInstance(context)
-                                    if (pos > 0L && !settings.isFinished(decodedUriString, currentMediaTitle)) {
-                                        settings.savePlaybackState(decodedUriString, pos, dur, currentMediaTitle)
+                                    if (pos > 0L && !settings.isFinished(activeMediaUriString, currentMediaTitle)) {
+                                        settings.savePlaybackState(activeMediaUriString, pos, dur, currentMediaTitle)
                                     }
                                 }
                                 if (!backgroundPlayEnabledRef.value && !forceBackgroundPlay.get()) {
@@ -1761,7 +1740,7 @@ fun PlayerScreen(
                                 }
                                 playbackSpeed = nextSpeed
                                 mediaController?.setPlaybackSpeed(nextSpeed)
-                                settingsManager.savePlaybackSpeed(decodedUriString, nextSpeed)
+                                settingsManager.savePlaybackSpeed(activeMediaUriString, nextSpeed)
                                 shura.media.LogKeeper.log("Speed toggled to ${nextSpeed}x", "PlayerScreen")
                             },
                             onSpeedLongClick = {
@@ -2021,7 +2000,7 @@ fun PlayerScreen(
                             val dur = controller.duration
                             val targetDur = if (dur > 0L) dur else controller.currentPosition.takeIf { it > 0L } ?: 1000L
                             shura.media.data.SettingsManager.getInstance(context).markAsFinished(
-                                decodedUriString,
+                                activeMediaUriString,
                                 currentMediaTitle,
                                 targetDur
                             )
@@ -2043,7 +2022,7 @@ fun PlayerScreen(
                         } else {
                             val intent = android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:${context.packageName}"))
                             intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                            context.startActivity(intent)
+                            shura.media.data.MediaUriResolver.safeStartActivity(context, intent)
                         }
                     },
                     onFloatingPlayerClick = {
@@ -2058,7 +2037,7 @@ fun PlayerScreen(
                         } else {
                             val intent = android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:${context.packageName}"))
                             intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                            context.startActivity(intent)
+                            shura.media.data.MediaUriResolver.safeStartActivity(context, intent)
                         }
                     },
                     onInteraction = {
@@ -2150,7 +2129,7 @@ fun PlayerScreen(
                     val builder = mediaController?.trackSelectionParameters?.buildUpon()
                     builder?.setOverrideForType(androidx.media3.common.TrackSelectionOverride(group.mediaTrackGroup, trackIndex))
                     builder?.let { mediaController?.trackSelectionParameters = it.build() }
-                    settingsManager.saveTrackSelection(decodedUriString, androidx.media3.common.C.TRACK_TYPE_AUDIO, totalIdx)
+                    settingsManager.saveTrackSelection(activeMediaUriString, androidx.media3.common.C.TRACK_TYPE_AUDIO, totalIdx)
                 }
                 showAudioDialog = false
             },
@@ -2180,7 +2159,7 @@ fun PlayerScreen(
                     builder?.setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, false)
                     builder?.setOverrideForType(androidx.media3.common.TrackSelectionOverride(group.mediaTrackGroup, trackIndex))
                     builder?.let { mediaController?.trackSelectionParameters = it.build() }
-                    settingsManager.saveTrackSelection(decodedUriString, androidx.media3.common.C.TRACK_TYPE_TEXT, totalIdx)
+                    settingsManager.saveTrackSelection(activeMediaUriString, androidx.media3.common.C.TRACK_TYPE_TEXT, totalIdx)
                 }
                 showSubtitleDialog = false
             },
@@ -2189,7 +2168,7 @@ fun PlayerScreen(
                 builder?.setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, true)
                 builder?.clearOverridesOfType(androidx.media3.common.C.TRACK_TYPE_TEXT)
                 builder?.let { mediaController?.trackSelectionParameters = it.build() }
-                settingsManager.saveTrackSelection(decodedUriString, androidx.media3.common.C.TRACK_TYPE_TEXT, -1)
+                settingsManager.saveTrackSelection(activeMediaUriString, androidx.media3.common.C.TRACK_TYPE_TEXT, -1)
                 showSubtitleDialog = false
             },
             onAddSubtitleFile = {
@@ -2206,7 +2185,7 @@ fun PlayerScreen(
             onPlaybackSpeedChange = { newSpeed ->
                 playbackSpeed = newSpeed
                 mediaController?.setPlaybackSpeed(newSpeed)
-                settingsManager.savePlaybackSpeed(decodedUriString, newSpeed)
+                settingsManager.savePlaybackSpeed(activeMediaUriString, newSpeed)
             },
             skipSilence = skipSilence,
             onSkipSilenceChange = { newSkip ->

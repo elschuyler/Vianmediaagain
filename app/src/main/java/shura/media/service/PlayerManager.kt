@@ -72,6 +72,10 @@ data class PendingPlaybackRequest(
 )
 
 object PlayerManager {
+    internal val backgroundScope = kotlinx.coroutines.CoroutineScope(
+        kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO
+    )
+
     @Volatile
     var exoPlayer: ExoPlayer? = null
         internal set
@@ -1020,7 +1024,7 @@ object PlayerManager {
                 for (i in 0 until player.mediaItemCount) {
                     allUris.add(player.getMediaItemAt(i).mediaId)
                 }
-                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                backgroundScope.launch {
                     try {
                         val db = shura.media.data.AppDatabase.getDatabase(context.applicationContext)
                         val playlistRepo = shura.media.data.PlaylistRepository(db.playlistDao())

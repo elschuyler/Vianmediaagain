@@ -15,10 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material.icons.filled.Restore
+import shura.media.ui.icons.AppIcons
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -110,7 +107,7 @@ fun SpeedControlsSheet(
                     },
                     modifier = Modifier.background(Color(0xFF2196F3).copy(alpha = 0.2f), CircleShape)
                 ) {
-                    Icon(Icons.Filled.Remove, contentDescription = "Decrease")
+                    Icon(AppIcons.Remove, contentDescription = "Decrease")
                 }
 
                 Text(
@@ -126,7 +123,7 @@ fun SpeedControlsSheet(
                     },
                     modifier = Modifier.background(Color(0xFF2196F3).copy(alpha = 0.2f), CircleShape)
                 ) {
-                    Icon(Icons.Filled.Add, contentDescription = "Increase")
+                    Icon(AppIcons.Add, contentDescription = "Increase")
                 }
             }
 
@@ -144,7 +141,7 @@ fun SpeedControlsSheet(
                 IconButton(onClick = {
                     onPlaybackSpeedChange(1.0f)
                 }) {
-                    Icon(Icons.Filled.Restore, contentDescription = "Reset")
+                    Icon(AppIcons.Restore, contentDescription = "Reset")
                 }
             }
 

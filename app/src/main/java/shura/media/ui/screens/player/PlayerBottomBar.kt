@@ -16,9 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.LockOpen
+import shura.media.ui.icons.AppIcons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
@@ -137,7 +135,7 @@ fun PlayerBottomBar(
                         )
                 ) {
                     Icon(
-                        imageVector = if (isLocked) Icons.Filled.Lock else Icons.Filled.LockOpen,
+                        imageVector = if (isLocked) AppIcons.Lock else AppIcons.LockOpen,
                         contentDescription = if (isLocked) "Unlock" else "Lock",
                         tint = Color.White
                     )

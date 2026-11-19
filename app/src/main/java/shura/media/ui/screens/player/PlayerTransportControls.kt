@@ -1,12 +1,7 @@
 package shura.media.ui.screens.player
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.SkipNext
-import androidx.compose.material.icons.filled.SkipPrevious
-import androidx.compose.material.icons.filled.Stop
+import shura.media.ui.icons.AppIcons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
@@ -39,7 +34,7 @@ fun PlayerTransportControls(
             modifier = Modifier.size(56.dp)
         ) {
             Icon(
-                imageVector = Icons.Filled.SkipPrevious,
+                imageVector = AppIcons.SkipPrevious,
                 contentDescription = "Previous",
                 tint = Color.White,
                 modifier = Modifier.size(36.dp)
@@ -55,7 +50,7 @@ fun PlayerTransportControls(
             modifier = Modifier.size(56.dp)
         ) {
             Icon(
-                imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                imageVector = if (isPlaying) AppIcons.Pause else AppIcons.PlayArrow,
                 contentDescription = "Play/Pause",
                 tint = Color.White,
                 modifier = Modifier.size(36.dp)
@@ -71,7 +66,7 @@ fun PlayerTransportControls(
             modifier = Modifier.size(56.dp)
         ) {
             Icon(
-                imageVector = Icons.Filled.SkipNext,
+                imageVector = AppIcons.SkipNext,
                 contentDescription = "Next",
                 tint = Color.White,
                 modifier = Modifier.size(36.dp)
@@ -87,7 +82,7 @@ fun PlayerTransportControls(
             modifier = Modifier.size(56.dp)
         ) {
             Icon(
-                imageVector = Icons.Filled.Stop,
+                imageVector = AppIcons.Stop,
                 contentDescription = "Stop",
                 tint = Color.White,
                 modifier = Modifier.size(36.dp)

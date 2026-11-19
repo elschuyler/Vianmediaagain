@@ -109,7 +109,7 @@ class EditorActivity : ComponentActivity() {
             }
         } catch (e: Exception) {}
 
-        return uriSet.filter { it.isNotBlank() }
+        return uriSet.filter { it.isNotBlank() && shura.media.data.MediaUriResolver.isSafeExternalUri(this, it) }
     }
 
     private fun isAnimatedMedia(uri: Uri, mime: String, ext: String): Boolean {

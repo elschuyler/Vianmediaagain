@@ -7,10 +7,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import shura.media.ui.icons.AppIcons
 import androidx.compose.ui.Alignment
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -68,7 +66,7 @@ private fun MainSettingsMenu(onNavigate: (String) -> Unit, onNavigateBack: () ->
                 title = { Text("Settings") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(AppIcons.AutoMirrored.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
@@ -83,7 +81,7 @@ private fun MainSettingsMenu(onNavigate: (String) -> Unit, onNavigateBack: () ->
         ) {
             item {
                 SettingsListItem(
-                    icon = Icons.Filled.Palette,
+                    icon = AppIcons.Palette,
                     title = "General",
                     subtitle = "Theme, typography, and appearance",
                     onClick = { onNavigate("general") }
@@ -91,7 +89,7 @@ private fun MainSettingsMenu(onNavigate: (String) -> Unit, onNavigateBack: () ->
             }
             item {
                 SettingsListItem(
-                    icon = Icons.Filled.PlayCircle,
+                    icon = AppIcons.PlayCircle,
                     title = "Player Settings",
                     subtitle = "Gestures, Floating Player, resize behavior, background play",
                     onClick = { onNavigate("player") }
@@ -99,7 +97,7 @@ private fun MainSettingsMenu(onNavigate: (String) -> Unit, onNavigateBack: () ->
             }
             item {
                 SettingsListItem(
-                    icon = Icons.Filled.GraphicEq,
+                    icon = AppIcons.GraphicEq,
                     title = "Audio & EQ",
                     subtitle = "Volume steps, boost limits, equalization",
                     onClick = { onNavigate("audio") }
@@ -107,7 +105,7 @@ private fun MainSettingsMenu(onNavigate: (String) -> Unit, onNavigateBack: () ->
             }
             item {
                 SettingsListItem(
-                    icon = Icons.Filled.Folder,
+                    icon = AppIcons.Folder,
                     title = "Storage & Output",
                     subtitle = "Output folders, hidden/excluded directories",
                     onClick = { onNavigate("storage") }
@@ -115,7 +113,7 @@ private fun MainSettingsMenu(onNavigate: (String) -> Unit, onNavigateBack: () ->
             }
             item {
                 SettingsListItem(
-                    icon = Icons.Filled.VideoFile,
+                    icon = AppIcons.VideoFile,
                     title = "Media Configuration",
                     subtitle = "Supported file extensions and filtering",
                     onClick = { onNavigate("media") }
@@ -123,7 +121,7 @@ private fun MainSettingsMenu(onNavigate: (String) -> Unit, onNavigateBack: () ->
             }
             item {
                 SettingsListItem(
-                    icon = Icons.Filled.Notifications,
+                    icon = AppIcons.Notifications,
                     title = "Notifications",
                     subtitle = "Custom quick actions in system tray",
                     onClick = { onNavigate("notifications") }
@@ -131,7 +129,7 @@ private fun MainSettingsMenu(onNavigate: (String) -> Unit, onNavigateBack: () ->
             }
             item {
                 SettingsListItem(
-                    icon = Icons.Filled.Security,
+                    icon = AppIcons.Security,
                     title = "Permissions",
                     subtitle = "System access and directory approvals",
                     onClick = { onNavigate("permissions") }
@@ -139,7 +137,7 @@ private fun MainSettingsMenu(onNavigate: (String) -> Unit, onNavigateBack: () ->
             }
             item {
                 SettingsListItem(
-                    icon = Icons.Filled.Backup,
+                    icon = AppIcons.Backup,
                     title = "Data Management",
                     subtitle = "Import or export application backups",
                     onClick = { onNavigate("data") }
@@ -147,7 +145,7 @@ private fun MainSettingsMenu(onNavigate: (String) -> Unit, onNavigateBack: () ->
             }
             item {
                 SettingsListItem(
-                    icon = Icons.Filled.Build,
+                    icon = AppIcons.Build,
                     title = "Developer Settings",
                     subtitle = "Background logger, floating action button",
                     onClick = { onNavigate("developer") }
@@ -155,7 +153,7 @@ private fun MainSettingsMenu(onNavigate: (String) -> Unit, onNavigateBack: () ->
             }
             item {
                 SettingsListItem(
-                    icon = Icons.Filled.Info,
+                    icon = AppIcons.Info,
                     title = "About",
                     subtitle = "App information, creator credits, and build details",
                     onClick = { onNavigate("about") }
@@ -212,6 +210,7 @@ private fun StorageSettingsPage(onNavigateBack: () -> Unit) {
     val settingsManager = remember { SettingsManager.getInstance(context) }
     val excludedFolders by settingsManager.excludedFolders.collectAsState()
     val outputFolderUri by settingsManager.outputFolderUri.collectAsState()
+    val saveSingleEditsToOriginalFolder by settingsManager.saveSingleEditsToOriginalFolder.collectAsState()
     var showExcludeDialog by remember { mutableStateOf(false) }
     val activityOwner = (context as? androidx.activity.ComponentActivity)
         ?: androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner.current!!
@@ -244,7 +243,7 @@ private fun StorageSettingsPage(onNavigateBack: () -> Unit) {
                 title = { Text("Storage & Output") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(AppIcons.AutoMirrored.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
@@ -257,13 +256,39 @@ private fun StorageSettingsPage(onNavigateBack: () -> Unit) {
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
-            Text("Output Folder", style = MaterialTheme.typography.labelLarge)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+            ) {
+                Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                    Text(
+                        "Save Single Edits in Original Folder",
+                        style = MaterialTheme.typography.titleSmall
+                    )
+                    Text(
+                        "Single video, photo, and audio edits save beside the original file when Android allows it. Bulk/batch jobs, video joins, and restricted folders use the Output Folder.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = saveSingleEditsToOriginalFolder,
+                    onCheckedChange = { settingsManager.setSaveSingleEditsToOriginalFolder(it) }
+                )
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            Text(
+                if (saveSingleEditsToOriginalFolder) "Output Folder (Batch, Join & Fallback)" else "Output Folder",
+                style = MaterialTheme.typography.labelLarge
+            )
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
             ) {
                 Text(
-                    outputFolderUri ?: "Default (Downloads/Compressed)",
+                    outputFolderUri ?: "Default (Downloads/Compressed or Movies/Edited)",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f)
@@ -303,7 +328,7 @@ private fun StorageSettingsPage(onNavigateBack: () -> Unit) {
                                 settingsManager.removeExcludedFolder(bucketId)
                                 viewModel.loadMedia(forceRefresh = true, silent = true)
                             }) {
-                                Icon(Icons.Filled.Delete, contentDescription = "Restore Folder", tint = MaterialTheme.colorScheme.error)
+                                Icon(AppIcons.Delete, contentDescription = "Restore Folder", tint = MaterialTheme.colorScheme.error)
                             }
                         }
                     }
@@ -453,7 +478,7 @@ private fun MediaConfigPage(onNavigateBack: () -> Unit) {
                 title = { Text("Media Configuration") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(AppIcons.AutoMirrored.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
@@ -485,7 +510,7 @@ private fun MediaConfigPage(onNavigateBack: () -> Unit) {
                                 },
                                 modifier = Modifier.size(16.dp)
                             ) {
-                                Icon(Icons.Filled.Clear, contentDescription = "Remove")
+                                Icon(AppIcons.Clear, contentDescription = "Remove")
                             }
                         }
                     )
@@ -567,7 +592,7 @@ private fun NotificationsPage(onNavigateBack: () -> Unit) {
                 title = { Text("Notifications") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(AppIcons.AutoMirrored.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
@@ -689,7 +714,7 @@ private fun DataManagementPage(onNavigateBack: () -> Unit) {
                 title = { Text("Data Management") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(AppIcons.AutoMirrored.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
@@ -747,7 +772,7 @@ private fun DeveloperSettingsPage(onNavigateBack: () -> Unit) {
                 title = { Text("Developer Settings") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(AppIcons.AutoMirrored.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
@@ -801,7 +826,7 @@ private fun GeneralSettingsPage(onNavigateBack: () -> Unit) {
                 title = { Text("General Settings") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(AppIcons.AutoMirrored.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
@@ -881,7 +906,7 @@ private fun AboutSettingsPage(onNavigateBack: () -> Unit) {
                 title = { Text("About") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(AppIcons.AutoMirrored.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
@@ -915,7 +940,7 @@ private fun AboutSettingsPage(onNavigateBack: () -> Unit) {
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
-                                imageVector = Icons.Filled.PlayCircle,
+                                imageVector = AppIcons.PlayCircle,
                                 contentDescription = "Vian Media",
                                 modifier = Modifier.size(40.dp),
                                 tint = MaterialTheme.colorScheme.primary

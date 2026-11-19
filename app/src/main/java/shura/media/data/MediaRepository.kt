@@ -409,6 +409,7 @@ class MediaRepository(private val context: Context) {
         // Targeted single-folder query targeting strictly BUCKET_ID = ?
         try {
             val settings = SettingsManager.getInstance(context)
+            settings.awaitHistoryLoadedIfOffMain()
             val playbackLookup = settings.createPlaybackLookup()
             val exts = settings.extensions.value
             val projection = arrayOf(
@@ -545,6 +546,7 @@ class MediaRepository(private val context: Context) {
         val folderSizes = mutableMapOf<String, Long>()
 
         val settings = SettingsManager.getInstance(context)
+        settings.awaitHistoryLoadedIfOffMain()
         val playbackLookup = settings.createPlaybackLookup()
         val excludedFolders = settings.excludedFolders.value
         val exts = settings.extensions.value
@@ -799,6 +801,7 @@ class MediaRepository(private val context: Context) {
         if (mediaItems.isNotEmpty()) {
             val currentTime = System.currentTimeMillis()
             val fifteenDaysMs = 15L * 24 * 60 * 60 * 1000
+            settingsManager.awaitHistoryLoadedIfOffMain()
             val playbackLookup = settingsManager.createPlaybackLookup()
             
             val updatedItems = mediaItems.map { item ->

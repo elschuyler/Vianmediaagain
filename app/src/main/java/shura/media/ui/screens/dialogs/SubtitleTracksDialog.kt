@@ -16,8 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
+import shura.media.ui.icons.AppIcons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
@@ -132,7 +131,7 @@ fun SubtitleTracksDialog(
                         }
                         .padding(vertical = 12.dp)
                 ) {
-                    Icon(Icons.Filled.Add, contentDescription = "Add More", tint = Color(0xFF2196F3))
+                    Icon(AppIcons.Add, contentDescription = "Add More", tint = Color(0xFF2196F3))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Add Subtitle File...", color = Color(0xFF2196F3), fontWeight = FontWeight.Bold)
                 }

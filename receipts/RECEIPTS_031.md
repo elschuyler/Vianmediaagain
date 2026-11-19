@@ -321,3 +321,94 @@
 * Any deviation from what was requested: None.
 * Any known issue or follow-up needed: Push/export to GitHub Actions to verify `assembleDebug` & `assembleMinifiedDebug` and run the On-Device Verification Guide across `LogCatcher` memory/Downloads retention, 5-minute paused notification window, Background Play reentry persistence, and external SAF/content URI filenames.
 
+## Phase 150: Full-Repo Stability, Security & Lightweight/On-Demand Hardening (Phases 1–5)
+* Timestamp: 2026-11-19T20:52:00Z
+* One-line summary: Executed the approved 5-phase security, stability, and lightweight optimization plan across the codebase while keeping Fresco, replacing single-use `media3-transformer` with `FFmpegKit`, migrating Playback History from `vianbr_settings.xml` into Room (`v5`), and replacing `material-icons-extended`/`material-icons-core` with explicit `AppIcons` vector assets.
+* Files touched:
+  - BLUEPRINT.md
+  - gradle/libs.versions.toml
+  - app/build.gradle.kts
+  - app/src/main/AndroidManifest.xml
+  - app/src/main/java/shura/media/BatchActionActivity.kt
+  - app/src/main/java/shura/media/LogCatcher.kt
+  - app/src/main/java/shura/media/MainActivity.kt
+  - app/src/main/java/shura/media/VideoThumbnailFetcher.kt
+  - app/src/main/java/shura/media/data/AppDatabase.kt
+  - app/src/main/java/shura/media/data/CacheManager.kt
+  - app/src/main/java/shura/media/data/MediaRepository.kt
+  - app/src/main/java/shura/media/data/MediaUriResolver.kt
+  - app/src/main/java/shura/media/data/PlaybackHistoryDao.kt
+  - app/src/main/java/shura/media/data/PlaybackHistoryEntity.kt
+  - app/src/main/java/shura/media/data/SettingsManager.kt
+  - app/src/main/java/shura/media/service/CenterChannelAudioProcessor.kt
+  - app/src/main/java/shura/media/service/CompressionService.kt
+  - app/src/main/java/shura/media/service/FFmpegService.kt
+  - app/src/main/java/shura/media/service/PlaybackService.kt
+  - app/src/main/java/shura/media/service/PlayerManager.kt
+  - app/src/main/java/shura/media/ui/EditorActivity.kt
+  - app/src/main/java/shura/media/ui/PlayerActivity.kt
+  - app/src/main/java/shura/media/ui/components/FloatingVideoPlayerOverlay.kt
+  - app/src/main/java/shura/media/ui/components/MiniPlayerOverlay.kt
+  - app/src/main/java/shura/media/ui/icons/AppIcons.kt
+  - app/src/main/java/shura/media/ui/navigation/AppNavigation.kt
+  - app/src/main/java/shura/media/ui/screens/AudioSettingsScreen.kt
+  - app/src/main/java/shura/media/ui/screens/AudioTrimmerScreen.kt
+  - app/src/main/java/shura/media/ui/screens/LoggerScreen.kt
+  - app/src/main/java/shura/media/ui/screens/MainScreen.kt
+  - app/src/main/java/shura/media/ui/screens/MediaViewModel.kt
+  - app/src/main/java/shura/media/ui/screens/PermissionsManagerScreen.kt
+  - app/src/main/java/shura/media/ui/screens/PhotoEditorScreen.kt
+  - app/src/main/java/shura/media/ui/screens/PlayerScreen.kt
+  - app/src/main/java/shura/media/ui/screens/PlayerSettingsScreen.kt
+  - app/src/main/java/shura/media/ui/screens/PlaylistDetailScreen.kt
+  - app/src/main/java/shura/media/ui/screens/PlaylistsScreen.kt
+  - app/src/main/java/shura/media/ui/screens/SettingsScreen.kt
+  - app/src/main/java/shura/media/ui/screens/VideoEditorScreen.kt
+  - app/src/main/java/shura/media/ui/screens/dialogs/AudioTracksDialog.kt
+  - app/src/main/java/shura/media/ui/screens/dialogs/SpeedControlsSheet.kt
+  - app/src/main/java/shura/media/ui/screens/dialogs/SubtitleTracksDialog.kt
+  - app/src/main/java/shura/media/ui/screens/hud/PlayerHudCapsules.kt
+  - app/src/main/java/shura/media/ui/screens/player/PlayerBottomBar.kt
+  - app/src/main/java/shura/media/ui/screens/player/PlayerGestureModifier.kt
+  - app/src/main/java/shura/media/ui/screens/player/PlayerLeftTools.kt
+  - app/src/main/java/shura/media/ui/screens/player/PlayerRightTools.kt
+  - app/src/main/java/shura/media/ui/screens/player/PlayerTopBar.kt
+  - app/src/main/java/shura/media/ui/screens/player/PlayerTransportControls.kt
+  - app/src/main/java/shura/media/widget/MediaWidgetProvider.kt
+  - app/src/main/java/shura/media/widget/WidgetSearchActivity.kt
+  - receipts/RECEIPTS_031.md
+* What was actually done:
+  - Phase 1: Fixed `CompressionService.kt` `||` -> `&&` arbitrary `edited_*` source deletion; added `isAppPrivatePath`/`isSafeExternalUri`/`safeStartActivity` in `MediaUriResolver.kt` and enforced them across entry points (`EditorActivity`, `BatchActionActivity`, `PlayerActivity`, `MainActivity`, `PlaybackService`, `CompressionService`, `FFmpegService`, `PhotoEditorScreen`, `AudioTrimmerScreen`, `MediaWidgetProvider`, `PlayerScreen`, `MainScreen`, `PermissionsManagerScreen`, `AppNavigation`); narrowed `MiniMediaActivity` `SEND_MULTIPLE` manifest filter to `image/*`; cleaned orphaned `IS_PENDING = 1` MediaStore rows in `FFmpegService`; added `onTimeout(startId, fgsType)` on `FFmpegService` & `CompressionService`.
+  - Phase 2: Fixed horizontal seek runaway (`PlayerGestureModifier.kt`, `PlayerScreen.kt`), `CenterChannelAudioProcessor` underflow (`remaining() >= 4`), `SharingStarted.Eagerly` -> `WhileSubscribed(5000L)` (`MediaViewModel.kt`), Main-thread startup & picker I/O (`AppNavigation.kt`, `VideoEditorScreen.kt`, `AudioTrimmerScreen.kt` + `try/finally { release() }`), `VideoThumbnailFetcher` `"video"` substring match, `PhotoEditorScreen` normalized strokes/bitmap recycle + missing `withContext(Dispatchers.IO)` closing brace caught during final audit, duplicate `file://` `cacheDir` copies & WebP OOM resilience (`FFmpegService.kt`, `VideoEditorScreen.kt`), `PlayerManager.backgroundScope` supervision (`MainActivity.kt`, `CacheManager.kt`, `PlayerManager.kt`), widget `REWIND`/`FFWD` routing (`MediaWidgetProvider.kt`), `PlaybackService.performFullPlaybackTeardown()` + `store.clear()`, and `onMediaItemTransition` same-`mediaId` guard (`PlayerScreen.kt`).
+  - Phase 3: Removed `androidx-media3-transformer`; replaced `AudioTrimmerScreen` transformer/untracked thread with cancellable `FFmpegKit` (`-c:a copy` / `aac 192k` fallback); hardened & lightened `LogCatcher.kt` (`ReentrantLock` + crash `tryLock(250ms)`, fast-path `sanitize()`, O(1) `parseHmsToOffsetMs`, `ThreadLocal<SimpleDateFormat>`, streaming `useLines`/`bufferedReader`, no duplicate external mirror write on API 29+ MediaStore success) and `LoggerScreen.kt`.
+  - Phase 4: Added `PlaybackHistoryEntity` & `PlaybackHistoryDao`, bumped `AppDatabase` v4 -> v5 with exact-DDL `MIGRATION_4_5` and removed `.fallbackToDestructiveMigration()`, replaced `vianbr_settings.xml` history keys in `SettingsManager` with warm `ConcurrentHashMap` cache backed by serialized `Dispatchers.IO.limitedParallelism(1)` + `Mutex` Room persistence, one-time legacy XML migration + cleanup, 250-row cap, safe `isSafeFileNameKey` stem guard, and `activeMediaUriString` alignment in `PlayerScreen`.
+  - Phase 5: Created lazy explicit vector asset registry `AppIcons.kt` covering all 90 used icons, migrated all 25 UI files from `Icons.*` to `AppIcons.*`, removed `androidx-compose-material-icons-core` & `androidx-compose-material-icons-extended` from `libs.versions.toml` and `app/build.gradle.kts`, and deleted `/TEMP_REMEDIATION_PLAN.md`.
+* How it was verified: Static verification only — Python tokenizer verified balanced `{}`/`()`/`[]` across all 72 Kotlin files in `app/src` (after catching and fixing 1 missing `}` in `PhotoEditorScreen.kt`); cross-checked every `AppIcons.*` reference across all 25 migrated files against `AppIcons.kt` definitions with 0 mismatches; repo-wide `grep` confirmed zero remaining `material.icons`, `\bIcons.`, `media3-transformer`, `fallbackToDestructiveMigration`, or legacy `getFileNameVariants`; workspace security scan found 0 exposed keystores/credentials/secrets; `compile_applet` and `lint_applet` executed for workspace toolchain verification. Local `./gradlew` / Android SDK is absent; Android Gradle compilation (`assembleDebug` / `assembleMinifiedDebug` / `lintVitalMinifiedDebug`) runs on GitHub Actions CI after export and on-device testing has not run.
+* Any deviation from what was requested: None (removed both `material-icons-extended` and `material-icons-core` after verifying zero remaining Material icon references across `app/src`).
+* Any known issue or follow-up needed: Push/export to GitHub Actions CI to verify `:app:compileDebugKotlin`, `assembleDebug`, and `assembleMinifiedDebug`, then execute the On-Device Verification Guide (especially Room v4->v5 upgrade, vector icon rendering on dark/light themes & RTL, `AudioTrimmerScreen` export cancellation, and `PhotoEditorScreen` brush/crop save).
+
+## Phase 151: Single-Edit Original Folder Output Routing & Option A Batch Image Compression
+* Timestamp: 2026-11-19T14:01:00Z
+* One-line summary: Added default-ON single-edit original-folder output saving across Video/Photo/Audio editors (preserving Output Folder for batch jobs, Video Join, and Scoped Storage fallbacks), fixed MainScreen batch image routing (`force_ffmpeg`), and implemented EXIF normalization + Option A equal pixel-area compression in `CompressionService`.
+* Files touched:
+  - BLUEPRINT.md
+  - app/src/main/java/shura/media/data/MediaOutputRouter.kt (created)
+  - app/src/main/java/shura/media/data/SettingsManager.kt
+  - app/src/main/java/shura/media/data/BackupManager.kt
+  - app/src/main/java/shura/media/ui/screens/SettingsScreen.kt
+  - app/src/main/java/shura/media/ui/screens/PhotoEditorScreen.kt
+  - app/src/main/java/shura/media/ui/screens/VideoEditorScreen.kt
+  - app/src/main/java/shura/media/ui/screens/AudioTrimmerScreen.kt
+  - app/src/main/java/shura/media/ui/screens/MainScreen.kt
+  - app/src/main/java/shura/media/service/FFmpegService.kt
+  - app/src/main/java/shura/media/service/CompressionService.kt
+  - receipts/RECEIPTS_031.md
+* What was actually done:
+  - Created `MediaOutputRouter.kt` to resolve source parent folders (`file://`, `MediaStore`, `media.documents`, `externalstorage`), insert into the matching MediaStore collection (`Downloads`/`Video.Media`/`Images.Media`/`Audio.Media`) on API 29+ with `IS_PENDING = 1 -> 0` or writable POSIX files with collision avoidance and `MediaScannerConnection.scanFile`, avoid `_edited_edited` / `_compressed_compressed` chaining via `buildSuffixedFileName()`, and fall back cleanly to the configured SAF Output Folder / app default when restricted by Android.
+  - Added `saveSingleEditsToOriginalFolder` (default `true`) to `SettingsManager.kt` and `BackupManager.kt`, plus the `"Save Single Edits in Original Folder"` toggle and `"Output Folder (Batch, Join & Fallback)"` label in `SettingsScreen.kt` (`StorageSettingsPage`).
+  - Wired `source_uris`, `is_single_edit`, and `output_suffix = "edited"` in `PhotoEditorScreen.kt`; wired `source_uris` and `is_single_edit = urisToJoin.isEmpty()` in `VideoEditorScreen.kt` (keeping joined exports in Output Folder); wired `AudioTrimmerScreen.kt` single audio trims and `FFmpegService.kt` / `CompressionService.kt` through `MediaOutputRouter` with Toast feedback when Scoped Storage fallback occurs.
+  - Fixed `MainScreen.kt` `"Batch Compress"` button so all-image multi-selections no longer force `force_ffmpeg = true` into `FFmpegBatchDialog`, keeping `BatchActionActivity` batch jobs directed to Output Folder (`is_single_edit = false`).
+  - Updated `CompressionService.kt` to read `android.media.ExifInterface` orientation before decoding/scaling (rotating/flipping via `Matrix`) and compute Option A equal pixel-area budget scaling (`sqrt(targetPixelBudget / sourcePixels)` with `2x` extreme-edge clamp and `<= 1.0` no-upscale guard) so horizontal and vertical images in the same batch compress consistently.
+* How it was verified: Static verification only — Python delimiter tokenizer verified `curly=0, paren=0, bracket=0` across all 10 created/modified Kotlin files, symbol/reference checks verified imports and API-24/29+ guards, and workspace security scan found 0 exposed credentials/keystores; `compile_applet` and `lint_applet` executed for workspace toolchain verification. Local `./gradlew` / Android SDK is absent; Android Gradle build (`assembleDebug` / `assembleMinifiedDebug`) awaits GitHub Actions CI after export and on-device testing has not run.
+* Any deviation from what was requested: None (locked decisions 1–4 + Option A implemented cleanly).
+* Any known issue or follow-up needed: Push/export to GitHub Actions CI to verify `:app:compileDebugKotlin`, `assembleDebug`, and `assembleMinifiedDebug`, then run the On-Device Verification Guide on Android hardware.

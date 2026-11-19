@@ -13,28 +13,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
-import androidx.compose.material.icons.automirrored.filled.Sort
-import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.DriveFileRenameOutline
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Layers
-import androidx.compose.material.icons.filled.Label
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.VideoLibrary
+import shura.media.ui.icons.AppIcons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -51,7 +30,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.material.icons.filled.Folder
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.widget.Toast
@@ -315,15 +293,15 @@ fun MainScreen(
                 navigationIcon = {
                     if (isSearchActive) {
                         IconButton(onClick = { isSearchActive = false; searchQuery = "" }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Close Search")
+                            Icon(AppIcons.AutoMirrored.ArrowBack, contentDescription = "Close Search")
                         }
                     } else if (isMultiSelectMode) {
                         IconButton(onClick = { selectedMediaItems.clear() }) {
-                            Icon(Icons.Filled.Close, contentDescription = "Clear Selection")
+                            Icon(AppIcons.Close, contentDescription = "Clear Selection")
                         }
                     } else if (selectedFolder != null) {
                         IconButton(onClick = { viewModel.selectFolder(null) }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                            Icon(AppIcons.AutoMirrored.ArrowBack, contentDescription = "Back")
                         }
                     }
                 },
@@ -331,7 +309,7 @@ fun MainScreen(
                     if (isSearchActive) {
                         if (searchQuery.isNotEmpty()) {
                             IconButton(onClick = { searchQuery = "" }) {
-                                Icon(Icons.Filled.Close, contentDescription = "Clear Search")
+                                Icon(AppIcons.Close, contentDescription = "Clear Search")
                             }
                         }
                     } else if (isMultiSelectMode) {
@@ -373,29 +351,29 @@ fun MainScreen(
                                 }
                             }
                         }) {
-                            Icon(Icons.Filled.PlayArrow, contentDescription = "Play")
+                            Icon(AppIcons.PlayArrow, contentDescription = "Play")
                         }
                         IconButton(onClick = { showAddToPlaylistDialog = true }) {
-                            Icon(Icons.AutoMirrored.Filled.PlaylistAdd, contentDescription = "Add to Playlist")
+                            Icon(AppIcons.AutoMirrored.PlaylistAdd, contentDescription = "Add to Playlist")
                         }
                     } else {
                         IconButton(onClick = { 
                             isSearchActive = true 
                         }) {
-                            Icon(Icons.Filled.Search, contentDescription = "Search")
+                            Icon(AppIcons.Search, contentDescription = "Search")
                         }
                         IconButton(onClick = { viewModel.refreshMedia() }) {
-                            Icon(Icons.Filled.Refresh, contentDescription = "Refresh Library")
+                            Icon(AppIcons.Refresh, contentDescription = "Refresh Library")
                         }
                         if (selectedFolder == null && selectedTab != LibraryTab.PLAYLISTS) {
                             IconButton(onClick = { viewModel.selectTab(LibraryTab.PLAYLISTS) }) {
-                                Icon(Icons.AutoMirrored.Filled.PlaylistPlay, contentDescription = "Playlists")
+                                Icon(AppIcons.AutoMirrored.PlaylistPlay, contentDescription = "Playlists")
                             }
                         }
                         Box {
                             var showOverflowMenu by remember { mutableStateOf(false) }
                             IconButton(onClick = { showOverflowMenu = true }) {
-                                Icon(Icons.Filled.MoreVert, contentDescription = "More Options")
+                                Icon(AppIcons.MoreVert, contentDescription = "More Options")
                             }
                             DropdownMenu(expanded = showOverflowMenu, onDismissRequest = { showOverflowMenu = false }) {
                                 if (selectedFolder != null || selectedTab != LibraryTab.PLAYLISTS) {
@@ -422,16 +400,19 @@ fun MainScreen(
                                 val rest = selectedMediaItems.drop(1).map { it.uri.toString() }
                                 onNavigateToVideoEditorWithJoin(first, rest)
                             }) {
-                                Icon(Icons.Filled.VideoLibrary, contentDescription = "Join in Editor")
+                                Icon(AppIcons.VideoLibrary, contentDescription = "Join in Editor")
                             }
                             Spacer(modifier = Modifier.weight(1f))
                         }
                         IconButton(onClick = {
                             val uris = selectedMediaItems.map { it.uri }
+                            val allImages = selectedMediaItems.all { it.mediaType == shura.media.data.MediaType.IMAGE }
                             val intent = android.content.Intent(context, shura.media.BatchActionActivity::class.java).apply {
                                 action = android.content.Intent.ACTION_SEND_MULTIPLE
-                                type = "*/*"
-                                putExtra("force_ffmpeg", true)
+                                type = if (allImages) "image/*" else "*/*"
+                                if (!allImages) {
+                                    putExtra("force_ffmpeg", true)
+                                }
                                 putParcelableArrayListExtra(android.content.Intent.EXTRA_STREAM, ArrayList(uris))
                                 if (uris.isNotEmpty()) {
                                     data = uris.first()
@@ -443,9 +424,9 @@ fun MainScreen(
                                 }
                                 addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                             }
-                            context.startActivity(intent)
+                            shura.media.data.MediaUriResolver.safeStartActivity(context, intent)
                         }) {
-                            Icon(Icons.Filled.Layers, contentDescription = "Batch Compress")
+                            Icon(AppIcons.Layers, contentDescription = "Batch Compress")
                         }
                         Spacer(modifier = Modifier.weight(1f))
                     }
@@ -454,7 +435,7 @@ fun MainScreen(
                             renameValue = selectedMediaItems.first().name.substringBeforeLast(".")
                             showRenameDialog = true 
                         }) {
-                            Icon(Icons.Filled.DriveFileRenameOutline, contentDescription = "Rename")
+                            Icon(AppIcons.DriveFileRenameOutline, contentDescription = "Rename")
                         }
                         Spacer(modifier = Modifier.weight(1f))
                         IconButton(onClick = {
@@ -472,7 +453,7 @@ fun MainScreen(
                                 else -> Toast.makeText(context, "Editing this format is not supported", Toast.LENGTH_SHORT).show()
                             }
                         }) {
-                            Icon(Icons.Filled.Edit, contentDescription = "Edit")
+                            Icon(AppIcons.Edit, contentDescription = "Edit")
                         }
                         Spacer(modifier = Modifier.weight(1f))
                     }
@@ -481,17 +462,17 @@ fun MainScreen(
                             type = "*/*"
                             putParcelableArrayListExtra(android.content.Intent.EXTRA_STREAM, ArrayList(selectedMediaItems.map { it.uri }))
                         }
-                        context.startActivity(android.content.Intent.createChooser(shareIntent, "Share Media"))
+                        shura.media.data.MediaUriResolver.safeStartActivity(context, android.content.Intent.createChooser(shareIntent, "Share Media"))
                     }) {
-                        Icon(Icons.Filled.Share, contentDescription = "Share")
+                        Icon(AppIcons.Share, contentDescription = "Share")
                     }
                     Spacer(modifier = Modifier.weight(1f))
                     IconButton(onClick = { showInfoDialog = true }) {
-                        Icon(Icons.Filled.Info, contentDescription = "Info")
+                        Icon(AppIcons.Info, contentDescription = "Info")
                     }
                     Spacer(modifier = Modifier.weight(1f))
                     IconButton(onClick = { showDeleteConfirmDialog = true }) {
-                        Icon(Icons.Filled.Delete, contentDescription = "Delete")
+                        Icon(AppIcons.Delete, contentDescription = "Delete")
                     }
                     Spacer(modifier = Modifier.weight(1f))
                 }
@@ -504,7 +485,7 @@ fun MainScreen(
                         onClick = { showCreatePlaylistDialog = true },
                         containerColor = MaterialTheme.colorScheme.primaryContainer
                     ) {
-                        Icon(Icons.Filled.Add, contentDescription = "Create Playlist")
+                        Icon(AppIcons.Add, contentDescription = "Create Playlist")
                     }
                 } else if (mediaFolders.isNotEmpty()) {
                     FloatingActionButton(
@@ -541,7 +522,7 @@ fun MainScreen(
                         },
                         containerColor = MaterialTheme.colorScheme.primaryContainer
                     ) {
-                        Icon(Icons.Filled.PlayArrow, contentDescription = "Play Last Played")
+                        Icon(AppIcons.PlayArrow, contentDescription = "Play Last Played")
                     }
                 }
             }
@@ -573,7 +554,7 @@ fun MainScreen(
                                 ) {
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                         Icon(
-                                            Icons.AutoMirrored.Filled.PlaylistPlay,
+                                            AppIcons.AutoMirrored.PlaylistPlay,
                                             contentDescription = null,
                                             modifier = Modifier.size(64.dp),
                                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
@@ -586,7 +567,7 @@ fun MainScreen(
                                         )
                                         Spacer(modifier = Modifier.height(8.dp))
                                         Button(onClick = { showCreatePlaylistDialog = true }) {
-                                            Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                            Icon(AppIcons.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                                             Spacer(modifier = Modifier.width(8.dp))
                                             Text("Create Playlist")
                                         }
@@ -611,7 +592,7 @@ fun MainScreen(
                                                 color = MaterialTheme.colorScheme.primary
                                             )
                                             TextButton(onClick = { showCreatePlaylistDialog = true }) {
-                                                Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                                Icon(AppIcons.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                                                 Spacer(modifier = Modifier.width(4.dp))
                                                 Text("New")
                                             }
@@ -646,7 +627,7 @@ fun MainScreen(
                                                         contentAlignment = Alignment.Center
                                                     ) {
                                                         Icon(
-                                                            Icons.AutoMirrored.Filled.PlaylistPlay,
+                                                            AppIcons.AutoMirrored.PlaylistPlay,
                                                             contentDescription = null,
                                                             tint = MaterialTheme.colorScheme.onPrimaryContainer,
                                                             modifier = Modifier.size(28.dp)
@@ -681,7 +662,7 @@ fun MainScreen(
                                                     onClick = { playlistToDelete = playlist }
                                                 ) {
                                                     Icon(
-                                                        Icons.Filled.Delete,
+                                                        AppIcons.Delete,
                                                         contentDescription = "Delete Playlist",
                                                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                                                     )
@@ -1399,7 +1380,7 @@ fun FolderCard(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Filled.Folder,
+                imageVector = AppIcons.Folder,
                 contentDescription = null,
                 modifier = Modifier.size(64.dp),
                 tint = MaterialTheme.colorScheme.primary
@@ -1430,7 +1411,7 @@ fun FolderCard(
                 if (isBookmarked) {
                     Spacer(modifier = Modifier.width(6.dp))
                     Icon(
-                        imageVector = Icons.Filled.Bookmark,
+                        imageVector = AppIcons.Bookmark,
                         contentDescription = "Bookmarked",
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(16.dp)
@@ -1478,7 +1459,7 @@ fun FolderCard(
         }
         Box {
             IconButton(onClick = onOptionsClick) {
-                Icon(Icons.Filled.MoreVert, contentDescription = "More Options")
+                Icon(AppIcons.MoreVert, contentDescription = "More Options")
             }
             DropdownMenu(
                 expanded = isMenuExpanded,

@@ -69,7 +69,18 @@ class VideoThumbnailFetcher(
 
     class Factory : Fetcher.Factory<Uri> {
         override fun create(data: Uri, options: Options, imageLoader: ImageLoader): Fetcher? {
-            val isVideoUri = data.scheme == "content" && data.toString().contains("video")
+            if (data.scheme != "content") return null
+            val authority = data.authority?.lowercase() ?: ""
+            val pathLower = data.path?.lowercase() ?: ""
+            val ext = (data.lastPathSegment ?: "").substringAfterLast('.', "").lowercase()
+            if (ext in shura.media.data.COMMON_IMAGE_EXTENSIONS || ext in shura.media.data.COMMON_AUDIO_EXTENSIONS) {
+                return null
+            }
+            val isMediaStoreVideo = (authority == MediaStore.AUTHORITY || authority == "media") && pathLower.contains("/video/")
+            val isVideoUri = isMediaStoreVideo ||
+                ext in shura.media.data.COMMON_VIDEO_EXTENSIONS ||
+                (authority != MediaStore.AUTHORITY && authority != "media" &&
+                    options.context.contentResolver.getType(data)?.startsWith("video/") == true)
             return if (isVideoUri) {
                 VideoThumbnailFetcher(data, options)
             } else {

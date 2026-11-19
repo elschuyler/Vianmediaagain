@@ -49,7 +49,7 @@ class CenterChannelAudioProcessor : AudioProcessor {
             // Passthrough safeguard if toggled off mid-stream before reconfigure
             buffer.put(inputBuffer)
         } else {
-            while (inputBuffer.position() < limit) {
+            while (inputBuffer.remaining() >= 4 && inputBuffer.position() + 4 <= limit) {
                 val left = inputBuffer.short.toInt()
                 val right = inputBuffer.short.toInt()
 

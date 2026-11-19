@@ -8,17 +8,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
-import androidx.compose.material.icons.filled.AspectRatio
-import androidx.compose.material.icons.filled.Crop
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.Fullscreen
-import androidx.compose.material.icons.filled.FullscreenExit
-import androidx.compose.material.icons.filled.Headphones
-import androidx.compose.material.icons.filled.Repeat
-import androidx.compose.material.icons.filled.RepeatOne
+import shura.media.ui.icons.AppIcons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.*
@@ -55,7 +45,7 @@ fun PlayerRightTools(
         }) {
             Icon(
                 modifier = Modifier.size(20.dp),
-                imageVector = if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Filled.RepeatOne else Icons.Filled.Repeat,
+                imageVector = if (repeatMode == Player.REPEAT_MODE_ONE) AppIcons.RepeatOne else AppIcons.Repeat,
                 contentDescription = "Repeat",
                 tint = if (repeatMode != Player.REPEAT_MODE_OFF) Color(0xFF2196F3) else Color.White
             )
@@ -68,7 +58,7 @@ fun PlayerRightTools(
         }) {
             Icon(
                 modifier = Modifier.size(20.dp),
-                imageVector = Icons.Filled.Headphones,
+                imageVector = AppIcons.Headphones,
                 contentDescription = "Background play",
                 tint = if (backgroundPlayEnabled) Color(0xFF2196F3) else Color.White
             )
@@ -80,10 +70,10 @@ fun PlayerRightTools(
             onResizeModeClick()
         }) {
             val resizeIcon = when (resizeMode) {
-                AspectRatioFrameLayout.RESIZE_MODE_FIT -> Icons.Filled.AspectRatio
-                AspectRatioFrameLayout.RESIZE_MODE_FILL -> Icons.Filled.Fullscreen
-                AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> Icons.Filled.Crop
-                else -> Icons.Filled.FullscreenExit
+                AspectRatioFrameLayout.RESIZE_MODE_FIT -> AppIcons.AspectRatio
+                AspectRatioFrameLayout.RESIZE_MODE_FILL -> AppIcons.Fullscreen
+                AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> AppIcons.Crop
+                else -> AppIcons.FullscreenExit
             }
             Icon(resizeIcon, modifier = Modifier.size(20.dp), contentDescription = "Aspect Ratio", tint = Color.White)
         }
@@ -95,7 +85,7 @@ fun PlayerRightTools(
         }) {
             Icon(
                 modifier = Modifier.size(20.dp),
-                imageVector = Icons.AutoMirrored.Filled.PlaylistPlay,
+                imageVector = AppIcons.AutoMirrored.PlaylistPlay,
                 contentDescription = "Mini Player",
                 tint = Color.White
             )
@@ -144,7 +134,7 @@ fun PlayerRightTools(
                     showToolsStack = !showToolsStack
                 }) {
                     Icon(
-                        if (showToolsStack) Icons.Filled.ExpandMore else Icons.Filled.ExpandLess,
+                        if (showToolsStack) AppIcons.ExpandMore else AppIcons.ExpandLess,
                         contentDescription = "More tools",
                         tint = Color.White
                     )

@@ -54,6 +54,7 @@ class BatchActionActivity : ComponentActivity() {
             }
         }
 
+        initialUris = initialUris.filter { shura.media.data.MediaUriResolver.isSafeExternalUri(this, it) }
         if (initialUris.isEmpty()) {
             finish()
             return

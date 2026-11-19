@@ -12,13 +12,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.PictureInPicture
+import shura.media.ui.icons.AppIcons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -53,7 +47,7 @@ fun PermissionsManagerScreen(onNavigateBack: () -> Unit) {
                 title = { Text("Vian Permissions Manager") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(AppIcons.AutoMirrored.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
@@ -79,7 +73,7 @@ fun PermissionsManagerScreen(onNavigateBack: () -> Unit) {
             item {
                 PermissionItem(
                     title = "Media Storage Access",
-                    icon = Icons.Filled.Folder,
+                    icon = AppIcons.Folder,
                     isGranted = storageGranted,
                     onToggle = {
                         if (!storageGranted) {
@@ -106,7 +100,7 @@ fun PermissionsManagerScreen(onNavigateBack: () -> Unit) {
                 item {
                     PermissionItem(
                         title = "Notifications",
-                        icon = Icons.Filled.Notifications,
+                        icon = AppIcons.Notifications,
                         isGranted = notificationGranted,
                         onToggle = {
                             if (!notificationGranted) {
@@ -128,16 +122,11 @@ fun PermissionsManagerScreen(onNavigateBack: () -> Unit) {
             item {
                 PermissionItem(
                     title = "Draw Over Other Apps",
-                    icon = Icons.Filled.PictureInPicture,
+                    icon = AppIcons.PictureInPicture,
                     isGranted = overlayGranted,
                     onToggle = {
-                        if (!overlayGranted) {
-                            val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}"))
-                            context.startActivity(intent)
-                        } else {
-                            val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}"))
-                            context.startActivity(intent)
-                        }
+                        val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}"))
+                        shura.media.data.MediaUriResolver.safeStartActivity(context, intent)
                     },
                     description = "Allows the app to display content over other applications.",
                     features = listOf(
@@ -211,7 +200,7 @@ fun PermissionItem(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Icon(
-                    imageVector = if (isExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                    imageVector = if (isExpanded) AppIcons.ExpandLess else AppIcons.ExpandMore,
                     contentDescription = "Expand details"
                 )
             }
@@ -263,5 +252,5 @@ private fun openAppSettings(context: android.content.Context) {
     val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
         data = Uri.fromParts("package", context.packageName, null)
     }
-    context.startActivity(intent)
+    shura.media.data.MediaUriResolver.safeStartActivity(context, intent)
 }

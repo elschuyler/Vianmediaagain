@@ -142,6 +142,8 @@ class FFmpegService : Service() {
         }
 
         val originalNames = intent.getStringArrayListExtra("original_names")
+        val sourceUris = intent.getStringArrayListExtra("source_uris")
+        val isSingleEdit = intent.getBooleanExtra("is_single_edit", false)
         val outputExt = intent.getStringExtra("outputExt") ?: "mp4"
 
         val cancelIntent = Intent(ACTION_CANCEL_FFMPEG).setPackage(packageName)
@@ -185,7 +187,7 @@ class FFmpegService : Service() {
                 if (batchRunId.get() != myRunId) return@launch
                 isCancelled = false
                 LogKeeper.log("Starting FFmpeg batch for ${uris.size} file(s)", "FFmpegService")
-                val (succeeded, failed) = processFiles(uris, originalNames, commandArgs, outputExt)
+                val (succeeded, failed) = processFiles(uris, sourceUris, originalNames, commandArgs, outputExt, isSingleEdit)
                 LogKeeper.log("Completed FFmpeg batch: $succeeded succeeded, $failed failed (of ${uris.size})", "FFmpegService")
             } catch (e: CancellationException) {
                 LogKeeper.log("FFmpeg batch coroutine cancelled", "FFmpegService")
@@ -205,10 +207,19 @@ class FFmpegService : Service() {
         return START_NOT_STICKY
     }
 
-    private suspend fun processFiles(uris: List<String>, originalNames: List<String>?, commandArgs: List<String>, outputExt: String): Pair<Int, Int> {
+    private suspend fun processFiles(
+        uris: List<String>,
+        sourceUris: List<String>?,
+        originalNames: List<String>?,
+        commandArgs: List<String>,
+        outputExt: String,
+        isSingleEdit: Boolean
+    ): Pair<Int, Int> {
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val settingsManager = SettingsManager.getInstance(applicationContext)
         val outputUriStr = settingsManager.outputFolderUri.value
+        val preferOriginalFolder = isSingleEdit && settingsManager.saveSingleEditsToOriginalFolder.value
+        var fallbackToastShown = false
 
         var processedCount = 0
         var succeededCount = 0
@@ -221,26 +232,56 @@ class FFmpegService : Service() {
             val uri = Uri.parse(uriStr)
             val isFileUri = uri.scheme == "file" || uriStr.startsWith("file:") || uriStr.startsWith("/")
 
-            // 1. Copy to cache for FFmpeg processing
-            val tempInFile = java.io.File(cacheDir, "ffmpeg_in_${System.currentTimeMillis()}.${getFileExtension(uri)}")
-            try {
-                shura.media.data.MediaUriResolver.openInputStreamSafely(this@FFmpegService, uriStr).use { input ->
-                    tempInFile.outputStream().use { output ->
-                        input.copyTo(output)
-                    }
+            // 1. Use local readable file directly if safe, otherwise copy URI to cache for FFmpeg processing
+            var copiedTempInFile: java.io.File? = null
+            var localSourceFile: java.io.File? = null
+            var actualInputFile: java.io.File
+            if (isFileUri) {
+                val directPath = when {
+                    uriStr.startsWith("file://") -> uriStr.removePrefix("file://")
+                    uriStr.startsWith("file:/") -> uriStr.removePrefix("file:")
+                    uriStr.startsWith("file:") -> uriStr.removePrefix("file:")
+                    else -> uri.path ?: uriStr
                 }
-            } catch (e: Exception) {
-                LogKeeper.logError("FFmpegService", "Failed to copy input file", e)
-                failedCount++
-                processedCount++
-                val updatedProcessed = processedCount
-                mainHandler.post {
-                    FFmpegStatus.currentFile = updatedProcessed
+                val candidate = listOfNotNull(
+                    java.io.File(directPath),
+                    java.io.File(Uri.decode(directPath)),
+                    uri.path?.let { java.io.File(it) },
+                    uri.path?.let { java.io.File(Uri.decode(it)) }
+                ).firstOrNull {
+                    it.exists() && it.canRead() && !shura.media.data.MediaUriResolver.isAppPrivatePath(
+                        this@FFmpegService,
+                        it.absolutePath,
+                        allowApprovedCacheTemp = true
+                    )
                 }
-                continue
+                localSourceFile = candidate
             }
 
-            var actualInputFile = tempInFile
+            if (localSourceFile != null) {
+                actualInputFile = localSourceFile
+            } else {
+                val tempInFile = java.io.File(cacheDir, "ffmpeg_in_${System.currentTimeMillis()}.${getFileExtension(uri)}")
+                try {
+                    shura.media.data.MediaUriResolver.openInputStreamSafely(this@FFmpegService, uriStr).use { input ->
+                        tempInFile.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                    copiedTempInFile = tempInFile
+                    actualInputFile = tempInFile
+                } catch (e: Exception) {
+                    if (tempInFile.exists()) tempInFile.delete()
+                    LogKeeper.logError("FFmpegService", "Failed to copy input file", e)
+                    failedCount++
+                    processedCount++
+                    val updatedProcessed = processedCount
+                    mainHandler.post {
+                        FFmpegStatus.currentFile = updatedProcessed
+                    }
+                    continue
+                }
+            }
             
             val inputMimeType = if (isFileUri) {
                 val p = uri.path ?: uriStr
@@ -255,8 +296,10 @@ class FFmpegService : Service() {
                 var frameCount = 0
                 var calculatedFps = 30
                 kotlinx.coroutines.withContext(Dispatchers.IO) {
+                    var webpImage: com.facebook.animated.webp.WebPImage? = null
+                    var previousFrameToRecycle: android.graphics.Bitmap? = null
                     try {
-                        val bytes = actualInputFile.readBytes()
+                        var bytes: ByteArray? = actualInputFile.readBytes()
                         try {
                             val clazz = Class.forName("com.facebook.soloader.nativeloader.NativeLoader")
                             val isInitializedMethod = clazz.getMethod("isInitialized")
@@ -269,12 +312,12 @@ class FFmpegService : Service() {
                                 initMethod.invoke(null, delegate)
                             }
                         } catch (e: Exception) {}
-                        val webpImage = com.facebook.animated.webp.WebPImage.createFromByteArray(bytes, com.facebook.imagepipeline.common.ImageDecodeOptions.defaults())
+                        webpImage = com.facebook.animated.webp.WebPImage.createFromByteArray(bytes!!, com.facebook.imagepipeline.common.ImageDecodeOptions.defaults())
+                        bytes = null
                         frameCount = webpImage.frameCount
                         val durations = webpImage.frameDurations
                         val averageDurationMs = if (frameCount > 0) durations.sum() / frameCount else 33
                         calculatedFps = if (averageDurationMs > 0) 1000 / averageDurationMs else 30
-                        
                         
                         var lastCachedFrame: android.graphics.Bitmap? = null
                         var lastCachedFrameIndex = -1
@@ -299,7 +342,6 @@ class FFmpegService : Service() {
                             }
                         )
 
-                        var previousFrameToRecycle: android.graphics.Bitmap? = null
                         for (i in 0 until frameCount) {
                             val w = webpImage.width
                             val h = webpImage.height
@@ -313,10 +355,13 @@ class FFmpegService : Service() {
                             lastCachedFrameIndex = i
                             previousFrameToRecycle = bmp
                         }
-                        previousFrameToRecycle?.recycle()
-                        webpImage.dispose()
+                    } catch (e: OutOfMemoryError) {
+                        LogKeeper.logError("FFmpegService", "OOM during WebP frame extraction", RuntimeException(e))
                     } catch (e: Exception) {
                         LogKeeper.logError("FFmpegService", "Frame extraction failed: ${e.message}", e)
+                    } finally {
+                        try { previousFrameToRecycle?.recycle() } catch (_: Exception) {}
+                        try { webpImage?.dispose() } catch (_: Exception) {}
                     }
                 }
                 if (frameCount > 0) {
@@ -404,10 +449,36 @@ class FFmpegService : Service() {
             if (ReturnCode.isSuccess(returnCode)) {
                 LogKeeper.log("FFmpeg processing succeeded.", "FFmpegService")
 
-                // 2. Move out to SAF output folder
-                val origName = originalNames?.getOrNull(index) ?: getOriginalFileName(uri)
-                val fileName = "${origName}_edited.$outputExt"
-                val (finalUri, outStream) = getOutputStreamAndUri(outputUriStr, fileName, getMimeType(outputExt))
+                val sourceUriStr = sourceUris?.getOrNull(index) ?: uriStr
+                val sourceUriForName = Uri.parse(sourceUriStr)
+                val origName = originalNames?.getOrNull(index) ?: getOriginalFileName(sourceUriForName)
+                val fileName = shura.media.data.MediaOutputRouter.buildSuffixedFileName(origName, "edited", outputExt)
+                val mimeType = getMimeType(outputExt)
+                val isImage = mimeType.startsWith("image/")
+                val isAudio = mimeType.startsWith("audio/")
+                val defaultRelDir = when {
+                    isAudio -> android.os.Environment.DIRECTORY_MUSIC + "/Edited"
+                    isImage -> android.os.Environment.DIRECTORY_PICTURES + "/Edited"
+                    else -> android.os.Environment.DIRECTORY_MOVIES + "/Edited"
+                }
+                val defaultCollection = when {
+                    isAudio -> android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+                    isImage -> android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+                    else -> android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+                }
+                val target = shura.media.data.MediaOutputRouter.openOutputTarget(
+                    context = this@FFmpegService,
+                    sourceUriStr = sourceUriStr,
+                    fileName = fileName,
+                    mimeType = mimeType,
+                    preferOriginalFolder = preferOriginalFolder,
+                    fallbackOutputTreeUri = outputUriStr,
+                    defaultRelativePath = defaultRelDir,
+                    defaultCollectionLegacy = defaultCollection,
+                    defaultCollectionQ = defaultCollection
+                )
+                val outStream = target.stream
+                val finalUri = target.uri
                 if (outStream != null) {
                     try {
                         mainHandler.post { FFmpegStatus.currentProgress = "Saving output file..." }
@@ -431,29 +502,31 @@ class FFmpegService : Service() {
                                 }
                             }
                         }
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && finalUri != null) {
-                            try {
-                                val cv = android.content.ContentValues().apply {
-                                    put(android.provider.MediaStore.MediaColumns.IS_PENDING, 0)
-                                }
-                                contentResolver.update(finalUri, cv, null, null)
-                            } catch (e: Exception) {}
-                        }
-                        try {
-                            finalUri?.path?.let { p ->
-                                android.media.MediaScannerConnection.scanFile(this@FFmpegService, arrayOf(p), arrayOf(getMimeType(outputExt)), null)
+                        shura.media.data.MediaOutputRouter.finalizeOutputTarget(this@FFmpegService, target, mimeType)
+                        LogKeeper.log("Saved to ${if (target.savedToOriginalFolder) "original folder" else "output folder"}", "FFmpegService")
+                        if (preferOriginalFolder && !target.savedToOriginalFolder && !fallbackToastShown) {
+                            fallbackToastShown = true
+                            mainHandler.post {
+                                try {
+                                    android.widget.Toast.makeText(
+                                        applicationContext,
+                                        "Saved to Output Folder (original folder protected by Android)",
+                                        android.widget.Toast.LENGTH_LONG
+                                    ).show()
+                                } catch (_: Exception) {}
                             }
-                        } catch (e: Exception) {}
-                        LogKeeper.log("Saved to output folder", "FFmpegService")
+                        }
                         val uriStringOut = finalUri?.toString()
                         mainHandler.post { FFmpegStatus.lastOutputUri = uriStringOut }
                         itemExportSucceeded = true
                         succeededCount++
                     } catch (e: Exception) {
-                        LogKeeper.logError("FFmpegService", "Failed to copy output file to SAF", e)
+                        LogKeeper.logError("FFmpegService", "Failed to write output file", e)
+                        shura.media.data.MediaOutputRouter.abortOutputTarget(this@FFmpegService, target)
                         failedCount++
                     }
                 } else {
+                    shura.media.data.MediaOutputRouter.abortOutputTarget(this@FFmpegService, target)
                     failedCount++
                 }
             } else if (ReturnCode.isCancel(returnCode)) {
@@ -465,8 +538,10 @@ class FFmpegService : Service() {
             }
 
             // Cleanup temps
-            if (tempInFile.exists()) tempInFile.delete()
-            if (actualInputFile != tempInFile && actualInputFile.exists()) actualInputFile.delete()
+            if (copiedTempInFile != null && copiedTempInFile.exists()) copiedTempInFile.delete()
+            if (actualInputFile != localSourceFile && actualInputFile != copiedTempInFile && actualInputFile.exists()) {
+                actualInputFile.delete()
+            }
             if (tempOutFile.exists()) tempOutFile.delete()
             // Zero-Memory: Delete any internal editor converted temp files ONLY if export succeeded
             if (itemExportSucceeded && isFileUri) {
@@ -539,58 +614,6 @@ class FFmpegService : Service() {
         return result?.substringBeforeLast(".") ?: "edited_${System.currentTimeMillis()}"
     }
 
-    private fun getOutputStreamAndUri(outputUriStr: String?, fileName: String, mimeType: String): Pair<Uri?, java.io.OutputStream?> {
-        if (outputUriStr != null) {
-            try {
-                val treeUri = Uri.parse(outputUriStr)
-                val docId = android.provider.DocumentsContract.getTreeDocumentId(treeUri)
-                val docUri = android.provider.DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
-                val newUri = android.provider.DocumentsContract.createDocument(
-                    contentResolver,
-                    docUri,
-                    mimeType,
-                    fileName
-                )
-                if (newUri != null) {
-                    return Pair(newUri, contentResolver.openOutputStream(newUri))
-                }
-            } catch (e: Exception) {
-                LogKeeper.logError("FFmpegService", "Failed SAF create", e)
-            }
-        }
-        // Fallback to media store
-        val isImage = mimeType.startsWith("image/")
-        val isAudio = mimeType.startsWith("audio/")
-        val contentValues = android.content.ContentValues().apply {
-            put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, fileName)
-            put(android.provider.MediaStore.MediaColumns.MIME_TYPE, mimeType)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val relativePath = when {
-                    isAudio -> android.os.Environment.DIRECTORY_MUSIC
-                    isImage -> android.os.Environment.DIRECTORY_PICTURES
-                    else -> android.os.Environment.DIRECTORY_MOVIES
-                }
-                put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, "$relativePath/Edited")
-                put(android.provider.MediaStore.MediaColumns.IS_PENDING, 1)
-            }
-        }
-        val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            when {
-                isAudio -> android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
-                isImage -> android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-                else -> android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI
-            }
-        } else {
-            when {
-                isAudio -> android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
-                isImage -> android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-                else -> android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI
-            }
-        }
-        val uri = contentResolver.insert(collection, contentValues)
-        return Pair(uri, uri?.let { contentResolver.openOutputStream(it) })
-    }
-
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val serviceChannel = NotificationChannel(
@@ -605,6 +628,15 @@ class FFmpegService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? {
         return null
+    }
+
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        LogKeeper.logWarn("FFmpegService", "Foreground service timeout triggered (type=$fgsType); cancelling gracefully.")
+        requestCancel()
+        try {
+            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+        } catch (_: Exception) {}
+        stopSelfResult(startId)
     }
 
     override fun onDestroy() {

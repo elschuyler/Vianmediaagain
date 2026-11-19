@@ -304,28 +304,10 @@ class MediaWidgetProvider : AppWidgetProvider() {
                 this.action = "shura.media.ACTION_OPEN_PLAYER"
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
             }
-            context.startActivity(openIntent)
+            shura.media.data.MediaUriResolver.safeStartActivity(context, openIntent)
             return
         }
 
-        if (action == "ACTION_REWIND") {
-            val player = shura.media.service.PlayerManager.exoPlayer
-            player?.seekTo((player.currentPosition - 5000).coerceAtLeast(0))
-            return
-        }
-        if (action == "ACTION_FFWD") {
-            val player = shura.media.service.PlayerManager.exoPlayer
-            if (player != null) {
-                val rawDur = player.duration
-                val targetPos = if (rawDur != androidx.media3.common.C.TIME_UNSET && rawDur > 0L) {
-                    (player.currentPosition + 5000L).coerceAtMost(rawDur)
-                } else {
-                    (player.currentPosition + 5000L).coerceAtLeast(0L)
-                }
-                player.seekTo(targetPos)
-            }
-            return
-        }
         if (action == "ACTION_STOP" || action == "ACTION_CLOSE") {
             shura.media.service.PlaybackService.stopPlaybackAndRelease(context)
             updateWidgets(context)
@@ -388,7 +370,7 @@ class MediaWidgetProvider : AppWidgetProvider() {
 
         // Media controller commands
         val widgetAction = intent.getStringExtra("WIDGET_ACTION")
-        val isMediaCommand = action in listOf("ACTION_PLAY_PAUSE", "ACTION_PREV", "ACTION_NEXT", "ACTION_LOOP", "ACTION_SHUFFLE", "ACTION_MINIPLAYER", "ACTION_PIP") || 
+        val isMediaCommand = action in listOf("ACTION_PLAY_PAUSE", "ACTION_PREV", "ACTION_NEXT", "ACTION_REWIND", "ACTION_FFWD", "ACTION_LOOP", "ACTION_SHUFFLE", "ACTION_MINIPLAYER", "ACTION_PIP") || 
                              (action == "ACTION_PLAY_ITEM" && (widgetAction == "PLAY_FILE" || widgetAction == "PLAYLIST_ITEM" || widgetAction == null))
 
         if (isMediaCommand) {
@@ -405,6 +387,16 @@ class MediaWidgetProvider : AppWidgetProvider() {
                         controller.seekToPreviousMediaItem()
                     } else if (action == "ACTION_NEXT") {
                         controller.seekToNextMediaItem()
+                    } else if (action == "ACTION_REWIND") {
+                        controller.seekTo((controller.currentPosition - 5000L).coerceAtLeast(0L))
+                    } else if (action == "ACTION_FFWD") {
+                        val rawDur = controller.duration
+                        val targetPos = if (rawDur != androidx.media3.common.C.TIME_UNSET && rawDur > 0L) {
+                            (controller.currentPosition + 5000L).coerceAtMost(rawDur)
+                        } else {
+                            (controller.currentPosition + 5000L).coerceAtLeast(0L)
+                        }
+                        controller.seekTo(targetPos)
                     } else if (action == "ACTION_LOOP") {
                         val nextMode = when (controller.repeatMode) {
                             androidx.media3.common.Player.REPEAT_MODE_OFF -> androidx.media3.common.Player.REPEAT_MODE_ALL
@@ -424,7 +416,7 @@ class MediaWidgetProvider : AppWidgetProvider() {
                             ).apply {
                                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                             }
-                            context.startActivity(permIntent)
+                            shura.media.data.MediaUriResolver.safeStartActivity(context, permIntent)
                         }
                     } else if (action == "ACTION_PIP") {
                         if (android.provider.Settings.canDrawOverlays(context)) {
@@ -436,7 +428,7 @@ class MediaWidgetProvider : AppWidgetProvider() {
                             ).apply {
                                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                             }
-                            context.startActivity(permIntent)
+                            shura.media.data.MediaUriResolver.safeStartActivity(context, permIntent)
                         }
                     } else if (action == "ACTION_PLAY_ITEM") {
                         if (widgetAction == "PLAY_FILE") {
