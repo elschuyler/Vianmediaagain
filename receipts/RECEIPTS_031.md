@@ -412,3 +412,59 @@
 * How it was verified: Static verification only — Python delimiter tokenizer verified `curly=0, paren=0, bracket=0` across all 10 created/modified Kotlin files, symbol/reference checks verified imports and API-24/29+ guards, and workspace security scan found 0 exposed credentials/keystores; `compile_applet` and `lint_applet` executed for workspace toolchain verification. Local `./gradlew` / Android SDK is absent; Android Gradle build (`assembleDebug` / `assembleMinifiedDebug`) awaits GitHub Actions CI after export and on-device testing has not run.
 * Any deviation from what was requested: None (locked decisions 1–4 + Option A implemented cleanly).
 * Any known issue or follow-up needed: Push/export to GitHub Actions CI to verify `:app:compileDebugKotlin`, `assembleDebug`, and `assembleMinifiedDebug`, then run the On-Device Verification Guide on Android hardware.
+
+## Phase 152: CI `:app:compileDebugKotlin` & `:app:compileMinifiedDebugKotlin` Fix
+* Timestamp: 2026-11-19T14:22:00Z
+* One-line summary: Fixed the two Kotlin compilation errors reported by GitHub Actions CI (`AppNavigation.kt` missing `fillMaxSize` import and `VideoEditorScreen.kt` out-of-scope `mimeType` reference).
+* Files touched:
+  - app/src/main/java/shura/media/ui/navigation/AppNavigation.kt
+  - app/src/main/java/shura/media/ui/screens/VideoEditorScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_031.md
+* What was actually done:
+  - Added `import androidx.compose.foundation.layout.fillMaxSize` in `AppNavigation.kt` so `androidx.compose.ui.Modifier.fillMaxSize()` resolves at line 115.
+  - Updated `VideoEditorScreen.kt:957` inside `if (isConverting)` to check `resolvedMimeType == "image/webp" || resolvedMimeType == "image/gif" || extRawInitial == "webp" || extRawInitial == "gif"` instead of referencing the `mimeType` local variable scoped inside `LaunchedEffect(uriString)`.
+* How it was verified: Static verification only — Python delimiter tokenizer verified `curly=0, paren=0, bracket=0` across all 69 `.kt` files in `app/src/main/java`, repo-wide Compose extension & coroutine import scan found 0 missing imports, `grep` confirmed zero out-of-scope `mimeType` references in `VideoEditorScreen.kt`, workspace security scan found 0 exposed credentials/keystores, and `compile_applet` + `lint_applet` executed for workspace toolchain verification. Local `./gradlew` / Android SDK is absent; actual `:app:compileDebugKotlin`, `assembleDebug`, and `assembleMinifiedDebug` verification runs on GitHub Actions CI after export and on-device testing has not run.
+* Any deviation from what was requested: None (only added `extRawInitial` fallback alongside `resolvedMimeType` so `file://` animated WebP/GIF pre-conversion text renders accurately from frame 1).
+* Any known issue or follow-up needed: Export/push to GitHub Actions CI to confirm green `assembleDebug` + `assembleMinifiedDebug` builds, then run on-device QA.
+
+## Phase 153: Auto-Open Active Background Video (Option A), Background-Play Leak Fix & Floating->Main Flash Fix
+* Timestamp: 2026-11-20T04:03:00Z
+* One-line summary: Fixed the Floating->Main Mini Player flash in `PlaybackService`, stopped overlay entries from forcing `backgroundPlayEnabled = true`, and implemented Option A auto-opening `PlayerActivity` when opening the app during active non-overlay background video playback.
+* Files touched:
+  - app/src/main/java/shura/media/service/PlayerManager.kt
+  - app/src/main/java/shura/media/service/PlaybackService.kt
+  - app/src/main/java/shura/media/ui/components/MiniPlayerOverlay.kt
+  - app/src/main/java/shura/media/ui/screens/PlayerScreen.kt
+  - app/src/main/java/shura/media/MainActivity.kt
+  - app/src/main/java/shura/media/ui/screens/MainScreen.kt
+  - app/src/main/java/shura/media/ui/screens/SettingsScreen.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_031.md
+* What was actually done:
+  - `PlaybackService.kt` (`hideOverlay`) & `MiniPlayerOverlay.kt`: Reordered `hideOverlay()` so `ComposeView` is set `View.GONE`, lifecycle-stopped, disposed (`disposeComposition()`), removed from `WindowManager`, and nulled *before* setting `isOverlayVideoMode = false` (eliminating the transient Mini Player frame flash on Floating->Main), and added immediate `PlaybackService.hideOverlay(context)` on Mini Player expand click.
+  - `PlayerManager.kt`, `PlaybackService.kt`, `PlayerScreen.kt`, `MainActivity.kt`: Added `PlayerManager.isOverlayActive` kept in sync across overlay start/show/hide/teardown, removed forced `setBackgroundPlayEnabled(true)` from `PlayerScreen` (`onMiniPlayerClick`, `onFloatingPlayerClick`) and updated `MainActivity` `MiniMediaActivity`/`PipMediaActivity` launches to initialize via `initSessionBackgroundPlayForNewMedia(...)`, and updated `PlayerScreen` `BackHandler`/TopBar Back/`ON_PAUSE`/`ON_STOP` to preserve overlay playback using `isOverlayActive` without mutating `backgroundPlayEnabled`.
+  - `PlayerManager.kt`, `MainActivity.kt`, `PlayerScreen.kt`, `MainScreen.kt`, `SettingsScreen.kt`: Added `isActivelyPlayingBackgroundVideo(context)` (active `isPlaying || playWhenReady`, video tracks / non-audio URI, and `!isOverlayActive && !isFloatingVideoActive && !isPlayerScreenVisible`), wired `MainActivity` (`onCreate`, `onNewIntent`, `onStart`, `onResume`, `onStop`, `onDestroy`) to open `PlayerActivity` on standard launcher/Recents app open, set `suppressLibraryAutoOpenToPlayer = true` on non-overlay Player Back exits until `MainActivity` leaves to background (`onStop`), and guarded MediaStore delete/rename sheets and SAF folder/backup pickers with `suppressNextAppReturnAutoOpen`.
+* How it was verified: Static verification only — Python tokenizer check across all `.kt` files (`curly=0, paren=0, bracket=0`), symbol/reference audit of all newly added/updated methods and flags across modified Kotlin files, workspace security scan (0 exposed credentials/keystores), and workspace `compile_applet` + `lint_applet`. Local `./gradlew` / Android SDK is absent; Android Gradle compilation runs on GitHub Actions CI after export and on-device testing has not run.
+* Any deviation from what was requested: None (Option A, active playback only, and overlay/background-play decoupling implemented as agreed).
+* Any known issue or follow-up needed: Export/push to GitHub Actions CI for `assembleDebug`/`assembleMinifiedDebug`, then execute the On-Device Verification Guide across Floating->Main, Mini->Main, Back-to-Library, and Home/Recents/Launcher re-entry flows.
+
+## Phase 154: Audit Hardening for Auto-Open Suppression, Screen Lock, Widget Search & Overlay Recovery
+* Timestamp: 2026-11-20T17:30:00Z
+* One-line summary: Applied the 4 audit hardening fixes covering Batch/Share/Permissions suppression guards, PowerManager screen-lock check in `MainActivity.onStop()`, `ACTION_SEARCH` intent consumption in `AppNavigation`, and `isOverlayActive = false` error recovery in `PlaybackService`.
+* Files touched:
+  - app/src/main/java/shura/media/ui/screens/MainScreen.kt
+  - app/src/main/java/shura/media/ui/screens/PermissionsManagerScreen.kt
+  - app/src/main/java/shura/media/MainActivity.kt
+  - app/src/main/java/shura/media/ui/navigation/AppNavigation.kt
+  - app/src/main/java/shura/media/service/PlaybackService.kt
+  - BLUEPRINT.md
+  - receipts/RECEIPTS_031.md
+* What was actually done:
+  - `MainScreen.kt` (`L427–430`, `L468–471`) & `PermissionsManagerScreen.kt` (`L80–90`, `L112–118`, `L139–142`, `L268–271`): Wrapped Batch Compress (`BatchActionActivity`), Share (`Intent.createChooser`), `storageLauncher`, `notificationLauncher`, Draw Over Other Apps (`ACTION_MANAGE_OVERLAY_PERMISSION`), and `openAppSettings` with `PlayerManager.suppressNextAppReturnAutoOpen = true` and `false` rollback on failed launch or exception.
+  - `MainActivity.kt` (`L113–125`): Checked `PowerManager.isInteractive != false` inside `onStop()` before resetting `PlayerManager.suppressLibraryAutoOpenToPlayer = false` so screen lock/unlock does not clear Back-to-Library suppression.
+  - `AppNavigation.kt` (`L163–165`): Added `else if (forceAction == "ACTION_SEARCH") { onIntentConsumed() }` inside `LaunchedEffect(forceAction, initialUris)` so widget-search launches clear `forceAction` and set `allowAutoOpenOnRestart = true`.
+  - `PlaybackService.kt` (`L1766–1768`, `L1786–1788`): Added `PlayerManager.isOverlayActive = false` in `openOverlay` `startForegroundService` `catch` and in `hideOverlay(context)` `instance == null` branch.
+* How it was verified: Static verification only — Python delimiter tokenizer scanned all `.kt` files (`curly=0, paren=0, bracket=0`), `grep` confirmed all symbols (`suppressNextAppReturnAutoOpen`, `suppressLibraryAutoOpenToPlayer`, `isOverlayActive`, `ACTION_SEARCH`, `POWER_SERVICE`) and single remaining `setBackgroundPlayEnabled` user-toggle call, silent security scan found 0 exposed credentials/keystores, and `compile_applet` + `lint_applet` executed for workspace checks. Local `./gradlew` / Android SDK is absent; Android APK build runs on GitHub Actions CI after export and on-device testing has not run.
+* Any deviation from what was requested: None.
+* Any known issue or follow-up needed: Export/push to GitHub Actions CI to verify `:app:compileDebugKotlin` / `assembleDebug` / `assembleMinifiedDebug`, then run the On-Device Verification Guide.

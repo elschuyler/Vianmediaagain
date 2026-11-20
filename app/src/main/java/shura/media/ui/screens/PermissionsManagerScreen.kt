@@ -77,10 +77,15 @@ fun PermissionsManagerScreen(onNavigateBack: () -> Unit) {
                     isGranted = storageGranted,
                     onToggle = {
                         if (!storageGranted) {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                storageLauncher.launch(arrayOf(Manifest.permission.READ_MEDIA_AUDIO, Manifest.permission.READ_MEDIA_VIDEO))
-                            } else {
-                                storageLauncher.launch(arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE))
+                            try {
+                                shura.media.service.PlayerManager.suppressNextAppReturnAutoOpen = true
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                    storageLauncher.launch(arrayOf(Manifest.permission.READ_MEDIA_AUDIO, Manifest.permission.READ_MEDIA_VIDEO))
+                                } else {
+                                    storageLauncher.launch(arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE))
+                                }
+                            } catch (_: Exception) {
+                                shura.media.service.PlayerManager.suppressNextAppReturnAutoOpen = false
                             }
                         } else {
                             openAppSettings(context)
@@ -104,7 +109,12 @@ fun PermissionsManagerScreen(onNavigateBack: () -> Unit) {
                         isGranted = notificationGranted,
                         onToggle = {
                             if (!notificationGranted) {
-                                notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                try {
+                                    shura.media.service.PlayerManager.suppressNextAppReturnAutoOpen = true
+                                    notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                } catch (_: Exception) {
+                                    shura.media.service.PlayerManager.suppressNextAppReturnAutoOpen = false
+                                }
                             } else {
                                 openAppSettings(context)
                             }
@@ -126,7 +136,10 @@ fun PermissionsManagerScreen(onNavigateBack: () -> Unit) {
                     isGranted = overlayGranted,
                     onToggle = {
                         val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}"))
-                        shura.media.data.MediaUriResolver.safeStartActivity(context, intent)
+                        shura.media.service.PlayerManager.suppressNextAppReturnAutoOpen = true
+                        if (!shura.media.data.MediaUriResolver.safeStartActivity(context, intent)) {
+                            shura.media.service.PlayerManager.suppressNextAppReturnAutoOpen = false
+                        }
                     },
                     description = "Allows the app to display content over other applications.",
                     features = listOf(
@@ -252,5 +265,8 @@ private fun openAppSettings(context: android.content.Context) {
     val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
         data = Uri.fromParts("package", context.packageName, null)
     }
-    shura.media.data.MediaUriResolver.safeStartActivity(context, intent)
+    shura.media.service.PlayerManager.suppressNextAppReturnAutoOpen = true
+    if (!shura.media.data.MediaUriResolver.safeStartActivity(context, intent)) {
+        shura.media.service.PlayerManager.suppressNextAppReturnAutoOpen = false
+    }
 }

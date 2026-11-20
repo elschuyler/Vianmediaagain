@@ -984,6 +984,7 @@ return mediaSession
 private fun showOverlay(startInVideoMode: Boolean = false) {
 if (isServiceDestroying) return
 isServiceStopping = false
+shura.media.service.PlayerManager.isOverlayActive = true
 shura.media.service.PlayerManager.flushProgressToStorage()
 isOverlayVideoMode = startInVideoMode
 val activePlayer = PlayerManager.exoPlayer
@@ -1453,19 +1454,23 @@ lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
 }
 
 fun hideOverlay() {
-isOverlayVideoMode = false
+shura.media.service.PlayerManager.isOverlayActive = false
 shura.media.service.PlayerManager.isFloatingVideoActive = false
 shura.media.service.PlayerManager.setOverlayProgressTickerActive(false)
-composeView?.let {
+val viewToRemove = composeView
+composeView = null
+viewToRemove?.let { cv ->
 try {
+cv.visibility = android.view.View.GONE
 lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
 lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
-windowManager.removeView(it)
+cv.disposeComposition()
+windowManager.removeView(cv)
 } catch (e: Exception) {
 shura.media.LogKeeper.log("PlaybackService: WindowManager removeView handled: ${e.message}", "PlaybackService")
 }
 }
-composeView = null
+isOverlayVideoMode = false
 }
 
     private fun updateCustomLayout() {
@@ -1496,6 +1501,7 @@ composeView = null
                 ensureForegroundNotificationSlotForOverlayStart(abortAfterSatisfyingContract = false)
                 showOverlay(true)
             } else {
+                shura.media.service.PlayerManager.isOverlayActive = false
                 ensureForegroundNotificationSlotForOverlayStart(abortAfterSatisfyingContract = true)
                 isServiceStopping = true
                 stopSelfResult(startId)
@@ -1506,6 +1512,7 @@ composeView = null
                 ensureForegroundNotificationSlotForOverlayStart(abortAfterSatisfyingContract = false)
                 showOverlay(false)
             } else {
+                shura.media.service.PlayerManager.isOverlayActive = false
                 ensureForegroundNotificationSlotForOverlayStart(abortAfterSatisfyingContract = true)
                 isServiceStopping = true
                 stopSelfResult(startId)
@@ -1731,6 +1738,9 @@ composeView = null
         fun openOverlay(context: android.content.Context, videoMode: Boolean) {
             val runBlock = {
                 val cmd = if (videoMode) "ACTION_VIDEO_OVERLAY" else "ACTION_MINIPLAYER"
+                if (android.provider.Settings.canDrawOverlays(context)) {
+                    PlayerManager.isOverlayActive = true
+                }
                 val inst = instance
                 if (inst != null && !inst.isServiceDestroying) {
                     if (inst.isServiceStopping) {
@@ -1753,7 +1763,9 @@ composeView = null
                             addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                         }
                         androidx.core.content.ContextCompat.startForegroundService(context.applicationContext, serviceIntent)
-                    } catch (_: Exception) {}
+                    } catch (_: Exception) {
+                        PlayerManager.isOverlayActive = false
+                    }
                 }
             }
             if (Looper.myLooper() == Looper.getMainLooper()) {
@@ -1771,6 +1783,8 @@ composeView = null
                 } else {
                     Handler(Looper.getMainLooper()).post { inst.hideOverlay() }
                 }
+            } else {
+                PlayerManager.isOverlayActive = false
             }
         }
 
@@ -1791,6 +1805,7 @@ composeView = null
                         nm?.cancel(1002)
                     } catch (_: Exception) {}
                     PlayerManager.isFloatingVideoActive = false
+                    PlayerManager.isOverlayActive = false
                     PlayerManager.floatingSession.reset()
                     PlayerManager.releaseOwnedPlayer()
                     shura.media.widget.MediaWidgetProvider.resetAllWidgetsToIdle(context)

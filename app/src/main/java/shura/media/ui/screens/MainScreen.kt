@@ -424,7 +424,10 @@ fun MainScreen(
                                 }
                                 addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                             }
-                            shura.media.data.MediaUriResolver.safeStartActivity(context, intent)
+                            shura.media.service.PlayerManager.suppressNextAppReturnAutoOpen = true
+                            if (!shura.media.data.MediaUriResolver.safeStartActivity(context, intent)) {
+                                shura.media.service.PlayerManager.suppressNextAppReturnAutoOpen = false
+                            }
                         }) {
                             Icon(AppIcons.Layers, contentDescription = "Batch Compress")
                         }
@@ -462,7 +465,10 @@ fun MainScreen(
                             type = "*/*"
                             putParcelableArrayListExtra(android.content.Intent.EXTRA_STREAM, ArrayList(selectedMediaItems.map { it.uri }))
                         }
-                        shura.media.data.MediaUriResolver.safeStartActivity(context, android.content.Intent.createChooser(shareIntent, "Share Media"))
+                        shura.media.service.PlayerManager.suppressNextAppReturnAutoOpen = true
+                        if (!shura.media.data.MediaUriResolver.safeStartActivity(context, android.content.Intent.createChooser(shareIntent, "Share Media"))) {
+                            shura.media.service.PlayerManager.suppressNextAppReturnAutoOpen = false
+                        }
                     }) {
                         Icon(AppIcons.Share, contentDescription = "Share")
                     }
@@ -1201,8 +1207,10 @@ fun MainScreen(
                         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R && mediaStoreUris.isNotEmpty()) {
                             try {
                                 val pendingIntent = android.provider.MediaStore.createDeleteRequest(context.contentResolver, mediaStoreUris)
+                                shura.media.service.PlayerManager.suppressNextAppReturnAutoOpen = true
                                 deleteLauncher.launch(androidx.activity.result.IntentSenderRequest.Builder(pendingIntent.intentSender).build())
                             } catch (e: Exception) {
+                                shura.media.service.PlayerManager.suppressNextAppReturnAutoOpen = false
                                 shura.media.LogKeeper.logError("MainScreen", "Error launching delete request", e)
                             }
                         } else if (mediaStoreUris.isNotEmpty()) {
@@ -1218,6 +1226,7 @@ fun MainScreen(
                                         if (android.os.Build.VERSION.SDK_INT == android.os.Build.VERSION_CODES.Q) {
                                             val recoverable = se as? android.app.RecoverableSecurityException
                                             recoverable?.userAction?.actionIntent?.intentSender?.let { sender ->
+                                                shura.media.service.PlayerManager.suppressNextAppReturnAutoOpen = true
                                                 deleteLauncher.launch(androidx.activity.result.IntentSenderRequest.Builder(sender).build())
                                             }
                                         }
@@ -1289,11 +1298,13 @@ fun MainScreen(
                                         pendingRenameName = newNameWithExt
                                         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
                                             val pendingIntent = android.provider.MediaStore.createWriteRequest(context.contentResolver, listOf(uri))
+                                            shura.media.service.PlayerManager.suppressNextAppReturnAutoOpen = true
                                             renameLauncher.launch(androidx.activity.result.IntentSenderRequest.Builder(pendingIntent.intentSender).build())
                                             return@withContext
                                         } else if (android.os.Build.VERSION.SDK_INT == android.os.Build.VERSION_CODES.Q) {
                                             val recoverable = se as? android.app.RecoverableSecurityException
                                             recoverable?.userAction?.actionIntent?.intentSender?.let { sender ->
+                                                shura.media.service.PlayerManager.suppressNextAppReturnAutoOpen = true
                                                 renameLauncher.launch(androidx.activity.result.IntentSenderRequest.Builder(sender).build())
                                                 return@withContext
                                             }

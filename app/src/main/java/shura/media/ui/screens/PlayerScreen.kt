@@ -434,10 +434,14 @@ fun PlayerScreen(
                 settings.savePlaybackState(activeMediaUriString, pos, dur, currentMediaTitle)
             }
         }
-        if (!backgroundPlayEnabledRef.value && !forceBackgroundPlay.get()) {
+        val keepPlayback = backgroundPlayEnabledRef.value || forceBackgroundPlay.get() || shura.media.service.PlayerManager.isOverlayActive
+        if (!keepPlayback) {
             try { playerViewRef.value?.player = null } catch (e: Exception) {}
             shura.media.service.PlaybackService.stopPlaybackAndRelease(context)
         } else {
+            if (!shura.media.service.PlayerManager.isOverlayActive) {
+                shura.media.service.PlayerManager.suppressLibraryAutoOpenToPlayer = true
+            }
             try { playerViewRef.value?.player = null } catch (e: Exception) {}
             if (!shura.media.service.PlayerManager.isFloatingVideoActive) {
                 shura.media.service.PlayerManager.detachVideoSurface()
@@ -1229,7 +1233,7 @@ fun PlayerScreen(
                     
                     // We don't call stop() here anymore. The PlaybackService will handle
                     // inactivity timeouts (5 mins) to release resources gracefully.
-                    if (!backgroundPlayEnabledRef.value && !forceBackgroundPlay.get()) {
+                    if (!backgroundPlayEnabledRef.value && !forceBackgroundPlay.get() && !shura.media.service.PlayerManager.isOverlayActive) {
                         controller.pause()
                     }
                 }
@@ -1294,7 +1298,7 @@ fun PlayerScreen(
                 }
             } else if (event == androidx.lifecycle.Lifecycle.Event.ON_STOP) {
                 shura.media.service.PlayerManager.isPlayerScreenVisible = false
-                if (backgroundPlayEnabledRef.value || forceBackgroundPlay.get()) {
+                if (backgroundPlayEnabledRef.value || forceBackgroundPlay.get() || shura.media.service.PlayerManager.isOverlayActive) {
                     if (!shura.media.service.PlayerManager.isFloatingVideoActive) {
                         shura.media.LogKeeper.log("PlayerScreen ON_STOP: Detaching video surface and halting video codec for background audio playback", "PlayerScreen")
                         try { playerViewRef.value?.player = null } catch (e: Exception) {}
@@ -1719,10 +1723,14 @@ fun PlayerScreen(
                                         settings.savePlaybackState(activeMediaUriString, pos, dur, currentMediaTitle)
                                     }
                                 }
-                                if (!backgroundPlayEnabledRef.value && !forceBackgroundPlay.get()) {
+                                val keepPlayback = backgroundPlayEnabledRef.value || forceBackgroundPlay.get() || shura.media.service.PlayerManager.isOverlayActive
+                                if (!keepPlayback) {
                                     try { playerViewRef.value?.player = null } catch (_: Exception) {}
                                     shura.media.service.PlaybackService.stopPlaybackAndRelease(context)
                                 } else {
+                                    if (!shura.media.service.PlayerManager.isOverlayActive) {
+                                        shura.media.service.PlayerManager.suppressLibraryAutoOpenToPlayer = true
+                                    }
                                     try { playerViewRef.value?.player = null } catch (_: Exception) {}
                                     if (!isAudioOnly && !shura.media.service.PlayerManager.isFloatingVideoActive) {
                                         shura.media.service.PlayerManager.detachVideoSurface()
@@ -2016,7 +2024,6 @@ fun PlayerScreen(
                             shura.media.service.PlayerManager.isPlayerScreenVisible = false
                             shura.media.service.PlayerManager.isFloatingVideoActive = false
                             forceBackgroundPlay.set(true)
-                            shura.media.service.PlayerManager.setBackgroundPlayEnabled(true)
                             shura.media.service.PlaybackService.openOverlay(context, videoMode = false)
                             onNavigateBack()
                         } else {
@@ -2031,7 +2038,6 @@ fun PlayerScreen(
                             shura.media.service.PlayerManager.isPlayerScreenVisible = false
                             shura.media.service.PlayerManager.isFloatingVideoActive = !isAudioOnly
                             forceBackgroundPlay.set(true)
-                            shura.media.service.PlayerManager.setBackgroundPlayEnabled(true)
                             shura.media.service.PlaybackService.openOverlay(context, videoMode = true)
                             onNavigateBack()
                         } else {

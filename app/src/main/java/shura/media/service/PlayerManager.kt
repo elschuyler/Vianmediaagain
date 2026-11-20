@@ -94,7 +94,13 @@ object PlayerManager {
     @Volatile
     var isFloatingVideoActive: Boolean = false
     @Volatile
+    var isOverlayActive: Boolean = false
+    @Volatile
     var isPlayerScreenVisible: Boolean = false
+    @Volatile
+    var suppressLibraryAutoOpenToPlayer: Boolean = false
+    @Volatile
+    var suppressNextAppReturnAutoOpen: Boolean = false
     @Volatile
     private var overlayTickerActive: Boolean = false
     @Volatile
@@ -162,6 +168,7 @@ object PlayerManager {
         _backgroundPlayEnabled.value = false
         userOverrodeBackgroundPlay = false
         appliedAutoBackgroundMediaId = null
+        suppressLibraryAutoOpenToPlayer = false
     }
 
     fun updateActiveTitleOverride(mediaId: String, cleanTitle: String) {
@@ -237,6 +244,23 @@ object PlayerManager {
         return tracks.groups.any { group ->
             group.type == C.TRACK_TYPE_VIDEO && group.length > 0 && group.isSupported
         }
+    }
+
+    fun isActivelyPlayingBackgroundVideo(context: Context): Boolean {
+        if (isOverlayActive || isFloatingVideoActive || isPlayerScreenVisible) return false
+        val player = exoPlayer ?: return false
+        if (player.mediaItemCount <= 0) return false
+        if (player.playbackState == Player.STATE_IDLE || player.playbackState == Player.STATE_ENDED) return false
+        if (!player.isPlaying && !player.playWhenReady) return false
+        val tracks = player.currentTracks
+        if (!tracks.isEmpty) {
+            return hasSupportedVideoTrack(tracks)
+        }
+        val currentUri = player.currentMediaItem?.localConfiguration?.uri
+            ?: player.currentMediaItem?.mediaId?.let { id ->
+                try { android.net.Uri.parse(id) } catch (_: Exception) { null }
+            }
+        return currentUri != null && !isAudioOnlyHint(context, currentUri)
     }
 
     private val blacklistedDecoders = java.util.Collections.synchronizedSet(mutableSetOf<String>())
@@ -903,7 +927,10 @@ object PlayerManager {
         isImplicitFolderQueue = false
         isQueuePopulationInProgress = false
         isFloatingVideoActive = false
+        isOverlayActive = false
         isPlayerScreenVisible = false
+        suppressLibraryAutoOpenToPlayer = false
+        suppressNextAppReturnAutoOpen = false
         overlayTickerActive = false
         lastObservedItemIndex = -1
         lastObservedMediaId = null

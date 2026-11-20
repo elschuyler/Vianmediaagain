@@ -32,6 +32,10 @@ class MainActivity : ComponentActivity() {
       try {
           requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
       } catch (e: Exception) {}
+      if (!isChangingConfigurations && isFinishing) {
+          shura.media.service.PlayerManager.suppressLibraryAutoOpenToPlayer = false
+          shura.media.service.PlayerManager.suppressNextAppReturnAutoOpen = false
+      }
   }
 
   override fun finish() {
@@ -42,6 +46,83 @@ class MainActivity : ComponentActivity() {
   }
 
   private val _currentIntent = kotlinx.coroutines.flow.MutableStateFlow<android.content.Intent?>(null)
+  private var skipNextStartAutoOpen: Boolean = false
+  private var allowAutoOpenOnRestart: Boolean = false
+
+  private fun isStandardAppOpenIntent(intent: android.content.Intent?): Boolean {
+      if (intent == null) return true
+      val className = intent.component?.className ?: ""
+      if (className.contains("MiniMediaActivity") ||
+          className.contains("PipMediaActivity") ||
+          className.contains("PlayMediaActivity") ||
+          className.contains("EditMediaActivity")
+      ) {
+          return false
+      }
+      val action = intent.action
+      return action == null || action == android.content.Intent.ACTION_MAIN
+  }
+
+  private fun tryOpenActiveBackgroundVideoPlayer(): Boolean {
+      if (!shura.media.data.SettingsManager.getInstance(this).hasSeenWelcome) return false
+      if (!shura.media.service.PlayerManager.isActivelyPlayingBackgroundVideo(this)) return false
+      val player = shura.media.service.PlayerManager.exoPlayer ?: return false
+      val currentItem = player.currentMediaItem ?: return false
+      val currentMedia = currentItem.mediaId.takeIf { it.isNotBlank() }
+          ?: currentItem.localConfiguration?.uri?.toString()
+          ?: return false
+      val playerIntent = android.content.Intent(this, shura.media.ui.PlayerActivity::class.java).apply {
+          action = "shura.media.ACTION_OPEN_PLAYER"
+          putExtra("uri", currentMedia)
+          val parsed = try { android.net.Uri.parse(currentMedia) } catch (_: Exception) { null }
+          if (parsed != null) {
+              data = parsed
+              clipData = android.content.ClipData.newRawUri("media", parsed)
+          }
+          addFlags(
+              android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                  android.content.Intent.FLAG_ACTIVITY_NEW_TASK or
+                  android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                  android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP
+          )
+      }
+      return shura.media.data.MediaUriResolver.safeStartActivity(this, playerIntent)
+  }
+
+  override fun onStart() {
+      super.onStart()
+      if (skipNextStartAutoOpen) {
+          skipNextStartAutoOpen = false
+          return
+      }
+      if (shura.media.service.PlayerManager.suppressNextAppReturnAutoOpen) {
+          return
+      }
+      if (!allowAutoOpenOnRestart) return
+      if (shura.media.service.PlayerManager.suppressLibraryAutoOpenToPlayer) return
+      if (tryOpenActiveBackgroundVideoPlayer()) {
+          skipNextStartAutoOpen = true
+      }
+  }
+
+  override fun onResume() {
+      super.onResume()
+      shura.media.service.PlayerManager.suppressNextAppReturnAutoOpen = false
+  }
+
+  override fun onStop() {
+      super.onStop()
+      skipNextStartAutoOpen = false
+      if (!isChangingConfigurations && !isFinishing) {
+          val isScreenOn = try {
+              val pm = getSystemService(android.content.Context.POWER_SERVICE) as? android.os.PowerManager
+              pm?.isInteractive != false
+          } catch (_: Exception) { true }
+          if (isScreenOn && !shura.media.service.PlayerManager.suppressNextAppReturnAutoOpen) {
+              shura.media.service.PlayerManager.suppressLibraryAutoOpenToPlayer = false
+          }
+      }
+  }
 
   private fun persistUriPermissions(intent: android.content.Intent?) {
       if (intent == null) return
@@ -140,13 +221,13 @@ class MainActivity : ComponentActivity() {
                   .build()
           }
 
+          val settings = shura.media.data.SettingsManager.getInstance(applicationContext)
           val existingPlayer = shura.media.service.PlayerManager.exoPlayer
           val hasActivePlayback = existingPlayer != null && existingPlayer.mediaItemCount > 0
           val startPos = if (hasActivePlayback) {
               android.widget.Toast.makeText(this, "Added ${mediaItems.size} item(s) to queue", android.widget.Toast.LENGTH_SHORT).show()
               0L
           } else {
-              val settings = shura.media.data.SettingsManager.getInstance(applicationContext)
               val firstUriStr = uris.first()
               val firstFastName = mediaItems.first().mediaMetadata.title?.toString() ?: "Media"
               val lastPos = settings.getPlaybackPosition(firstUriStr, firstFastName)
@@ -176,7 +257,18 @@ class MainActivity : ComponentActivity() {
           }
 
           if (android.provider.Settings.canDrawOverlays(this)) {
-              shura.media.service.PlayerManager.setBackgroundPlayEnabled(true)
+              if (!hasActivePlayback) {
+                  val firstItem = mediaItems.first()
+                  val firstIsAudio = shura.media.service.PlayerManager.isAudioOnlyHint(
+                      appCtx,
+                      firstItem.localConfiguration?.uri
+                  )
+                  shura.media.service.PlayerManager.initSessionBackgroundPlayForNewMedia(
+                      firstIsAudio,
+                      settings.defaultAudioBackgroundPlay,
+                      firstItem.mediaId
+                  )
+              }
               shura.media.service.PlayerManager.stagePlaybackRequest(
                   mediaItems = mediaItems,
                   startIndex = 0,
@@ -265,7 +357,12 @@ class MainActivity : ComponentActivity() {
               val lastPos = settings.getPlaybackPosition(targetUriStr, displayName)
               val startPos = if (lastPos > 0 && !settings.isFinished(targetUriStr, displayName)) lastPos else 0L
 
-              shura.media.service.PlayerManager.setBackgroundPlayEnabled(true)
+              val isAudio = shura.media.service.PlayerManager.isAudioOnlyHint(applicationContext, targetUri)
+              shura.media.service.PlayerManager.initSessionBackgroundPlayForNewMedia(
+                  isAudio,
+                  settings.defaultAudioBackgroundPlay,
+                  targetUriStr
+              )
               shura.media.service.PlayerManager.stagePlaybackRequest(
                   mediaItems = listOf(mediaItem),
                   startIndex = 0,
@@ -370,6 +467,17 @@ class MainActivity : ComponentActivity() {
           shura.media.data.MediaUriResolver.safeStartActivity(this, playerIntent)
           return
       }
+      if (isStandardAppOpenIntent(intent)) {
+          allowAutoOpenOnRestart = true
+          shura.media.service.PlayerManager.suppressLibraryAutoOpenToPlayer = false
+          shura.media.service.PlayerManager.suppressNextAppReturnAutoOpen = false
+          if (tryOpenActiveBackgroundVideoPlayer()) {
+              skipNextStartAutoOpen = true
+              return
+          }
+      } else {
+          allowAutoOpenOnRestart = false
+      }
       _currentIntent.value = intent
   }
 
@@ -414,6 +522,15 @@ class MainActivity : ComponentActivity() {
         }
     } catch (e: Exception) {
         LogKeeper.logError("MainActivity", "Error handling startup intent", e)
+    }
+
+    allowAutoOpenOnRestart = isStandardAppOpenIntent(intent)
+    if (savedInstanceState == null && allowAutoOpenOnRestart) {
+        shura.media.service.PlayerManager.suppressLibraryAutoOpenToPlayer = false
+        shura.media.service.PlayerManager.suppressNextAppReturnAutoOpen = false
+        if (tryOpenActiveBackgroundVideoPlayer()) {
+            skipNextStartAutoOpen = true
+        }
     }
 
     shura.media.data.CacheManager.purgeOrphanedTempFiles(this)
@@ -514,6 +631,7 @@ class MainActivity : ComponentActivity() {
                   forceAction = forceAction,
                   onIntentConsumed = {
                       _currentIntent.value = null
+                      allowAutoOpenOnRestart = true
                   }
               )
               

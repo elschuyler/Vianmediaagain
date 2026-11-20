@@ -293,7 +293,14 @@ private fun StorageSettingsPage(onNavigateBack: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f)
                 )
-                Button(onClick = { dirPickerLauncher.launch(null) }) {
+                Button(onClick = {
+                    try {
+                        shura.media.service.PlayerManager.suppressNextAppReturnAutoOpen = true
+                        dirPickerLauncher.launch(null)
+                    } catch (_: Exception) {
+                        shura.media.service.PlayerManager.suppressNextAppReturnAutoOpen = false
+                    }
+                }) {
                     Text("Select")
                 }
             }
@@ -739,13 +746,27 @@ private fun DataManagementPage(onNavigateBack: () -> Unit) {
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Button(
-                    onClick = { createBackupLauncher.launch("vianbr_backup.json") },
+                    onClick = {
+                        try {
+                            shura.media.service.PlayerManager.suppressNextAppReturnAutoOpen = true
+                            createBackupLauncher.launch("vianbr_backup.json")
+                        } catch (_: Exception) {
+                            shura.media.service.PlayerManager.suppressNextAppReturnAutoOpen = false
+                        }
+                    },
                     modifier = Modifier.weight(1f)
                 ) {
                     Text("Backup (Export)")
                 }
                 FilledTonalButton(
-                    onClick = { restoreBackupLauncher.launch(arrayOf("application/json", "application/octet-stream", "*/*")) },
+                    onClick = {
+                        try {
+                            shura.media.service.PlayerManager.suppressNextAppReturnAutoOpen = true
+                            restoreBackupLauncher.launch(arrayOf("application/json", "application/octet-stream", "*/*"))
+                        } catch (_: Exception) {
+                            shura.media.service.PlayerManager.suppressNextAppReturnAutoOpen = false
+                        }
+                    },
                     modifier = Modifier.weight(1f)
                 ) {
                     Text("Restore (Import)")

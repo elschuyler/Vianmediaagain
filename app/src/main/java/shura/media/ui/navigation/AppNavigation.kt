@@ -7,6 +7,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -159,6 +160,8 @@ fun AppNavigation(
                 shura.media.data.MediaUriResolver.safeStartActivity(context, intent)
                 onIntentConsumed()
             }
+        } else if (forceAction == "ACTION_SEARCH") {
+            onIntentConsumed()
         }
     }
     

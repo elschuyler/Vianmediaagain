@@ -247,6 +247,7 @@ fun MiniPlayerOverlay(
                             flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP
                         }
                         shura.media.data.MediaUriResolver.safeStartActivity(context, intent)
+                        shura.media.service.PlaybackService.hideOverlay(context)
                     }, modifier = Modifier.size(32.dp)) {
                         Icon(AppIcons.OpenInFull, contentDescription = "Main Player", tint = Color(0xFF37474F), modifier = Modifier.size(20.dp))
                     }

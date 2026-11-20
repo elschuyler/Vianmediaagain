@@ -954,7 +954,11 @@ fun VideoEditorScreen(
     }
 
     if (isConverting) {
-        val convertingMessage = if (mimeType == "image/webp" || mimeType == "image/gif") "Preparing animation for editing..." else "Optimizing stream for editing..."
+        val isAnimatedPreconvert = resolvedMimeType == "image/webp" ||
+            resolvedMimeType == "image/gif" ||
+            extRawInitial == "webp" ||
+            extRawInitial == "gif"
+        val convertingMessage = if (isAnimatedPreconvert) "Preparing animation for editing..." else "Optimizing stream for editing..."
         Box(modifier = Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 CircularProgressIndicator(color = Color.White)
